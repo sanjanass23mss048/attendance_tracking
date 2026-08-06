@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy | Attendance Tracker</title>
+    <style>
+      :root {
+        --ink: #1a1f2e;
+        --muted: #5b6475;
+        --line: #e6e9ef;
+        --bg: #f7f8fb;
+        --card: #ffffff;
+        --accent: #3f51b5;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, #e8ecff 0%, transparent 40%),
+          linear-gradient(180deg, #f4f6fb 0%, var(--bg) 100%);
+        line-height: 1.7;
+      }
+      .wrap {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 48px 20px 80px;
+      }
+      header {
+        margin-bottom: 36px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 700;
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: clamp(1.8rem, 4vw, 2.4rem);
+        line-height: 1.2;
+      }
+      .meta {
+        color: var(--muted);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 14px;
+      }
+      main {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 32px 28px;
+        box-shadow: 0 10px 30px rgba(26, 31, 46, 0.04);
+      }
+      h2 {
+        margin: 28px 0 10px;
+        font-size: 1.25rem;
+      }
+      h2:first-child {
+        margin-top: 0;
+      }
+      p,
+      li {
+        color: #2b3342;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 6px 0;
+      }
+      a {
+        color: var(--accent);
+      }
+      footer {
+        margin-top: 28px;
+        color: var(--muted);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="brand">Attendance Tracker</p>
+        <h1>Privacy Policy</h1>
+        <p class="meta">Last updated: 29 July 2026</p>
+      </header>
+
+      <main>
+        <h2>1. Introduction</h2>
+        <p>
+          Attendance Tracker (“we”, “our”, or “the App”) is a school attendance management
+          application used by authorized school staff to record student attendance, manage
+          leave documents, and request approval for edits to previous-day attendance records.
+          This Privacy Policy explains what information we collect, how we use it, and how we
+          protect it.
+        </p>
+
+        <h2>2. Who this policy applies to</h2>
+        <p>This policy applies to:</p>
+        <ul>
+          <li>Teachers and school staff who use the App</li>
+          <li>Attendance approvers (Attendance In-charge, HOD, Vice Principal, Principal, Admin)</li>
+          <li>School administrators who manage classes, students, and access</li>
+        </ul>
+
+        <h2>3. Information we collect</h2>
+        <p>Depending on your role and usage, we may process:</p>
+        <ul>
+          <li>
+            <strong>Account information:</strong> name, email, role, login credentials (stored
+            securely), and phone number used for WhatsApp approval notifications
+          </li>
+          <li>
+            <strong>Student information:</strong> student name, roll number, class/section, and
+            attendance status (Present, Absent, Late, Half Day, and related statuses)
+          </li>
+          <li>
+            <strong>Attendance records:</strong> date, class/section, marked status, and who
+            submitted or edited the record
+          </li>
+          <li>
+            <strong>Edit approval data:</strong> edit request reason, request status
+            (Pending/Approved/Denied), approver response, and related timestamps
+          </li>
+          <li>
+            <strong>Documents:</strong> leave letters or other school documents uploaded by
+            authorized users
+          </li>
+          <li>
+            <strong>Technical logs:</strong> basic server logs needed for security, debugging,
+            and service reliability
+          </li>
+        </ul>
+
+        <h2>4. How we use information</h2>
+        <p>We use information only to operate school attendance workflows, including to:</p>
+        <ul>
+          <li>Authenticate users and manage role-based access</li>
+          <li>Record, display, and report student attendance</li>
+          <li>Lock previous-day attendance and manage edit-permission requests</li>
+          <li>
+            Send WhatsApp approval messages to assigned approvers when a teacher requests
+            permission to edit past attendance
+          </li>
+          <li>Process Approve/Deny responses received through WhatsApp webhooks</li>
+          <li>Store leave documents and related school records for authorized school use</li>
+          <li>Maintain audit trails for attendance edits and approvals</li>
+        </ul>
+
+        <h2>5. WhatsApp messaging</h2>
+        <p>
+          The App uses Meta WhatsApp Cloud API only for operational school notifications related
+          to attendance edit approvals. When a teacher submits an edit request for a previous
+          attendance date, we may send a WhatsApp message to the assigned approver containing:
+        </p>
+        <ul>
+          <li>Teacher name</li>
+          <li>Class and section</li>
+          <li>Attendance date</li>
+          <li>Reason for the edit request</li>
+          <li>Approve / Deny action buttons</li>
+        </ul>
+        <p>
+          We do not use WhatsApp for marketing, advertising, spam, or unsolicited promotional
+          messages. Messages are sent only as part of an authenticated staff-initiated approval
+          workflow.
+        </p>
+
+        <h2>6. Legal basis / purpose of processing</h2>
+        <p>
+          We process information to provide the school attendance service requested by the
+          school, to support legitimate educational and administrative operations, and to keep
+          attendance records accurate and auditable.
+        </p>
+
+        <h2>7. Sharing of information</h2>
+        <p>We do not sell personal data. Information may be shared only with:</p>
+        <ul>
+          <li>Authorized school staff based on their role in the App</li>
+          <li>
+            Meta Platforms (WhatsApp Cloud API) solely to deliver approval messages and receive
+            button responses for the edit-approval workflow
+          </li>
+          <li>
+            Hosting / infrastructure providers required to run the App, under appropriate access
+            controls
+          </li>
+          <li>Authorities if required by applicable law</li>
+        </ul>
+
+        <h2>8. Data retention</h2>
+        <p>
+          Attendance records, edit requests, audit logs, and uploaded documents are retained as
+          needed for school operations and record-keeping. Schools may request correction or
+          deletion of data where appropriate and legally permitted.
+        </p>
+
+        <h2>9. Security</h2>
+        <p>
+          We use reasonable technical and organizational measures to protect data, including
+          authenticated access (JWT), role-based authorization, server-side credential storage,
+          and restricted access to WhatsApp API credentials. No method of transmission or storage
+          is completely secure, so absolute security cannot be guaranteed.
+        </p>
+
+        <h2>10. Children’s data</h2>
+        <p>
+          The App processes student attendance information for school administrative purposes.
+          Access is limited to authorized school personnel. The App is not intended for use by
+          children as end users.
+        </p>
+
+        <h2>11. Your rights and choices</h2>
+        <p>Depending on applicable law and school policy, you may request to:</p>
+        <ul>
+          <li>Access personal information held about you in the App</li>
+          <li>Correct inaccurate account or contact information</li>
+          <li>Update or remove a WhatsApp phone number used for approvals</li>
+          <li>Ask for deletion of certain records where permitted</li>
+        </ul>
+        <p>
+          Staff users should contact their school administrator first. School administrators may
+          contact us using the details below.
+        </p>
+
+        <h2>12. Third-party services</h2>
+        <p>
+          WhatsApp messaging is provided through Meta’s WhatsApp Business Platform. Use of
+          WhatsApp is also subject to Meta’s terms and policies.
+        </p>
+
+        <h2>13. Changes to this policy</h2>
+        <p>
+          We may update this Privacy Policy from time to time. The “Last updated” date at the top
+          of this page will be revised when changes are made. Continued use of the App after an
+          update means the revised policy applies.
+        </p>
+
+        <h2>14. Contact</h2>
+        <p>
+          For privacy-related questions about Attendance Tracker, contact the school
+          administrator responsible for the system, or the business that operates this app:
+        </p>
+        <ul>
+          <li>Business: Rio Bizsols PVT LTD</li>
+          <li>Product: Attendance Tracker</li>
+          <li>Support: contact your school’s Attendance In-charge / IT administrator</li>
+        </ul>
+      </main>
+
+      <footer>
+        © 2026 Attendance Tracker. This page is provided for Meta App Review and user transparency.
+      </footer>
+    </div>
+  </body>
+</html>

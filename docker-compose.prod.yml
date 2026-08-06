@@ -1,0 +1,37 @@
+# Production: one Node app (UI + API) → existing Attendence Postgres on the VPS.
+# Does NOT start Postgres. Put secrets in server/.env (never commit them).
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bright-future-attendance
+    restart: unless-stopped
+    ports:
+      - "4001:4000"
+    env_file:
+      - server/.env
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      # Override CLIENT_ORIGIN in server/.env if needed
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - attendance_uploads:/app/server/uploads
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  attendance_uploads:

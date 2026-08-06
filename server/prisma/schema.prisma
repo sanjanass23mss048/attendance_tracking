@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model tblAttendance {
+  Attendance_id        String               @id @db.VarChar(50)
+  Attendance_Date      DateTime             @db.Date
+  Attendance_Marked_By String?              @db.VarChar(50)
+  Subject_id           String?              @db.VarChar(50)
+  Changed_By           String?              @db.VarChar(50)
+  Changed_On           DateTime?            @db.Timestamptz(6)
+  tblSubjects          tblSubjects?         @relation(fields: [Subject_id], references: [Subject_id], onDelete: NoAction, onUpdate: NoAction)
+  tblStudentAtt_list   tblStudentAtt_list[]
+}
+
+model tblAttendanceStatus {
+  Status_id          String               @id @db.VarChar(50)
+  Text               String               @db.VarChar(255)
+  Created_By         String?              @db.VarChar(50)
+  Created_On         DateTime?            @default(now()) @db.Timestamptz(6)
+  Changed_By         String?              @db.VarChar(50)
+  Changed_On         DateTime?            @db.Timestamptz(6)
+  tblStudentAtt_list tblStudentAtt_list[]
+}
+
+model tblClass {
+  Class_id         String             @id @db.VarChar(50)
+  Class_Name       String             @db.VarChar(255)
+  Academic_Year    String?            @db.VarChar(50)
+  Created_By       String?            @db.VarChar(50)
+  Created_On       DateTime?          @default(now()) @db.Timestamptz(6)
+  Changed_By       String?            @db.VarChar(50)
+  Changed_On       DateTime?          @db.Timestamptz(6)
+  tblClass_Section tblClass_Section[]
+}
+
+model tblClass_Section {
+  Class_Section_id String             @id @db.VarChar(50)
+  Class_id         String             @db.VarChar(50)
+  Section_id       String             @db.VarChar(50)
+  int_status       Int?               @default(1)
+  tblClass         tblClass           @relation(fields: [Class_id], references: [Class_id], onDelete: NoAction, onUpdate: NoAction)
+  tblSection       tblSection         @relation(fields: [Section_id], references: [Section_id], onDelete: NoAction, onUpdate: NoAction)
+  tblStudent_Class tblStudent_Class[]
+  tblTeacher_Class tblTeacher_Class[]
+  tblClass_Section_Approver tblClass_Section_Approver?
+}
+
+model tblClass_Section_Approver {
+  Class_Section_id String   @id @db.VarChar(50)
+  Approver_User_id String   @db.VarChar(50)
+  WhatsApp_Phone   String?  @db.VarChar(20)
+  Int_Status       Int?     @default(1)
+  Created_On       DateTime? @default(now()) @db.Timestamptz(6)
+  tblClass_Section tblClass_Section @relation(fields: [Class_Section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+  tblUsers         tblUsers @relation(fields: [Approver_User_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([Approver_User_id])
+}
+
+model tblAttendance_Edit_Requests {
+  Request_id         String    @id @db.VarChar(50)
+  Teacher_id         String    @db.VarChar(50)
+  Class_id           String    @db.VarChar(50)
+  Section_id         String    @db.VarChar(50)
+  Class_Section_id   String    @db.VarChar(50)
+  Attendance_Date    DateTime  @db.Date
+  Reason             String
+  Approver_id        String    @db.VarChar(50)
+  Status             String    @default("PENDING") @db.VarChar(20)
+  Deny_Reason        String?
+  Requested_At       DateTime  @default(now()) @db.Timestamptz(6)
+  Responded_At       DateTime? @db.Timestamptz(6)
+  Edit_Expires_At    DateTime? @db.Timestamptz(6)
+  Used_At            DateTime? @db.Timestamptz(6)
+  WhatsApp_Message_id String?  @db.VarChar(100)
+  Int_Status         Int?      @default(1)
+  teacher            tblUsers  @relation("EditRequestTeacher", fields: [Teacher_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  approver           tblUsers  @relation("EditRequestApprover", fields: [Approver_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([Teacher_id])
+  @@index([Approver_id])
+  @@index([Status])
+  @@index([Teacher_id, Class_Section_id, Attendance_Date, Status])
+}
+
+model tblAttendance_Audit_Logs {
+  Log_id           String   @id @db.VarChar(50)
+  Attendance_id    String?  @db.VarChar(50)
+  Student_Class_id String   @db.VarChar(50)
+  Old_Status       String?  @db.VarChar(10)
+  New_Status       String   @db.VarChar(10)
+  Changed_By       String   @db.VarChar(50)
+  Approved_By      String?  @db.VarChar(50)
+  Request_id       String?  @db.VarChar(50)
+  Reason           String?
+  Changed_At       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([Student_Class_id])
+  @@index([Request_id])
+  @@index([Changed_At])
+}
+
+/// Log of parent notifications sent for daily attendance (Absent/Late/etc.).
+model tblParent_Attendance_Messages {
+  Message_id       String   @id @db.VarChar(50)
+  Attendance_id    String?  @db.VarChar(50)
+  Class_Section_id String   @db.VarChar(50)
+  Attendance_Date  DateTime @db.Date
+  Student_Class_id String   @db.VarChar(50)
+  Status           String   @db.VarChar(10)
+  Message_Body     String?
+  Initiated_At     DateTime @default(now()) @db.Timestamptz(6)
+  Submitted_At     DateTime @default(now()) @db.Timestamptz(6)
+  Sent_By          String?  @db.VarChar(50)
+  Int_Status       Int?     @default(1)
+
+  @@unique([Class_Section_id, Attendance_Date, Student_Class_id, Status], map: "tblParent_Attendance_Messages_dedupe_idx")
+  @@index([Class_Section_id, Attendance_Date], map: "tblParent_Attendance_Messages_section_date_idx")
+  @@index([Student_Class_id], map: "tblParent_Attendance_Messages_student_idx")
+}
+
+model tblHolidays {
+  Holiday_id  String   @id @db.VarChar(50)
+  Text        String   @db.VarChar(255)
+  Date        DateTime @db.Date
+  Description String?
+}
+
+model tblCalendarEvents {
+  Event_id       String   @id @db.VarChar(50)
+  Date           DateTime @db.Date
+  Text           String   @db.VarChar(255)
+  Type           String   @db.VarChar(50)
+  Subtitle       String?  @db.VarChar(255)
+  Applicable_to  String?  @db.VarChar(255)
+  Parent_message String?
+  Source         String?  @db.VarChar(50)
+  Created_On     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([Date, Text, Type], name: "calendar_event_dedupe")
+  @@index([Date])
+}
+
+model tblRoles {
+  Role_id  String     @id @db.VarChar(50)
+  Text     String     @db.VarChar(255)
+  tblUsers tblUsers[]
+}
+
+model tblSection {
+  Section_id       String             @id @db.VarChar(50)
+  Section_Name     String             @db.VarChar(255)
+  Int_Status       Int?               @default(1)
+  Created_By       String?            @db.VarChar(50)
+  Created_On       DateTime?          @default(now()) @db.Timestamptz(6)
+  Changed_By       String?            @db.VarChar(50)
+  Changed_On       DateTime?          @db.Timestamptz(6)
+  tblClass_Section tblClass_Section[]
+}
+
+model tblStudentAtt_list {
+  SAL_id              String              @id @db.VarChar(50)
+  Attendance_id       String              @db.VarChar(50)
+  student_class_id    String              @db.VarChar(50)
+  Status_id           String              @db.VarChar(50)
+  Session             String?             @db.VarChar(50)
+  Remarks             String?
+  tblAttendance       tblAttendance       @relation(fields: [Attendance_id], references: [Attendance_id], onDelete: NoAction, onUpdate: NoAction)
+  tblAttendanceStatus tblAttendanceStatus @relation(fields: [Status_id], references: [Status_id], onDelete: NoAction, onUpdate: NoAction)
+  tblStudent_Class    tblStudent_Class    @relation(fields: [student_class_id], references: [student_class_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model tblStudent_Class {
+  student_class_id   String               @id @db.VarChar(50)
+  Student_id         String               @db.VarChar(50)
+  class_section_id   String               @db.VarChar(50)
+  Roll_No            String?              @db.VarChar(50)
+  Academic_Year      String?              @db.VarChar(50)
+  Int_Status         Int?                 @default(1)
+  tblStudentAtt_list tblStudentAtt_list[]
+  tblStudents        tblStudents          @relation(fields: [Student_id], references: [Student_id], onDelete: NoAction, onUpdate: NoAction)
+  tblClass_Section   tblClass_Section     @relation(fields: [class_section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model tblStudents {
+  Student_id         String             @id @db.VarChar(50)
+  Admission_No       String?            @db.VarChar(100)
+  Roll_No            String?            @db.VarChar(50)
+  First_Name         String             @db.VarChar(255)
+  Last_Name          String?            @db.VarChar(255)
+  Gender             String?            @db.VarChar(20)
+  DOB                DateTime?          @db.Date
+  Father_Name        String?            @db.VarChar(255)
+  Mother_Name        String?            @db.VarChar(255)
+  Father_Number      String?            @db.VarChar(50)
+  Mother_Number      String?            @db.VarChar(50)
+  Guardian_Name      String?            @db.VarChar(255)
+  Guardian_Number    String?            @db.VarChar(50)
+  Alternative_Number String?            @db.VarChar(50)
+  Address_Line_1     String?            @db.VarChar(255)
+  Address_Line_2     String?            @db.VarChar(255)
+  City               String?            @db.VarChar(100)
+  State              String?            @db.VarChar(100)
+  Country            String?            @db.VarChar(100)
+  Pin_Code           String?            @db.VarChar(20)
+  Int_Status         Int?               @default(1)
+  Created_By         String?            @db.VarChar(50)
+  Created_On         DateTime?          @default(now()) @db.Timestamptz(6)
+  Changed_By         String?            @db.VarChar(50)
+  Changed_On         DateTime?          @db.Timestamptz(6)
+  tblStudent_Class   tblStudent_Class[]
+}
+
+model tblDocuments {
+  Document_id   String    @id @db.VarChar(50)
+  Entity_Type   String    @db.VarChar(50)
+  Entity_Id     String    @db.VarChar(50)
+  Document_Type String?   @db.VarChar(100)
+  File_Name     String    @db.VarChar(255)
+  Storage_Key   String    @db.VarChar(500)
+  Mime_Type     String?   @db.VarChar(100)
+  File_Size     Int?
+  Uploaded_By   String?   @db.VarChar(50)
+  Leave_From    DateTime? @db.Date
+  Leave_To      DateTime? @db.Date
+  Reason        String?   @db.VarChar(255)
+  Notes         String?   @db.Text
+  Status        String?   @default("pending") @db.VarChar(50)
+  Created_On    DateTime? @default(now()) @db.Timestamptz(6)
+  Int_Status    Int?      @default(1)
+
+  @@index([Entity_Type, Entity_Id])
+}
+
+model tblSubjects {
+  Subject_id    String          @id @db.VarChar(50)
+  Text          String          @db.VarChar(255)
+  tblAttendance tblAttendance[]
+}
+
+model tblTeacher_Class {
+  teacher_class_id String           @id @db.VarChar(50)
+  user_id          String           @db.VarChar(50)
+  class_section_id String           @db.VarChar(50)
+  Int_Status       Int?             @default(1)
+  tblClass_Section tblClass_Section @relation(fields: [class_section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+  tblUsers         tblUsers         @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model tblStaff_Profile {
+  user_id          String    @id @db.VarChar(50)
+  staff_type       String?   @db.VarChar(30)
+  job_role         String?   @db.VarChar(100)
+  department       String?   @db.VarChar(100)
+  subjects         String?   @db.VarChar(255)
+  classes_assigned String?   @db.VarChar(255)
+  dob              DateTime? @db.Date
+  gender           String?   @db.VarChar(20)
+  address          String?   @db.VarChar(500)
+  join_date        DateTime? @db.Date
+  tblUsers         tblUsers  @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model tblUsers {
+  user_id          String             @id @db.VarChar(50)
+  name             String             @db.VarChar(255)
+  email            String             @unique @db.VarChar(255)
+  password         String
+  role_id          String?            @db.VarChar(50)
+  int_status       Int?               @default(1)
+  phone            String?            @db.VarChar(50)
+  created_by       String?            @db.VarChar(50)
+  created_on       DateTime?          @default(now()) @db.Timestamptz(6)
+  changed_by       String?            @db.VarChar(50)
+  changed_on       DateTime?          @db.Timestamptz(6)
+  tblTeacher_Class tblTeacher_Class[]
+  tblStaff_Profile tblStaff_Profile?
+  tblClass_Section_Approver tblClass_Section_Approver[]
+  editRequestsAsTeacher  tblAttendance_Edit_Requests[] @relation("EditRequestTeacher")
+  editRequestsAsApprover tblAttendance_Edit_Requests[] @relation("EditRequestApprover")
+  tblRoles         tblRoles?          @relation(fields: [role_id], references: [Role_id], onDelete: NoAction, onUpdate: NoAction)
+}

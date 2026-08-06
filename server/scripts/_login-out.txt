@@ -1,0 +1,1 @@
+{"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJVU1ItSU5DSEFSR0UiLCJlbWFpbCI6ImluY2hhcmdlQGJyaWdodGZ1dHVyZS5lZHUuaW4iLCJyb2xlIjoiSU5DSEFSR0UiLCJuYW1lIjoiQS4gUHVuZSIsImlhdCI6MTc4NDE3ODA5OSwiZXhwIjoxNzg0NzgyODk5fQ.b3WzlaMwkESglysY_gaGui_qp30qp42BvotQCRu35KU","user":{"id":"USR-INCHARGE","email":"incharge@brightfuture.edu.in","name":"A. Pune","role":"INCHARGE"}}

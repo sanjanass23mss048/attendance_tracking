@@ -1,0 +1,11 @@
+node_modules
+server/node_modules
+dist
+.git
+*.md
+.env.local
+**/.env
+!server/.env.example
+_recovered_writes.json
+.cursor
+agent-transcripts
