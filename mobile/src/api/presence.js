@@ -45,3 +45,18 @@ export async function saveDailyAttendance({ sectionId, date, marks }) {
     },
   });
 }
+
+/**
+ * Record + send parent SMS for non-present students.
+ * @param {{
+ *   sectionId: string,
+ *   date: string,
+ *   messages: { studentId: string, status: string, message?: string }[],
+ * }} body
+ */
+export async function submitParentMessages(body) {
+  return apiFetch('/api/attendance/parent-messages', {
+    method: 'POST',
+    json: body,
+  });
+}

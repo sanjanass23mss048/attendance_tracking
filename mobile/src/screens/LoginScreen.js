@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,8 +11,9 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { APP_NAME } from '../config';
 import { colors } from '../theme';
+
+const logo = require('../../assets/splash-icon.png');
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -38,8 +40,10 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.hero}>
-        <Text style={styles.brand}>{APP_NAME}</Text>
-        <Text style={styles.tagline}>School attendance, on the go</Text>
+        <View style={styles.logoWrap}>
+          <Image source={logo} style={styles.logo} resizeMode="contain" />
+        </View>
+        <Text style={styles.tagline}>School attendance on your phone</Text>
       </View>
 
       <View style={styles.card}>
@@ -79,17 +83,31 @@ export default function LoginScreen() {
           )}
         </Pressable>
 
-        <Text style={styles.hint}>Uses your school Presence account (same as web).</Text>
+        <Text style={styles.hint}>Same school account as the Presence website.</Text>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.primaryDark, justifyContent: 'center', padding: 20 },
-  hero: { marginBottom: 24, paddingHorizontal: 4 },
-  brand: { color: '#fff', fontSize: 36, fontWeight: '800', letterSpacing: -0.5 },
-  tagline: { color: '#ddd6fe', marginTop: 6, fontSize: 15 },
+  root: {
+    flex: 1,
+    backgroundColor: colors.primaryDark,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  hero: { marginBottom: 20, alignItems: 'center' },
+  logo: {
+    width: 200,
+    height: 130,
+  },
+  logoWrap: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  tagline: { color: '#bfdbfe', marginTop: 14, fontSize: 15, fontWeight: '500' },
   card: {
     backgroundColor: colors.card,
     borderRadius: 20,

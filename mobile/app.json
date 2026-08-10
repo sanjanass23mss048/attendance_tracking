@@ -2,24 +2,24 @@
   "expo": {
     "name": "Presence",
     "slug": "sanjana",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4c1d95"
+      "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "edu.presence.attendance"
+      "bundleIdentifier": "edu.presence.mobile"
     },
     "android": {
-      "package": "edu.presence.attendance",
-      "versionCode": 1,
+      "package": "edu.presence.mobile",
+      "versionCode": 2,
       "adaptiveIcon": {
-        "backgroundColor": "#4c1d95",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

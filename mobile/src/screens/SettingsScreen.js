@@ -16,9 +16,12 @@ export default function SettingsScreen() {
 
       <View style={styles.card}>
         <Text style={styles.label}>App</Text>
-        <Text style={styles.value}>{APP_NAME} mobile (Android)</Text>
+        <Text style={styles.value}>{APP_NAME} · Native Android</Text>
         <Text style={styles.label}>API</Text>
         <Text style={styles.value}>{API_BASE}</Text>
+        <Text style={styles.note}>
+          This is the native Presence app (not the website browser shell).
+        </Text>
       </View>
 
       <Pressable style={styles.logout} onPress={logout}>
@@ -42,6 +45,7 @@ const styles = StyleSheet.create({
   meta: { marginTop: 4, color: colors.muted, fontSize: 13 },
   label: { marginTop: 10, fontSize: 11, fontWeight: '700', color: colors.muted, textTransform: 'uppercase' },
   value: { marginTop: 2, color: colors.text, fontSize: 13 },
+  note: { marginTop: 12, fontSize: 12, color: colors.muted, lineHeight: 18 },
   logout: {
     marginTop: 12,
     backgroundColor: '#fee2e2',

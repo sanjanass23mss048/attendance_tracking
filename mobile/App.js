@@ -21,8 +21,10 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         headerStyle: { backgroundColor: colors.primaryDark },
         headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { borderTopColor: colors.border },
         tabBarIcon: ({ color, size }) => {
           const name =
             route.name === 'Home'
