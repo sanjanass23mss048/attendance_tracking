@@ -70,6 +70,9 @@ const STREETS = [
   'Pearl Residency',
 ];
 
+/** Shared demo parent mobiles — cycle across all students / classes. */
+export const DEMO_PARENT_PHONES = ['8072180274', '8610593702', '9677898085'];
+
 const GENDERS = ['Male', 'Female', 'Male', 'Female', 'Other'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
 
@@ -177,8 +180,7 @@ export function studentDemoProfile(className, sectionName, rollNo, fullName) {
   const year = 2014 + (seed % 6);
   const month = String((seed % 12) + 1).padStart(2, '0');
   const day = String((seed % 27) + 1).padStart(2, '0');
-  const grade = Math.max(1, classSortRank(className) + 1);
-  const secDigit = String(sectionName || 'A').charCodeAt(0) - 64;
+  const parentPhone = DEMO_PARENT_PHONES[(Math.max(1, rollNo) - 1) % DEMO_PARENT_PHONES.length];
 
   return {
     admissionNo: `ADM${className}${sectionName}${String(rollNo).padStart(3, '0')}`,
@@ -189,7 +191,7 @@ export function studentDemoProfile(className, sectionName, rollNo, fullName) {
     nationality: 'Indian',
     motherName: last ? `Mrs. ${last}` : null,
     fatherName: last ? `Mr. ${last}` : null,
-    parentPhone: `98${grade}${secDigit}${String(rollNo).padStart(3, '0')}${String(seed % 100).padStart(2, '0')}`.slice(0, 10),
+    parentPhone,
     status: 'Active',
   };
 }

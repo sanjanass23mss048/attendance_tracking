@@ -12,6 +12,9 @@
     "prisma:seed": "node prisma/seed.js",
     "db:ensure-grades": "node scripts/ensureSchoolGrades.js",
     "db:seed-students": "node scripts/seedMissingStudents.js",
+    "db:seed-july-att": "node scripts/seedJuly2026Attendance.js",
+    "db:set-parent-phones": "node scripts/set-demo-parent-phones.js",
+    "db:seed-teachers": "node scripts/seed-extra-teachers.js",
     "db:setup": "prisma migrate dev && node prisma/seed.js"
   },
   "prisma": {

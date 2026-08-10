@@ -1,5 +1,6 @@
 import {
   createSampleGrid,
+  mockDailyStatusForStudent,
   schoolStats,
   DAYWISE_PERIOD_COUNT,
   PERIOD_COUNT,
@@ -139,13 +140,12 @@ export async function getDailyAttendance(query) {
     const key = dailyKey(sectionId, date);
     let marks = mockDailyStore.get(key);
     if (!marks) {
-      const grid = createSampleGrid(STUDENTS_PER_SECTION);
       const roster = mockStudentsForSection(sectionId);
       marks = roster.map((s, i) => ({
         studentId: String(s.id),
         rollNo: s.roll,
         name: s.name,
-        status: grid[i]?.[TODAY_IDX] ?? 'P',
+        status: mockDailyStatusForStudent(i, date),
       }));
       mockDailyStore.set(key, marks);
     }

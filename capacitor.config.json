@@ -1,0 +1,13 @@
+{
+  "appId": "edu.presence.attendance",
+  "appName": "Presence",
+  "webDir": "dist",
+  "server": {
+    "url": "https://attendance.rioassetmanagement.net",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

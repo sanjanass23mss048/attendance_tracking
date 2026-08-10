@@ -181,33 +181,12 @@ export function markAbsentByRolls(grid, students, rollInput) {
 }
 
 export function generateParentMessage(student, classLabel, status, date = '08 May 2026') {
-  const normalized = normalizeStatus(status);
-
-  if (normalized === 'OH') {
-    return `Dear Parent,
-
-This is to inform you that your child ${student.name} (${classLabel}), Roll No. ${student.roll} was marked OD - Half Day on ${date}. They were engaged in school-approved duty for part of the day and are not marked Absent.
-
-Thank you.
-— Bright Future Public School`;
-  }
-
-  if (normalized === 'OF') {
-    return `Dear Parent,
-
-This is to inform you that your child ${student.name} (${classLabel}), Roll No. ${student.roll} was marked OD - Full Day on ${date}. They were engaged in school-approved duty and are not marked Absent.
-
-Thank you.
-— Bright Future Public School`;
-  }
-
-  const statusLabel = getStatusDisplay(normalized).label;
-  return `Dear Parent,
-
-This is to inform you that your child ${student.name} (${classLabel}), Roll No. ${student.roll} was marked ${statusLabel} on ${date}.
-
-Thank you.
-— Bright Future Public School`;
+  const roll = student.roll ?? student.rollNo ?? '-';
+  return `Name : ${student.name}
+Roll Number : ${roll}
+Your ward is absent on ${date}
+Regards,
+RIOBizSols`;
 }
 
 export function getAllStudentNotifications(students, grid, classLabel, date = '08 May 2026') {

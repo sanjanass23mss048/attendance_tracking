@@ -370,12 +370,20 @@ async function main() {
     { id: 'TC-1A-NEHA', userId: 'USR-TCH-001', sectionId: 'CS-1-A' },
     { id: 'TC-2A-RAK', userId: 'USR-TCH-002', sectionId: 'CS-2-A' },
     { id: 'TC-3A-RAK', userId: 'USR-TCH-002', sectionId: 'CS-3-A' },
+    { id: 'TC-LKG-A-PRIYA', userId: 'USR-TCH-003', sectionId: 'CS-LKG-A' },
+    { id: 'TC-UKG-A-ANIL', userId: 'USR-TCH-004', sectionId: 'CS-UKG-A' },
+    { id: 'TC-4A-KAV', userId: 'USR-TCH-005', sectionId: 'CS-4-A' },
+    { id: 'TC-5A-KAV', userId: 'USR-TCH-005', sectionId: 'CS-5-A' },
+    { id: 'TC-6A-SUR', userId: 'USR-TCH-006', sectionId: 'CS-6-A' },
+    { id: 'TC-7A-MEE', userId: 'USR-TCH-007', sectionId: 'CS-7-A' },
+    { id: 'TC-8A-MEE', userId: 'USR-TCH-007', sectionId: 'CS-8-A' },
   ];
   for (const link of teacherLinks) {
     const section = await prisma.tblClass_Section.findUnique({
       where: { Class_Section_id: link.sectionId },
     });
-    if (!section) continue;
+    const user = await prisma.tblUsers.findUnique({ where: { user_id: link.userId } });
+    if (!section || !user) continue;
     await prisma.tblTeacher_Class.upsert({
       where: { teacher_class_id: link.id },
       create: {
@@ -391,7 +399,7 @@ async function main() {
       },
     });
   }
-  console.log('Teacher class links ensured (Neha → 1-A; Rakesh → 2-A, 3-A)');
+  console.log('Teacher class links ensured');
 
   const counts = {
     statuses: await prisma.tblAttendanceStatus.count(),
@@ -405,8 +413,15 @@ async function main() {
   };
   console.log('Done.', counts);
   console.log('Login (full access): incharge@brightfuture.edu.in / password123');
-  console.log('Login (Class 1-A only): neha.sharma@brightfuture.edu.in / password123');
-  console.log('Login (Classes 2-A & 3-A): rakesh.verma@brightfuture.edu.in / password123');
+  console.log('Teachers (all password123):');
+  console.log('  neha.sharma@brightfuture.edu.in → 1-A');
+  console.log('  rakesh.verma@brightfuture.edu.in → 2-A, 3-A');
+  console.log('  priya.nair@brightfuture.edu.in → LKG-A');
+  console.log('  anil.kumar@brightfuture.edu.in → UKG-A');
+  console.log('  kavita.reddy@brightfuture.edu.in → 4-A, 5-A');
+  console.log('  suresh.iyer@brightfuture.edu.in → 6-A');
+  console.log('  meena.joshi@brightfuture.edu.in → 7-A, 8-A');
+  console.log('Tip: npm run db:seed-teachers to (re)create extra teacher logins');
 }
 
 main()

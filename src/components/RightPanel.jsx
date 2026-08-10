@@ -1,4 +1,4 @@
-import { Calendar, Send, Check, MessageSquare, Download } from 'lucide-react';
+import { Send, Check, MessageSquare, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { getStatusDisplay, formatAttendanceDate } from '../utils/attendance';
 
@@ -32,13 +32,12 @@ export default function RightPanel({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600">
-          <Calendar size={15} className="shrink-0 text-indigo-600" />
+        <div className="mb-4 rounded-lg border border-gray-200 px-3 py-2">
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => onDateChange(e.target.value)}
-            className="w-full border-0 bg-transparent p-0 text-sm text-gray-700 focus:outline-none focus:ring-0"
+            className="date-input w-full min-w-0 border-0 bg-transparent p-0 text-sm text-gray-700 focus:outline-none focus:ring-0"
           />
         </div>
 
@@ -120,7 +119,7 @@ export default function RightPanel({
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <Download size={16} />
-            Export Attendance Report
+            Export Attendance PDF
           </button>
         </div>
       </div>
@@ -129,11 +128,17 @@ export default function RightPanel({
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h3 className="mb-2 text-sm font-bold text-gray-900">Message Preview</h3>
           <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs leading-relaxed text-gray-700">
-            <p>Dear Parent,</p>
-            <p className="mt-2">
-              Attendance for <strong>{previewStudent.name}</strong> ({classLabel}), Roll No.{' '}
-              <strong>{previewStudent.roll}</strong> on <strong>{displayDate}</strong>:
+            <p>
+              Name : <strong>{previewStudent.name}</strong>
             </p>
+            <p>
+              Roll Number : <strong>{previewStudent.roll}</strong>
+            </p>
+            <p>
+              Your ward is absent on <strong>{displayDate}</strong>
+            </p>
+            <p className="mt-2 text-gray-500">Regards,</p>
+            <p>RIOBizSols</p>
             <p className={`mt-2 font-bold ${statusInfo?.textColor}`}>
               Status: {statusInfo?.label}
             </p>

@@ -33,3 +33,17 @@ server/uploads
 # Local recovery / scratch
 _recovered_writes.json
 
+# Expo / mobile (React Native — optional / not the website wrap)
+mobile/.expo
+mobile/dist
+mobile/web-build
+
+# Capacitor / Android (website-as-app)
+android/.gradle
+android/app/build
+android/build
+android/captures
+android/local.properties
+*.jks
+*.keystore
+

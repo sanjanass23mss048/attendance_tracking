@@ -5,29 +5,21 @@ import { getStatusDisplay, getParentNotifications } from '../utils/attendance';
 
 function FormattedMessage({ student, classLabel, status, date = '08 May 2026' }) {
   const statusInfo = getStatusDisplay(status);
-  const isOd = status === 'OH' || status === 'OF' || status === 'O';
-  const odSuffix =
-    status === 'OH'
-      ? '. They were engaged in school-approved duty for part of the day and are not marked Absent'
-      : isOd
-        ? '. They were engaged in school-approved duty and are not marked Absent'
-        : '';
+  const roll = student.roll ?? student.rollNo ?? '-';
 
   return (
     <div className="text-sm leading-relaxed text-gray-700">
-      <p className="mb-2">Dear Parent,</p>
       <p>
-        This is to inform you that your child{' '}
-        <strong>{student.name}</strong> ({classLabel}), Roll No.{' '}
-        <strong>{student.roll}</strong> was marked{' '}
-        <strong className={statusInfo.textColor}>
-          {statusInfo.label}
-        </strong>{' '}
-        on <strong>{date}</strong>
-        {odSuffix}.
+        Name : <strong>{student.name}</strong>
       </p>
-      <p className="mt-3 text-gray-500">Thank you.</p>
-      <p className="mt-2 text-xs font-medium text-indigo-600">— Bright Future Public School</p>
+      <p>
+        Roll Number : <strong>{roll}</strong>
+      </p>
+      <p>
+        Your ward is absent on <strong>{date}</strong>
+      </p>
+      <p className="mt-3 text-gray-500">Regards,</p>
+      <p className="text-xs font-medium text-indigo-600">RIOBizSols</p>
       <p className="mt-3 border-t border-gray-200 pt-3">
         Status: <span className={`font-bold ${statusInfo.textColor}`}>{statusInfo.label}</span>
       </p>

@@ -21,6 +21,7 @@ import {
   getStudents,
   updateStudent,
 } from '../services/studentService.js';
+import { exportTablePdfReport } from '../services/reportService.js';
 import StudentDocumentsPanel from './StudentDocumentsPanel.jsx';
 
 const PAGE_SIZE = 10;
@@ -342,8 +343,8 @@ export default function StudentsPage() {
       'Admission No.',
       'Date of Birth',
       'Gender',
-      'Phone',
-      'Status',
+      'Parent Name',
+      'Parent Phone',
       'Address',
       'Blood Group',
       'Nationality',
@@ -351,35 +352,32 @@ export default function StudentsPage() {
       'Father Name',
       'Class',
     ];
-    const rows = filtered.map((s) => [
-      s.rollNo ?? s.roll ?? '',
-      selectedSection,
-      s.name || '',
-      s.admissionNo || '',
-      s.dob || '',
-      s.gender || '',
-      s.parentPhone || '',
-      s.status || 'Active',
-      s.address || '',
-      s.bloodGroup || '',
-      s.nationality || '',
-      s.motherName || '',
-      s.fatherName || '',
-      selectedClass,
-    ]);
-    const escape = (v) => {
-      const str = String(v ?? '');
-      if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
-      return str;
-    };
-    const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `students-class-${selectedClass}-${selectedSection}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = filtered.map((s) => {
+      const parentName = [s.fatherName, s.motherName].filter(Boolean).join(' / ');
+      return [
+        s.rollNo ?? s.roll ?? '',
+        selectedSection,
+        s.name || '',
+        s.admissionNo || '',
+        s.dob || '',
+        s.gender || '',
+        parentName,
+        s.parentPhone || '',
+        s.address || '',
+        s.bloodGroup || '',
+        s.nationality || '',
+        s.motherName || '',
+        s.fatherName || '',
+        selectedClass,
+      ];
+    });
+    exportTablePdfReport({
+      title: 'STUDENT LIST',
+      pill: `Class ${formatClassLabel(selectedClass)} · Sec ${selectedSection}`,
+      dateLabel: `Class ${formatClassLabel(selectedClass)} · Section ${selectedSection}`,
+      headers,
+      rows,
+    });
   };
 
   const formClassSections =
@@ -460,7 +458,7 @@ export default function StudentsPage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               <Download size={16} />
-              Export
+              Export PDF
             </button>
             <button
               type="button"
@@ -622,32 +620,61 @@ export default function StudentsPage() {
 
       {/* Mobile stacked cards */}
       <div className="space-y-3 md:hidden">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search students..."
+            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </div>
+
         {loading && <p className="py-8 text-center text-sm text-gray-500">Loading…</p>}
         {!loading && pageRows.length === 0 && (
           <p className="py-8 text-center text-sm text-gray-500">No students found.</p>
         )}
         {!loading &&
-          pageRows.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => openDetails(s)}
-              className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm"
-            >
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
-                {initials(s.name)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
+          pageRows.map((s) => {
+            const active = (s.status || 'Active') === 'Active';
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => openDetails(s)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm"
+              >
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+                  {initials(s.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-gray-500">
+                    Roll {s.rollNo ?? s.roll}
+                  </p>
                   <p className="truncate font-semibold text-gray-900">{s.name}</p>
-                  <StatusBadge status={s.status} />
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Roll {s.rollNo ?? s.roll} · {s.admissionNo || 'No admission no.'}
-                </p>
-              </div>
-            </button>
-          ))}
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    active
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {active ? 'Active' : s.status || 'Inactive'}
+                </span>
+              </button>
+            );
+          })}
+
+        <button
+          type="button"
+          onClick={openAdd}
+          className="fixed bottom-24 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 lg:hidden"
+        >
+          <Plus size={18} />
+          Add Student
+        </button>
       </div>
       </div>
 

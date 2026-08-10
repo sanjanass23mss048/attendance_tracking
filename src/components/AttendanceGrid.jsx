@@ -19,7 +19,11 @@ export default function AttendanceGrid({
 }) {
   const q = (searchQuery || '').trim().toLowerCase();
   const filteredStudents = q
-    ? students.filter((s) => (s.name || '').toLowerCase().includes(q))
+    ? students.filter((s) => {
+        const name = (s.name || '').toLowerCase();
+        const roll = String(s.roll ?? s.rollNo ?? '').toLowerCase();
+        return name.includes(q) || roll.includes(q);
+      })
     : students;
 
   return (
@@ -46,7 +50,7 @@ export default function AttendanceGrid({
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search student"
+                placeholder="Search name or roll"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="rounded-lg border border-gray-200 py-1.5 pl-9 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"

@@ -2,14 +2,50 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/attendance-logo.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/attendance-logo-mark.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
     <title>Presence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      html, body {
+        margin: 0;
+        background: #ffffff;
+        color: #0f172a;
+      }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        background: #ffffff;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+      }
+      #boot-splash img {
+        width: min(240px, 68vw);
+        height: auto;
+        object-fit: contain;
+      }
+      #boot-splash .boot-hint {
+        margin: 0;
+        font-size: 13px;
+        color: #94a3b8;
+        letter-spacing: 0.02em;
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-splash" aria-live="polite" aria-busy="true">
+      <img src="/attendance-logo.png" alt="Presence" width="240" height="131" />
+      <p class="boot-hint">Starting…</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -3,6 +3,7 @@ import {
   clearStoredUser,
   clearToken,
   getStoredUser,
+  getToken,
   setRememberedEmail,
   setStoredUser,
   setToken,
@@ -27,6 +28,36 @@ const MOCK_USERS = {
     id: 'mock-rakesh',
     email: 'rakesh.verma@brightfuture.edu.in',
     name: 'Rakesh Verma',
+    role: 'TEACHER',
+  },
+  'priya.nair@brightfuture.edu.in': {
+    id: 'mock-priya',
+    email: 'priya.nair@brightfuture.edu.in',
+    name: 'Priya Nair',
+    role: 'TEACHER',
+  },
+  'anil.kumar@brightfuture.edu.in': {
+    id: 'mock-anil',
+    email: 'anil.kumar@brightfuture.edu.in',
+    name: 'Anil Kumar',
+    role: 'TEACHER',
+  },
+  'kavita.reddy@brightfuture.edu.in': {
+    id: 'mock-kavita',
+    email: 'kavita.reddy@brightfuture.edu.in',
+    name: 'Kavita Reddy',
+    role: 'TEACHER',
+  },
+  'suresh.iyer@brightfuture.edu.in': {
+    id: 'mock-suresh',
+    email: 'suresh.iyer@brightfuture.edu.in',
+    name: 'Suresh Iyer',
+    role: 'TEACHER',
+  },
+  'meena.joshi@brightfuture.edu.in': {
+    id: 'mock-meena',
+    email: 'meena.joshi@brightfuture.edu.in',
+    name: 'Meena Joshi',
     role: 'TEACHER',
   },
 };
@@ -58,8 +89,18 @@ export async function login({ email, password, rememberMe = false }) {
     method: 'POST',
     json: { email, password, rememberMe: Boolean(rememberMe) },
   });
+  if (!data?.token) {
+    const err = new Error('Login succeeded but no session token was returned');
+    err.status = 500;
+    throw err;
+  }
   setToken(data.token);
   setStoredUser(data.user);
+  if (!getToken()) {
+    const err = new Error('Could not save login session — check browser storage settings');
+    err.status = 500;
+    throw err;
+  }
   if (rememberMe) setRememberedEmail(email);
   else setRememberedEmail('');
   return data;

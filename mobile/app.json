@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Presence",
+    "slug": "sanjana",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4c1d95"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "edu.presence.attendance"
+    },
+    "android": {
+      "package": "edu.presence.attendance",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#4c1d95",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "apiBaseUrl": "https://attendance.rioassetmanagement.net",
+      "eas": {
+        "projectId": "7eed28de-ca49-4881-a2e0-35de2deb195b"
+      }
+    },
+    "owner": "sanjanasenthilkumars-team"
+  }
+}

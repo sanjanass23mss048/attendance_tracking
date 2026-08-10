@@ -17,12 +17,14 @@
 
 body {
   margin: 0;
+  background: #ffffff;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 #root {
   min-height: 100vh;
+  background: #ffffff;
 }
 
 /* Hide browser built-in password reveal (Edge/IE) so only our eye toggle shows */
@@ -132,4 +134,17 @@ body {
 
 .attendance-card-panel--fullscreen .attendance-student-card .attendance-student-name {
   font-size: 0.875rem;
+}
+
+/* Date inputs: avoid clipped text next to the native calendar icon */
+.date-input {
+  min-width: 0;
+  max-width: 100%;
+  color-scheme: light;
+}
+
+.date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+  margin-left: 0.25rem;
 }

@@ -17,12 +17,6 @@ export const LEAVE_REASONS = [
   'Other',
 ];
 
-export const LEAVE_STATUSES = {
-  pending: { label: 'Pending', className: 'bg-amber-50 text-amber-700 ring-amber-200' },
-  approved: { label: 'Approved', className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 ring-red-200' },
-};
-
 const mockStore = new Map();
 
 function mockKey(entityType, entityId) {
@@ -43,7 +37,6 @@ function normalizeDocument(d) {
     leaveTo: d.leaveTo || null,
     reason: d.reason || null,
     notes: d.notes || null,
-    status: d.status || 'pending',
     createdAt: d.createdAt || new Date().toISOString(),
   };
 }
@@ -68,10 +61,6 @@ export async function listDocuments(entityType, entityId) {
     `/api/documents?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`
   );
   return { documents: (data.documents || []).map(normalizeDocument) };
-}
-
-export function leaveStatusLabel(status) {
-  return LEAVE_STATUSES[status]?.label || 'Pending';
 }
 
 export async function uploadDocument({
@@ -99,7 +88,6 @@ export async function uploadDocument({
       leaveTo,
       reason,
       notes,
-      status: 'pending',
       createdAt: new Date().toISOString(),
     });
     list.unshift(doc);

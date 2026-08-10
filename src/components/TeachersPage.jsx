@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
-  Cake,
   ClipboardList,
   Download,
   Eye,
@@ -21,6 +20,8 @@ import {
   updateTeacher,
 } from '../services/teacherService.js';
 import { SCHOOL_GRADES, formatClassLabel, compareClassNames } from '../data/schoolGrades.js';
+import { exportTablePdfReport } from '../services/reportService.js';
+import { canManageTeachers } from '../data/navItems.js';
 
 const PAGE_SIZE = 8;
 const STAFF_TABS = [
@@ -156,27 +157,8 @@ function teacherHasClass(classesAssigned, className) {
   );
 }
 
-/** Upcoming birthdays within the next 45 days (from demo DOBs). */
-function upcomingBirthdays(teachers, limit = 5) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const year = today.getFullYear();
-
-  return teachers
-    .filter((t) => t.dob)
-    .map((t) => {
-      const [, m, d] = t.dob.split('-').map(Number);
-      let next = new Date(year, m - 1, d);
-      if (next < today) next = new Date(year + 1, m - 1, d);
-      const daysUntil = Math.round((next - today) / 86400000);
-      return { ...t, nextBirthday: next, daysUntil };
-    })
-    .filter((t) => t.daysUntil <= 45)
-    .sort((a, b) => a.daysUntil - b.daysUntil)
-    .slice(0, limit);
-}
-
-export default function TeachersPage() {
+export default function TeachersPage({ user, onAccessDenied }) {
+  const allowed = canManageTeachers(user);
   const [teachers, setTeachers] = useState([]);
   const [summary, setSummary] = useState({
     teachingStaff: 0,
@@ -209,14 +191,11 @@ export default function TeachersPage() {
     reason: '',
   });
   const [leaveMsg, setLeaveMsg] = useState('');
-  const [leaveSummary, setLeaveSummary] = useState({
-    approved: 12,
-    pending: 3,
-    onLeave: 2,
-    total: 17,
-  });
+  const [actionNotice, setActionNotice] = useState('');
+  const staffListRef = useRef(null);
 
   const reload = async () => {
+    if (!canManageTeachers(user)) return;
     setLoading(true);
     setError('');
     try {
@@ -232,23 +211,27 @@ export default function TeachersPage() {
           total: 0,
         }
       );
-      if (data.summary?.leavesToday != null) {
-        setLeaveSummary((prev) => ({
-          ...prev,
-          onLeave: data.summary.leavesToday,
-        }));
-      }
     } catch (err) {
+      const msg = err.message || 'Failed to load teachers';
+      if (/forbidden/i.test(msg)) {
+        onAccessDenied?.();
+        return;
+      }
       setTeachers([]);
-      setError(err.message);
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (!allowed) {
+      onAccessDenied?.();
+      return;
+    }
     reload();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once when allowed
+  }, [allowed]);
 
   const classOptions = useMemo(() => {
     const fromTeachers = new Set();
@@ -290,8 +273,6 @@ export default function TeachersPage() {
   useEffect(() => {
     setPage(1);
   }, [staffTab, searchQuery, roleFilter, deptFilter, classFilter, statusFilter]);
-
-  const birthdays = useMemo(() => upcomingBirthdays(teachers), [teachers]);
 
   const openAdd = () => {
     const nextNum = teachers.length + 1;
@@ -401,7 +382,13 @@ export default function TeachersPage() {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const list = filtered.length ? filtered : teachers;
+    if (!list.length) {
+      setActionNotice('No staff to export.');
+      return;
+    }
+    setActionNotice('');
     const headers = [
       'Employee ID',
       'Name',
@@ -414,7 +401,7 @@ export default function TeachersPage() {
       'Classes Assigned',
       'Status',
     ];
-    const rows = filtered.map((t) => [
+    const rows = list.map((t) => [
       t.employeeId,
       t.name,
       t.email,
@@ -426,19 +413,31 @@ export default function TeachersPage() {
       t.classesAssigned || '',
       t.status,
     ]);
-    const escape = (v) => {
-      const str = String(v ?? '');
-      if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
-      return str;
-    };
-    const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'teachers-directory.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      exportTablePdfReport({
+        title: 'STAFF DIRECTORY',
+        pill: 'Teachers',
+        headers,
+        rows,
+      });
+      setActionNotice('Print dialog opened — choose Save as PDF.');
+    } catch (err) {
+      setError(err.message || 'Failed to export directory');
+    }
+  };
+
+  const handleViewTeachingStaff = () => {
+    setStaffTab('teaching');
+    setSearchQuery('');
+    setRoleFilter('');
+    setDeptFilter('');
+    setClassFilter('');
+    setStatusFilter('');
+    setPage(1);
+    setActionNotice('Showing teaching staff.');
+    requestAnimationFrame(() => {
+      staffListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   const handleApplyLeave = (e) => {
@@ -447,14 +446,11 @@ export default function TeachersPage() {
       setLeaveMsg('Please choose from and to dates.');
       return;
     }
-    setLeaveSummary((prev) => ({
-      ...prev,
-      pending: prev.pending + 1,
-      total: prev.total + 1,
-    }));
     setLeaveMsg('Leave request submitted (demo).');
     setLeaveForm({ from: '', to: '', type: 'Casual Leave', reason: '' });
   };
+
+  if (!allowed) return null;
 
   return (
     <div className="space-y-4">
@@ -480,7 +476,12 @@ export default function TeachersPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_300px]">
-        <div className="space-y-4 min-w-0">
+        <div ref={staffListRef} className="space-y-4 min-w-0">
+          {actionNotice ? (
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              {actionNotice}
+            </p>
+          ) : null}
           {/* Tabs + toolbar */}
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="flex gap-1 overflow-x-auto border-b border-gray-100 px-3">
@@ -583,7 +584,7 @@ export default function TeachersPage() {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 >
                   <Download size={16} />
-                  Export
+                  Export PDF
                 </button>
                 <button
                   type="button"
@@ -761,7 +762,7 @@ export default function TeachersPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setStaffTab('teaching')}
+                onClick={handleViewTeachingStaff}
                 className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <Users size={16} />
@@ -833,57 +834,6 @@ export default function TeachersPage() {
                 Submit Leave
               </button>
             </form>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-bold text-gray-900">Leave Summary</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: 'Approved', value: leaveSummary.approved, color: 'text-emerald-700 bg-emerald-50' },
-                { label: 'Pending', value: leaveSummary.pending, color: 'text-amber-700 bg-amber-50' },
-                { label: 'On Leave', value: leaveSummary.onLeave, color: 'text-violet-700 bg-violet-50' },
-                { label: 'Total', value: leaveSummary.total, color: 'text-gray-800 bg-gray-50' },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className={`rounded-lg px-3 py-2 ${item.color.split(' ')[1]}`}
-                >
-                  <p className="text-[11px] font-medium text-gray-500">{item.label}</p>
-                  <p className={`text-lg font-bold ${item.color.split(' ')[0]}`}>{item.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
-              <Cake size={16} className="text-rose-500" />
-              Upcoming Birthdays
-            </h3>
-            {birthdays.length === 0 ? (
-              <p className="text-xs text-gray-500">No birthdays in the next 45 days.</p>
-            ) : (
-              <ul className="space-y-3">
-                {birthdays.map((b) => (
-                  <li key={b.id} className="flex items-center gap-3">
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-700">
-                      {initials(b.name)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-gray-900">{b.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {formatDob(b.dob)} ·{' '}
-                        {b.daysUntil === 0
-                          ? 'Today'
-                          : b.daysUntil === 1
-                            ? 'Tomorrow'
-                            : `in ${b.daysUntil} days`}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         </aside>
       </div>

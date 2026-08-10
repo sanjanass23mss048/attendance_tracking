@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { parseDateOnly, toDateString } from '../lib/ids.js';
-import { getDailyMarks, getDailyMarksInRange } from '../services/attendanceRepo.js';
+import { getDailyMarks, getDailyMarksInRange, countAttendanceDaysForSection } from '../services/attendanceRepo.js';
 import {
   canAccessSection,
   findClassSectionById,
@@ -38,6 +38,14 @@ function attendancePercent(counts) {
   const marked = markedTotal(counts);
   if (!marked) return 0;
   return Math.round((counts.P / marked) * 1000) / 10;
+}
+
+/** Present is not stored — fill P from attendance days minus non-present tallies. */
+function applyImpliedPresent(counts, attendanceDays, studentCount = 1) {
+  const nonPresent = counts.A + counts.L + counts.H + counts.OH + counts.OF;
+  const capacity = Math.max(0, Number(attendanceDays) || 0) * Math.max(0, Number(studentCount) || 0);
+  counts.P = Math.max(0, capacity - nonPresent);
+  return counts;
 }
 
 function monthRange(year, month) {
@@ -234,11 +242,14 @@ router.get('/monthly', requireAuth, async (req, res) => {
     if (!(await forbidUnlessSectionAccess(req, res, section.Class_Section_id))) return;
 
     const students = await listEnrollmentsForSection(section.Class_Section_id);
-    const marks = await getDailyMarksInRange(
-      students.map((s) => s.id),
-      start,
-      end
-    );
+    const [marks, attendanceDays] = await Promise.all([
+      getDailyMarksInRange(
+        students.map((s) => s.id),
+        start,
+        end
+      ),
+      countAttendanceDaysForSection(section.Class_Section_id, start, end),
+    ]);
 
     const byStudent = Object.fromEntries(students.map((s) => [s.id, emptyCounts()]));
     for (const mark of marks) {
@@ -247,7 +258,7 @@ router.get('/monthly', requireAuth, async (req, res) => {
     }
 
     const studentsOut = students.map((s) => {
-      const counts = byStudent[s.id];
+      const counts = applyImpliedPresent(byStudent[s.id], attendanceDays, 1);
       const marked = markedTotal(counts);
       return {
         studentId: s.id,
@@ -330,8 +341,23 @@ router.get('/monthly', requireAuth, async (req, res) => {
     if (sid && countsBySection[sid]) tallyStatus(countsBySection[sid], mark.status);
   }
 
+  const attendanceDaysBySection = {};
+  await Promise.all(
+    sectionMeta.map(async (section) => {
+      attendanceDaysBySection[section.sectionId] = await countAttendanceDaysForSection(
+        section.sectionId,
+        start,
+        end
+      );
+    })
+  );
+
   const classes = sectionMeta.map((section) => {
-    const counts = countsBySection[section.sectionId];
+    const counts = applyImpliedPresent(
+      countsBySection[section.sectionId],
+      attendanceDaysBySection[section.sectionId] || 0,
+      section.students.length
+    );
     return {
       sectionId: section.sectionId,
       className: section.className,
@@ -439,8 +465,23 @@ router.get('/class-comparison', requireAuth, async (req, res) => {
     if (sid && countsBySection[sid]) tallyStatus(countsBySection[sid], mark.status);
   }
 
+  const attendanceDaysBySection = {};
+  await Promise.all(
+    sectionMeta.map(async (section) => {
+      attendanceDaysBySection[section.sectionId] = await countAttendanceDaysForSection(
+        section.sectionId,
+        start,
+        end
+      );
+    })
+  );
+
   const classes = sectionMeta.map((section) => {
-    const counts = countsBySection[section.sectionId];
+    const counts = applyImpliedPresent(
+      countsBySection[section.sectionId],
+      attendanceDaysBySection[section.sectionId] || 0,
+      section.students.length
+    );
     return {
       sectionId: section.sectionId,
       className: section.className,

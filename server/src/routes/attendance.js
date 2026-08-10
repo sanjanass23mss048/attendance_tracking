@@ -32,6 +32,7 @@ import {
 } from '../services/editRequestRepo.js';
 import { writeAttendanceAuditLogs } from '../services/attendanceAuditRepo.js';
 import { attendanceHeaderId } from '../lib/ids.js';
+import { isSmsConfigured, parentContactsForEnrollments, sendSms } from '../lib/sms.js';
 
 const router = Router();
 
@@ -434,6 +435,53 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     initiatedAt,
   });
 
+  // Deliver SMS to parents via MSG91 / Twilio / console.
+  const contacts = await parentContactsForEnrollments(
+    messages.map((m) => m.studentId),
+    prisma
+  );
+
+  // Format date for SMS template var3 (e.g. 06 Aug 2026)
+  const dateObj = parsed.data.date ? new Date(`${parsed.data.date}T12:00:00`) : null;
+  const dateLabel =
+    dateObj && !Number.isNaN(dateObj.getTime())
+      ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : parsed.data.date;
+
+  const delivery = [];
+  for (const m of messages) {
+    const contact = contacts.get(m.studentId) || {};
+    const phone = contact.phone;
+    const studentName = contact.name || 'Student';
+    const rollNo = contact.rollNo || '-';
+    const body =
+      m.message ||
+      `Name : ${studentName}\nRoll Number : ${rollNo}\nYour ward is absent on ${dateLabel}\nRegards,\nRIOBizSols`;
+
+    const result = await sendSms({
+      to: phone,
+      body,
+      vars: {
+        studentName,
+        rollNo,
+        date: dateLabel,
+      },
+    });
+    delivery.push({
+      studentId: m.studentId,
+      status: m.status,
+      phone: result.to || phone || null,
+      ok: result.ok,
+      skipped: Boolean(result.skipped),
+      provider: result.provider || null,
+      error: result.error || null,
+    });
+  }
+
+  const sentOk = delivery.filter((d) => d.ok && !d.skipped).length;
+  const sentSkipped = delivery.filter((d) => d.skipped).length;
+  const sentFailed = delivery.filter((d) => !d.ok).length;
+
   const sentMessages = await listParentMessages(section.Class_Section_id, date);
 
   return res.json({
@@ -442,6 +490,14 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     sectionId: section.Class_Section_id,
     recorded: saved.length,
     sentMessages,
+    sms: {
+      configured: isSmsConfigured(),
+      provider: String(process.env.SMS_PROVIDER || 'console').toLowerCase(),
+      sent: sentOk,
+      skipped: sentSkipped,
+      failed: sentFailed,
+      delivery,
+    },
   });
 });
 

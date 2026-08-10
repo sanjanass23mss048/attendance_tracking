@@ -6,13 +6,21 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "npm run dev --prefix server",
+    "dev:mobile": "npm start --prefix mobile",
     "build": "vite build",
+    "build:apk": "node scripts/build-apk.mjs",
+    "cap:sync": "npm run build && npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:android": "npx cap open android",
     "start": "npm run start --prefix server",
     "start:prod": "npm run build && npm run start:prod --prefix server",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

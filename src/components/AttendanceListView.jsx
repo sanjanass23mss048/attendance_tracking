@@ -11,7 +11,11 @@ export default function AttendanceListView({
 }) {
   const q = (searchQuery || '').trim().toLowerCase();
   const filteredStudents = q
-    ? students.filter((s) => (s.name || '').toLowerCase().includes(q))
+    ? students.filter((s) => {
+        const name = (s.name || '').toLowerCase();
+        const roll = String(s.roll ?? s.rollNo ?? '').toLowerCase();
+        return name.includes(q) || roll.includes(q);
+      })
     : students;
 
   return (
@@ -20,7 +24,7 @@ export default function AttendanceListView({
         <h2 className="text-base font-bold text-gray-900">List View — {classLabel}</h2>
         <input
           type="text"
-          placeholder="Search student"
+          placeholder="Search name or roll"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="rounded-lg border border-gray-200 px-4 py-1.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -35,7 +39,11 @@ export default function AttendanceListView({
 
       <div className="divide-y divide-gray-100">
         {filteredStudents.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-gray-500">No students found.</p>
+          <p className="px-5 py-10 text-center text-sm text-gray-500">
+            {q
+              ? `No students match “${searchQuery.trim()}”. Try a name or roll number.`
+              : 'No students found.'}
+          </p>
         ) : (
           filteredStudents.map((student) => {
             const rowIdx = students.findIndex((s) => s.id === student.id);

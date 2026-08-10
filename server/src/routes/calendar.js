@@ -6,21 +6,11 @@ import { newId, parseDateOnly, toDateString } from '../lib/ids.js';
 
 const router = Router();
 
-const EVENT_TYPES = [
-  'govt',
-  'sudden',
-  'weekly',
-  'holiday',
-  'exam',
-  'event',
-  'important',
-  'working',
-];
-
 const eventSchema = z.object({
   id: z.string().max(50).optional(),
   date: z.string(),
-  type: z.enum(EVENT_TYPES),
+  // Known types plus free-text "Others" (custom label, max 50 for DB column)
+  type: z.string().min(1).max(50),
   title: z.string().min(1).max(255),
   subtitle: z.string().max(255).optional().nullable(),
   applicable_to: z.string().max(255).optional().nullable(),

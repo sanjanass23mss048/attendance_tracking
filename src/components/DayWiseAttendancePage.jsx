@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { ATTENDANCE_STATUS, DAYWISE_PERIOD_COUNT, STATUS_CYCLE } from '../data/mockData';
 import {
   formatAttendanceDate,
@@ -279,20 +279,14 @@ export default function DayWiseAttendancePage() {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="min-w-0 sm:min-w-[11.5rem]">
               <label className="mb-1 block text-xs text-gray-500">Date</label>
-              <div className="relative">
-                <Calendar
-                  size={15}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600"
-                />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="date-input w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
             </div>
             <button
               type="button"

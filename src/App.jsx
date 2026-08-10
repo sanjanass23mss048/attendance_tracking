@@ -23,7 +23,7 @@ import WeeklyTimetablePage from './components/WeeklyTimetablePage';
 import TeachersPage from './components/TeachersPage';
 import EditApprovalsPage from './components/EditApprovalsPage';
 import AttendanceEditRequestModal from './components/AttendanceEditRequestModal';
-import PlaceholderPage from './components/PlaceholderPage';
+import NotificationsPage from './components/NotificationsPage';
 import RightPanel from './components/RightPanel';
 import AppToast from './components/AppToast';
 import MobileBottomNav from './components/MobileBottomNav';
@@ -48,6 +48,9 @@ import {
   getTodayAttendanceDate,
 } from './utils/attendance';
 import { isHolidayDate } from './services/calendarService';
+import { getNotificationsFeed, markNotificationsSeen } from './services/notificationService.js';
+import { exportAttendanceReportPdf } from './services/reportService.js';
+import { canApproveEditRequests, canManageTeachers } from './data/navItems.js';
 import { getToken, useMock } from './services/api.js';
 import { getMe, logout as authLogout } from './services/authService.js';
 import { getClasses, resolveSectionId } from './services/classService.js';
@@ -72,6 +75,20 @@ import {
   createEditRequest,
   getEditContext,
 } from './services/attendanceEditRequestService.js';
+import attendanceLogo from './assets/attendance-logo.png';
+
+function BootSplash() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-6">
+      <img
+        src={attendanceLogo}
+        alt="Presence"
+        className="h-28 w-auto max-w-[240px] object-contain sm:h-32"
+      />
+      <p className="text-sm text-slate-400">Starting…</p>
+    </div>
+  );
+}
 
 function emptyGrid(n = 0) {
   return Array.from({ length: n }, () => Array(10).fill(''));
@@ -94,7 +111,9 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);
 
-  const [activePage, setActivePage] = useState('attendance');
+  const [activePage, setActivePage] = useState('dashboard');
+  const [headerNotifications, setHeaderNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [activeView, setActiveView] = useState('grid');
   const [classOptions, setClassOptions] = useState(SCHOOL_GRADES);
   const [sectionOptions, setSectionOptions] = useState(SCHOOL_SECTIONS);
@@ -153,6 +172,61 @@ export default function App() {
   };
 
   useEffect(() => () => clearHoverClose(), []);
+
+  // Phone: swipe in from the left edge → open Dashboard (and close the menu).
+  useEffect(() => {
+    const EDGE_PX = 28;
+    const MIN_SWIPE = 56;
+    let startX = null;
+    let startY = null;
+    let tracking = false;
+
+    const onStart = (e) => {
+      if (window.matchMedia('(min-width: 1024px)').matches) return;
+      const t = e.touches?.[0];
+      if (!t) return;
+      if (t.clientX > EDGE_PX) {
+        tracking = false;
+        return;
+      }
+      tracking = true;
+      startX = t.clientX;
+      startY = t.clientY;
+    };
+
+    const onEnd = (e) => {
+      if (!tracking || startX == null || startY == null) return;
+      tracking = false;
+      const t = e.changedTouches?.[0];
+      if (!t) return;
+      const dx = t.clientX - startX;
+      const dy = Math.abs(t.clientY - startY);
+      startX = null;
+      startY = null;
+      // Rightward swipe from the left edge
+      if (dx >= MIN_SWIPE && dy < 80) {
+        setActivePage('dashboard');
+        setActiveView('grid');
+        setIsMobileOpen(false);
+      }
+    };
+
+    const onCancel = () => {
+      tracking = false;
+      startX = null;
+      startY = null;
+    };
+
+    window.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('touchend', onEnd, { passive: true });
+    window.addEventListener('touchcancel', onCancel, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onStart);
+      window.removeEventListener('touchend', onEnd);
+      window.removeEventListener('touchcancel', onCancel);
+    };
+  }, []);
+
   const [dashStats, setDashStats] = useState(EMPTY_DASH_STATS);
   const [dashStatsError, setDashStatsError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -221,6 +295,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let lastAt = 0;
+    const onExpired = () => {
+      const now = Date.now();
+      if (now - lastAt < 2000) return;
+      lastAt = now;
+      authLogout();
+      setUser(null);
+      showToast('Session expired — please sign in again.', 'error');
+    };
+    window.addEventListener('presence:auth-expired', onExpired);
+    return () => window.removeEventListener('presence:auth-expired', onExpired);
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     getClasses()
       .then((data) => {
@@ -239,9 +327,49 @@ export default function App() {
         }
       })
       .catch((err) => {
-        showToast(networkErrorMessage(err) || 'Failed to load classes', 'error');
+        if (!err?.isAuth) {
+          showToast(networkErrorMessage(err) || 'Failed to load classes', 'error');
+        }
       });
   }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setHeaderNotifications([]);
+      setNotificationCount(0);
+      return undefined;
+    }
+    let cancelled = false;
+    getNotificationsFeed()
+      .then((data) => {
+        if (cancelled) return;
+        setHeaderNotifications(data.notifications || []);
+        setNotificationCount(data.unreadCount ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHeaderNotifications([]);
+          setNotificationCount(0);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const handleNotificationsFeedLoaded = useCallback((data) => {
+    setHeaderNotifications(data.notifications || []);
+    setNotificationCount(data.unreadCount ?? 0);
+  }, []);
+
+  const clearNotificationBadge = useCallback((list) => {
+    const feed = list || headerNotifications;
+    if (feed.length) {
+      markNotificationsSeen(feed.map((n) => n.id));
+    }
+    setNotificationCount(0);
+    setHeaderNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, [headerNotifications]);
 
   useEffect(() => {
     if (!user || useMock()) {
@@ -302,7 +430,9 @@ export default function App() {
       setDashStats(EMPTY_DASH_STATS);
       const msg = networkErrorMessage(err) || 'Failed to load attendance summary';
       setDashStatsError(msg);
-      showToast(msg, 'error');
+      if (!err?.isAuth) {
+        showToast(msg, 'error');
+      }
     }
   }, [selectedDate]);
 
@@ -384,12 +514,40 @@ export default function App() {
     setConnectionStatus('offline');
   };
 
-  const handleNavigate = (pageId) => {
+  const handleNavigate = (pageId, view) => {
+    if (pageId === 'edit-approvals' && !canApproveEditRequests(user)) {
+      setActivePage('dashboard');
+      return;
+    }
+    if (pageId === 'teachers' && !canManageTeachers(user)) {
+      setActivePage('dashboard');
+      return;
+    }
     setActivePage(pageId);
-    if (pageId === 'attendance' || pageId === 'dashboard') {
+    if (pageId === 'attendance') {
+      setActiveView(view || 'grid');
+    } else if (pageId === 'dashboard') {
       setActiveView('grid');
     }
   };
+
+  const denyEditApprovalsAccess = useCallback(() => {
+    setActivePage('dashboard');
+  }, []);
+
+  const denyTeachersAccess = useCallback(() => {
+    setActivePage('dashboard');
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (activePage === 'edit-approvals' && !canApproveEditRequests(user)) {
+      denyEditApprovalsAccess();
+    }
+    if (activePage === 'teachers' && !canManageTeachers(user)) {
+      denyTeachersAccess();
+    }
+  }, [activePage, user, denyEditApprovalsAccess, denyTeachersAccess]);
 
   const loadClass = async (classNum, section, date = selectedDate, { silent = false } = {}) => {
     if (!silent) setLoadingStudents(true);
@@ -490,7 +648,7 @@ export default function App() {
     setLastSentStatusByStudent(null);
   };
 
-  const persistDaily = async ({ confirmAfter = false, draftLabel = false } = {}) => {
+  const persistDaily = async ({ confirmAfter = false } = {}) => {
     if (!studentsLoaded) {
       showToast('Click Load Students for this class/section before submitting.', 'error');
       return false;
@@ -527,16 +685,9 @@ export default function App() {
         setLastSentMessageCount(0);
         // Keep lastSentStatusByStudent so Edit → re-submit only messages newly changed statuses.
         setActiveView('summary');
-        showToast(
-          `Attendance saved for ${classLabel} on ${attendanceDateLabel}. Check tblAttendance / tblStudentAtt_list for ${selectedDate}.`,
-          'success'
-        );
       } else {
         setShowConfirmed(false);
         setMessagesSent(false);
-        if (draftLabel) {
-          showToast(`Draft saved for ${classLabel} on ${attendanceDateLabel}.`, 'success');
-        }
       }
       refreshDashboardStats();
       await refreshEditContext(sid, selectedDate);
@@ -555,6 +706,10 @@ export default function App() {
 
   const handleMarkAbsent = () => {
     setGrid((prev) => markAbsentByRolls(prev, students, rollInput));
+  };
+
+  const handleClearAbsent = (rowIdx) => {
+    setGrid((prev) => setTodayStatus(prev, rowIdx, 'P'));
   };
 
   const handleReset = () => {
@@ -581,7 +736,7 @@ export default function App() {
   };
 
   const handleSaveDraft = async () => {
-    await persistDaily({ draftLabel: true });
+    await persistDaily();
   };
 
   const handleCheckOnly = () => {
@@ -618,33 +773,42 @@ export default function App() {
 
   const handleSendMessageToAbsent = () => {
     if (absentStudents.length === 0) {
-      alert('No absent students in this class.');
+      showToast('No absent students in this class.', 'info');
       return;
     }
     if (!showConfirmed) {
-      alert('Please submit attendance before messaging absent students.');
+      showToast('Please submit attendance before messaging absent students.', 'info');
       return;
     }
     // Do not forceResend — skip parents already notified for the same status.
     handleSendMessages();
   };
 
-  const handleExportReport = () => {
-    const header = 'Roll,Name,Status';
+  const handleExportReport = async () => {
+    if (!students.length) {
+      showToast('Load students first.', 'info');
+      return;
+    }
+    const dateLabel = formatAttendanceDate(selectedDate);
     const rows = students.map((student, rowIdx) => {
       const status = grid[rowIdx]?.[TODAY_IDX];
       const label = getStatusDisplay(status).label;
-      const safeName = `"${String(student.name).replace(/"/g, '""')}"`;
-      return `${student.roll},${safeName},${label}`;
+      return {
+        roll: student.roll ?? '',
+        name: student.name ?? '',
+        status: label,
+      };
     });
-    const csv = [header, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `attendance-${selectedClass}${selectedSection}-${selectedDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      exportAttendanceReportPdf({
+        classLabel,
+        dateLabel,
+        rows,
+      });
+      showToast('Print dialog opened — choose Save as PDF.', 'info');
+    } catch (err) {
+      showToast(err.message || 'Failed to export PDF', 'error');
+    }
   };
 
   const handleBackToClasses = () => {
@@ -665,7 +829,7 @@ export default function App() {
   const handleSendMessages = async ({ forceResend = false } = {}) => {
     if (!showConfirmed) return;
     if (messagesSent && !forceResend) {
-      alert('Messages were already sent to parents.');
+      showToast('Messages were already sent to parents.', 'info');
       return;
     }
 
@@ -685,9 +849,12 @@ export default function App() {
         attendanceDateLabel
       ).length;
       if (stillNeedNotify > 0 && lastSentStatusByStudent && !forceResend) {
-        alert('No new messages to send — parents were already notified for these statuses.');
+        showToast(
+          'No new messages to send — parents were already notified for these statuses.',
+          'info'
+        );
       } else {
-        alert('No parent messages to send (Present students are not notified).');
+        showToast('No parent messages to send (Present students are not notified).', 'info');
       }
       return;
     }
@@ -726,7 +893,6 @@ export default function App() {
       }
 
       handleSendToParents(pending.length, snapshot);
-      alert(`Messages sent to ${pending.length} parent${pending.length === 1 ? '' : 's'}`);
     } catch (err) {
       showToast(networkErrorMessage(err) || 'Failed to record parent messages', 'error');
     }
@@ -833,7 +999,17 @@ export default function App() {
             onApprovedEditNow={handleUnlock}
           />
         );
-      case 'roll':
+      case 'roll': {
+        const recentAbsents = students
+          .map((s, rowIdx) => ({
+            id: s.id,
+            name: s.name,
+            roll: s.roll,
+            rowIdx,
+          }))
+          .filter((s) => normalizeStatus(grid[s.rowIdx]?.[TODAY_IDX]) === 'A')
+          .map((s) => ({ ...s, timeLabel: 'Just now' }));
+
         return (
           <div className="space-y-4">
             <RollQuickEntry
@@ -842,6 +1018,9 @@ export default function App() {
               onMarkAbsent={handleMarkAbsent}
               showConfirmed={showConfirmed}
               absentCount={classSummary.absent}
+              recentAbsents={recentAbsents}
+              onClearAbsent={handleClearAbsent}
+              onViewSummary={() => setActiveView('summary')}
             />
             <AttendanceActions
               showConfirmed={showConfirmed}
@@ -851,6 +1030,7 @@ export default function App() {
             />
           </div>
         );
+      }
       case 'list':
         return (
           <div className="space-y-4">
@@ -904,17 +1084,18 @@ export default function App() {
   const isAttendancePage = activePage === 'attendance';
 
   if (!authReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-500">
-        Loading…
-      </div>
-    );
+    return <BootSplash />;
   }
 
   if (!user) {
     return (
       <>
-        <LoginPage onSuccess={(data) => setUser(data.user)} />
+        <LoginPage
+          onSuccess={(data) => {
+            if (data?.user && getToken()) setUser(data.user);
+            else showToast('Login saved incompletely — please try again.', 'error');
+          }}
+        />
         <AppToast />
       </>
     );
@@ -934,6 +1115,7 @@ export default function App() {
         }}
         isMobileOpen={isMobileOpen}
         onMobileOpenChange={setIsMobileOpen}
+        user={user}
       />
 
       <div
@@ -946,10 +1128,18 @@ export default function App() {
           onMenuClick={() => setIsMobileOpen((v) => !v)}
           onMenuHoverEnter={openSidebarHover}
           onMenuHoverLeave={scheduleSidebarHoverClose}
+          onNotificationsClick={() => {
+            handleNavigate('notifications');
+          }}
+          onNotificationItemClick={(n) => {
+            handleNavigate(n.page || 'notifications');
+          }}
+          onNotificationsOpened={() => {}}
           user={user}
           onLogout={handleLogout}
           dateLabel={attendanceDateLabel}
-          connectionStatus={useMock() ? null : connectionStatus}
+          notificationCount={notificationCount}
+          notifications={headerNotifications}
         />
 
         <main className="space-y-4 p-3 pb-24 sm:space-y-5 sm:p-6 lg:pb-6">
@@ -964,7 +1154,9 @@ export default function App() {
             />
           ) : isAttendancePage ? (
             <>
-              <StatsCards stats={dashStats} />
+              <div className="hidden lg:block">
+                <StatsCards stats={dashStats} />
+              </div>
               <ViewModeTabs activeView={activeView} onChange={setActiveView} />
 
               {dateIsHoliday && (
@@ -988,13 +1180,13 @@ export default function App() {
                       <h2 className="mb-4 text-sm font-bold text-gray-900">
                         Select Class &amp; Section
                       </h2>
-                      <div className="flex flex-wrap items-end gap-4">
-                        <div>
+                      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end sm:gap-4">
+                        <div className="min-w-0">
                           <label className="mb-1 block text-xs text-gray-500">Class</label>
                           <select
                             value={selectedClass}
                             onChange={(e) => handleClassChange(e.target.value)}
-                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:px-4 sm:py-2"
                           >
                             {classOptions.map((c) => (
                               <option key={c} value={c}>
@@ -1003,12 +1195,12 @@ export default function App() {
                             ))}
                           </select>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <label className="mb-1 block text-xs text-gray-500">Section</label>
                           <select
                             value={selectedSection}
                             onChange={(e) => handleSectionChange(e.target.value)}
-                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:px-4 sm:py-2"
                           >
                             {sectionOptions.map((s) => (
                               <option key={s} value={s}>
@@ -1017,20 +1209,20 @@ export default function App() {
                             ))}
                           </select>
                         </div>
-                        <div>
+                        <div className="col-span-2 min-w-0 sm:min-w-[11.5rem]">
                           <label className="mb-1 block text-xs text-gray-500">Date</label>
                           <input
                             type="date"
                             value={selectedDate}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="date-input w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:py-2"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={handleLoadStudents}
                           disabled={loadingStudents}
-                          className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60"
+                          className="col-span-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 sm:col-span-1 sm:py-2"
                         >
                           {loadingStudents ? 'Loading…' : 'Load Students'}
                         </button>
@@ -1086,7 +1278,12 @@ export default function App() {
           ) : activePage === 'daywise' ? (
             <DayWiseAttendancePage />
           ) : activePage === 'edit-approvals' ? (
-            <EditApprovalsPage user={user} />
+            canApproveEditRequests(user) ? (
+              <EditApprovalsPage
+                user={user}
+                onAccessDenied={denyEditApprovalsAccess}
+              />
+            ) : null
           ) : activePage === 'students' ? (
             <StudentsPage />
           ) : activePage === 'leave-letters' ? (
@@ -1094,13 +1291,19 @@ export default function App() {
           ) : activePage === 'classes' ? (
             <ClassesPage />
           ) : activePage === 'teachers' ? (
-            <TeachersPage />
+            canManageTeachers(user) ? (
+              <TeachersPage user={user} onAccessDenied={denyTeachersAccess} />
+            ) : null
           ) : activePage === 'timetable' ? (
             <WeeklyTimetablePage />
           ) : activePage === 'notifications' ? (
-            <PlaceholderPage pageId={activePage} />
+            <NotificationsPage
+              onNavigate={handleNavigate}
+              onFeedLoaded={handleNotificationsFeedLoaded}
+              onMarkAllRead={clearNotificationBadge}
+            />
           ) : activePage === 'reports' ? (
-            <ReportsPage />
+            <ReportsPage user={user} />
           ) : activePage === 'settings' ? (
             <SettingsPage user={user} onLogout={handleLogout} />
           ) : activePage === 'support' ? (
@@ -1114,7 +1317,7 @@ export default function App() {
       </div>
 
       <MobileBottomNav
-        activePage={isAttendancePage ? 'attendance' : activePage}
+        activePage={activePage}
         onNavigate={handleNavigate}
         onOpenMore={() => setIsMobileOpen(true)}
       />

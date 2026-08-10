@@ -17,6 +17,7 @@ import { login } from '../services/authService.js';
 import { getRememberedEmail } from '../services/api.js';
 import { networkErrorMessage } from '../services/toast.js';
 import attendanceLogo from '../assets/attendance-logo.png';
+import attendanceLogoMark from '../assets/attendance-logo-mark.png';
 
 const SCHOOL_IMAGE =
   'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=80';
@@ -75,7 +76,7 @@ export default function LoginPage({ onSuccess }) {
       {/* App branding in blue zone */}
       <div className="absolute left-4 top-5 z-10 flex items-center gap-3 sm:left-8 sm:top-8">
         <img
-          src={attendanceLogo}
+          src={attendanceLogoMark}
           alt="Presence"
           className="h-12 w-12 rounded-xl bg-white/95 object-contain p-1 shadow-md ring-2 ring-white/30 sm:h-14 sm:w-14"
         />
@@ -138,9 +139,8 @@ export default function LoginPage({ onSuccess }) {
             <img
               src={attendanceLogo}
               alt="Presence"
-              className="mx-auto mb-3 h-24 w-24 object-contain sm:h-28 sm:w-28"
+              className="mx-auto mb-2 h-28 w-auto max-w-[240px] object-contain sm:h-32 sm:max-w-[280px]"
             />
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">Presence</h1>
             <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
           </div>
 

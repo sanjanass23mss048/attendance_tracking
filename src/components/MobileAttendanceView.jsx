@@ -3,7 +3,6 @@ import {
   Bell,
   LayoutDashboard,
   ClipboardCheck,
-  MessageSquare,
   User,
 } from 'lucide-react';
 
@@ -132,7 +131,6 @@ export default function MobileAttendanceView({
         {[
           { icon: LayoutDashboard, label: 'Dashboard', active: false },
           { icon: ClipboardCheck, label: 'Attendance', active: true },
-          { icon: MessageSquare, label: 'Messages', active: false },
           { icon: User, label: 'Profile', active: false },
         ].map(({ icon: Icon, label, active }) => (
           <button

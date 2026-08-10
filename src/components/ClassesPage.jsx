@@ -15,7 +15,6 @@ import {
   Palette,
   Pencil,
   Plus,
-  Printer,
   Sun,
   Trophy,
   Upload,
@@ -29,6 +28,7 @@ import {
   SUBJECT_STYLES,
   TIMETABLE_DAYS,
 } from '../data/timetableData.js';
+import { exportTablePdfReport } from '../services/reportService.js';
 import TimetableAddPeriodModal from './TimetableAddPeriodModal.jsx';
 import TimetableEditCellModal from './TimetableEditCellModal.jsx';
 
@@ -157,7 +157,6 @@ export default function ClassesPage() {
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [activeTab, setActiveTab] = useState('Timetable');
   const [sectionName, setSectionName] = useState('A');
-  const [effectiveFrom, setEffectiveFrom] = useState('2026-04-01');
   const [timetableGrid, setTimetableGrid] = useState(() => buildDefaultWeeklyTimetable());
   const [periods, setPeriods] = useState(() => PERIOD_TIMES.slice(0, 7));
   const [showAddPeriod, setShowAddPeriod] = useState(false);
@@ -297,12 +296,8 @@ export default function ClassesPage() {
   );
   const classStudentCount = (sections || []).reduce((n, s) => n + (s.studentCount || 0), 0);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleExportCsv = () => {
-    const header = ['Day', ...periods.map((p) => `P${p.period} (${p.time})`)];
+  const handleExportPdf = () => {
+    const headers = ['Day', ...periods.map((p) => `P${p.period} (${p.time})`)];
     const rows = TIMETABLE_DAYS.map((day, di) => {
       const cells = periods.map((_, pi) => {
         const e = timetableGrid[pi]?.[di];
@@ -310,14 +305,13 @@ export default function ClassesPage() {
       });
       return [day, ...cells];
     });
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `timetable-class-${selectedClass?.name || 'x'}-sec-${sectionName}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportTablePdfReport({
+      title: 'WEEKLY TIMETABLE',
+      pill: `Class ${formatClassLabel(selectedClass?.name || '—')} · Sec ${sectionName}`,
+      dateLabel: `Class ${formatClassLabel(selectedClass?.name || '—')} · Section ${sectionName}`,
+      headers,
+      rows,
+    });
   };
 
   return (
@@ -423,14 +417,6 @@ export default function ClassesPage() {
               >
                 <Pencil size={15} />
                 {editMode ? 'Done Editing' : 'Edit Timetable'}
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Printer size={15} />
-                Print Timetable
               </button>
               {activeTab === 'Timetable' && (
                 <button
@@ -556,26 +542,6 @@ export default function ClassesPage() {
                       ))}
                     </select>
                   </label>
-                  <label className="text-sm">
-                    <span className="mb-1 block text-xs font-medium text-gray-500">View</span>
-                    <select
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-                      defaultValue="weekly"
-                    >
-                      <option value="weekly">Weekly Timetable</option>
-                    </select>
-                  </label>
-                  <label className="text-sm">
-                    <span className="mb-1 block text-xs font-medium text-gray-500">
-                      Effective From
-                    </span>
-                    <input
-                      type="date"
-                      value={effectiveFrom}
-                      onChange={(e) => setEffectiveFrom(e.target.value)}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
-                    />
-                  </label>
                   <button
                     type="button"
                     onClick={() => setShowAddPeriod(true)}
@@ -586,11 +552,11 @@ export default function ClassesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleExportCsv}
+                    onClick={handleExportPdf}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     <Download size={15} />
-                    Export CSV
+                    Export PDF
                   </button>
                 </div>
 
@@ -614,16 +580,6 @@ export default function ClassesPage() {
                   editMode={editMode}
                   onCellClick={setEditCell}
                 />
-
-                <p className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                  Note: Timetable is applicable from{' '}
-                  {new Date(`${effectiveFrom}T00:00:00`).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                  . You can add multiple timetable versions with effective dates.
-                </p>
 
                 <TimetableAddPeriodModal
                   open={showAddPeriod}

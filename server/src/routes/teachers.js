@@ -3,9 +3,19 @@ import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireRoles } from '../middleware/roles.js';
 import { mapRoleToApp, syncTeacherClassAssignments } from '../services/schoolRepo.js';
 
 const router = Router();
+
+const staffManagers = requireRoles(
+  'INCHARGE',
+  'HOD',
+  'VICE_PRINCIPAL',
+  'PRINCIPAL',
+  'ADMIN',
+  'HEADMASTER'
+);
 
 const staffTypeEnum = z.enum(['teaching', 'non-teaching']);
 const statusEnum = z.enum(['Active', 'On Leave', 'Inactive']);
@@ -116,7 +126,7 @@ function serializeTeacher(user, classesAssigned) {
 
 const userInclude = { tblRoles: true, tblStaff_Profile: true };
 
-router.get('/', requireAuth, async (_req, res) => {
+router.get('/', requireAuth, staffManagers, async (_req, res) => {
   const users = await prisma.tblUsers.findMany({
     include: userInclude,
     orderBy: { name: 'asc' },
@@ -143,7 +153,7 @@ router.get('/', requireAuth, async (_req, res) => {
   return res.json({ teachers });
 });
 
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, staffManagers, async (req, res) => {
   const user = await prisma.tblUsers.findUnique({
     where: { user_id: req.params.id },
     include: userInclude,
@@ -153,7 +163,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   return res.json({ teacher: serializeTeacher(user, assigned) });
 });
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, staffManagers, async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid body', details: parsed.error.flatten() });
@@ -202,7 +212,7 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-router.put('/:id', requireAuth, async (req, res) => {
+router.put('/:id', requireAuth, staffManagers, async (req, res) => {
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid body', details: parsed.error.flatten() });

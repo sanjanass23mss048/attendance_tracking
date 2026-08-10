@@ -6,31 +6,50 @@ import {
   getPendingEditRequests,
 } from '../services/attendanceEditRequestService.js';
 import { formatAttendanceDate } from '../utils/attendance.js';
+import { canApproveEditRequests } from '../data/navItems.js';
 
-export default function EditApprovalsPage({ user }) {
+export default function EditApprovalsPage({ user, onAccessDenied }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const allowed = canApproveEditRequests(user);
+
+  useEffect(() => {
+    if (!allowed) {
+      onAccessDenied?.();
+    }
+  }, [allowed, onAccessDenied]);
 
   const load = useCallback(async () => {
+    if (!canApproveEditRequests(user)) return;
     setLoading(true);
     setError('');
     try {
       const data = await getPendingEditRequests();
       setRequests(data.requests || []);
     } catch (err) {
-      setError(err.message || 'Failed to load pending requests');
+      const msg = err.message || 'Failed to load pending requests';
+      if (/forbidden/i.test(msg)) {
+        onAccessDenied?.();
+        return;
+      }
+      setError(msg);
       setRequests([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, onAccessDenied]);
 
   useEffect(() => {
+    if (!allowed) return undefined;
     load();
     const timer = setInterval(load, 15000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, allowed]);
+
+  if (!allowed) {
+    return null;
+  }
 
   return (
     <div className="space-y-5">
@@ -78,36 +97,34 @@ export default function EditApprovalsPage({ user }) {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="px-4 py-3">Teacher</th>
-                <th className="px-4 py-3">Class / Section</th>
+                <th className="px-4 py-3">Class</th>
                 <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Teacher</th>
                 <th className="px-4 py-3">Reason</th>
-                <th className="px-4 py-3">Requested</th>
                 <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody>
-              {requests.map((r) => (
-                <tr key={r.id} className="border-t border-gray-100 align-top">
-                  <td className="px-4 py-3 font-medium text-gray-900">{r.teacherName || '—'}</td>
-                  <td className="px-4 py-3">
-                    {r.className || '—'}
-                    {r.sectionName ? `-${r.sectionName}` : ''}
+              {requests.map((req) => (
+                <tr key={req.id} className="border-t border-gray-100">
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    {[req.className, req.sectionName].filter(Boolean).join('-') || '—'}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
-                    {r.attendanceDate ? formatAttendanceDate(r.attendanceDate) : '—'}
+                  <td className="px-4 py-3 text-gray-700">
+                    {req.attendanceDate ? formatAttendanceDate(req.attendanceDate) : '—'}
                   </td>
-                  <td className="max-w-[280px] px-4 py-3 text-gray-600">{r.reason}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-500">
-                    {r.requestedAt ? new Date(r.requestedAt).toLocaleString('en-IN') : '—'}
+                  <td className="px-4 py-3 text-gray-700">{req.teacherName || '—'}</td>
+                  <td className="max-w-xs px-4 py-3 text-gray-600">
+                    <span className="line-clamp-2">{req.reason || '—'}</span>
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${editStatusClass(r.status)}`}
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${editStatusClass(
+                        req.status
+                      )}`}
                     >
-                      {editStatusLabel(r.status)}
+                      {editStatusLabel(req.status)}
                     </span>
-                    <p className="mt-1 text-xs text-gray-500">Respond on WhatsApp</p>
                   </td>
                 </tr>
               ))}

@@ -64,7 +64,15 @@ function seedSchoolEvents() {
 
 function readSchoolEvents() {
   seedSchoolEvents();
-  return JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+  const events = JSON.parse(localStorage.getItem(LOCAL_EVENTS_KEY) || '[]');
+  // Drop mistaken sudden holiday on a normal working Friday (07 Aug 2026).
+  const cleaned = events.filter(
+    (e) => !(e.date === '2026-08-07' && (e.type === 'sudden' || e.source === 'sudden'))
+  );
+  if (cleaned.length !== events.length) {
+    writeSchoolEvents(cleaned);
+  }
+  return cleaned;
 }
 
 function writeSchoolEvents(events) {
@@ -428,6 +436,29 @@ export async function getMonthEvents(year, monthIndex, stateId = DEFAULT_STATE) 
     apiHolidays,
     generateSundayHolidays(year, monthIndex),
   ]);
+}
+
+/** Load June(startYear)–April(startYear+1) events for the academic calendar PDF. */
+export async function getAcademicYearEvents(startYear, stateId = DEFAULT_STATE) {
+  const monthSpecs = [
+    ...[5, 6, 7, 8, 9, 10, 11].map((month) => ({ year: startYear, month })),
+    ...[0, 1, 2, 3].map((month) => ({ year: startYear + 1, month })),
+  ];
+  const batches = await Promise.all(
+    monthSpecs.map(({ year, month }) => getMonthEvents(year, month, stateId))
+  );
+  const seen = new Set();
+  const out = [];
+  for (const batch of batches) {
+    for (const event of batch || []) {
+      const key = `${event.id || event.date}-${event.title}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(event);
+    }
+  }
+  out.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  return out;
 }
 
 export async function getScheduledEvents(

@@ -23,10 +23,12 @@ import {
   CALENDAR_LEGEND,
   buildSuddenHolidayMessage,
 } from '../data/calendarData';
+import { exportAcademicCalendarPdf, resolveAcademicYearStart } from '../services/reportService.js';
 import {
   createSuddenHoliday,
   createCalendarEvent,
   getMonthEvents,
+  getAcademicYearEvents,
   getGovtHolidayMeta,
   getScheduledEvents,
   getDefaultHolidayState,
@@ -41,101 +43,8 @@ const EVENT_FORM_TYPES = [
   { value: 'event', label: 'Event' },
   { value: 'exam', label: 'Exam' },
   { value: 'important', label: 'Important' },
+  { value: 'other', label: 'Others' },
 ];
-
-function downloadTextFile(filename, content, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function escapeCsv(value) {
-  const text = String(value ?? '');
-  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
-}
-
-function eventsToCsv(events) {
-  const header = ['Date', 'Title', 'Type', 'Source', 'Subtitle'];
-  const rows = events.map((event) =>
-    [event.date, event.title, event.type, event.source, event.subtitle || '']
-      .map(escapeCsv)
-      .join(',')
-  );
-  return [header.join(','), ...rows].join('\n');
-}
-
-function icsEscape(value) {
-  return String(value ?? '')
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
-}
-
-function eventsToIcs(events, calendarName) {
-  const lines = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Attendance Tracking//Academic Calendar//EN',
-    `X-WR-CALNAME:${icsEscape(calendarName)}`,
-    'CALSCALE:GREGORIAN',
-  ];
-
-  events.forEach((event) => {
-    const dt = String(event.date || '').replace(/-/g, '');
-    if (!/^\d{8}$/.test(dt)) return;
-    lines.push(
-      'BEGIN:VEVENT',
-      `UID:${icsEscape(event.id)}@attendance-tracking`,
-      `DTSTAMP:${dt}T000000Z`,
-      `DTSTART;VALUE=DATE:${dt}`,
-      `SUMMARY:${icsEscape(event.title)}`,
-    );
-    if (event.subtitle) {
-      lines.push(`DESCRIPTION:${icsEscape(event.subtitle)}`);
-    }
-    lines.push('END:VEVENT');
-  });
-
-  lines.push('END:VCALENDAR');
-  return `${lines.join('\r\n')}\r\n`;
-}
-
-function openPrintFriendlyCalendar(events, title) {
-  const rows = events
-    .map(
-      (event) =>
-        `<tr><td>${event.date}</td><td>${event.title}</td><td>${event.type}</td><td>${event.subtitle || ''}</td></tr>`
-    )
-    .join('');
-  const html = `<!DOCTYPE html><html><head><title>${title}</title>
-    <style>
-      body { font-family: Georgia, serif; padding: 24px; color: #111; }
-      h1 { font-size: 20px; margin-bottom: 8px; }
-      p { color: #555; font-size: 13px; margin-bottom: 16px; }
-      table { width: 100%; border-collapse: collapse; font-size: 13px; }
-      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      th { background: #f5f5f5; }
-    </style></head><body>
-    <h1>${title}</h1>
-    <p>Print this page or use your browser’s “Save as PDF”.</p>
-    <table><thead><tr><th>Date</th><th>Title</th><th>Type</th><th>Notes</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="4">No events</td></tr>'}</tbody></table>
-    <script>window.onload=function(){window.print();}</script>
-    </body></html>`;
-  const win = window.open('', '_blank');
-  if (!win) return false;
-  win.document.write(html);
-  win.document.close();
-  return true;
-}
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
@@ -166,49 +75,83 @@ function buildMonthDays(year, month) {
   return cells;
 }
 
-function EventChip({ event }) {
+function EventChip({ event, compact = false }) {
+  const fullTitle = event.source === 'sunday' ? 'Weekly Holiday' : event.title || 'Event';
+  const fullLabel = event.subtitle ? `${fullTitle} — ${event.subtitle}` : fullTitle;
+  const titleClass = compact ? 'line-clamp-2 break-words' : 'break-words';
+
   if (event.source === 'sunday') {
     return (
-      <div className="flex items-center gap-1 rounded-md bg-red-100 px-1.5 py-1 text-[10px] font-semibold text-red-700">
-        <Sun size={11} className="shrink-0" />
-        <span className="truncate">Weekly Holiday</span>
+      <div
+        title={fullLabel}
+        className="rounded-md bg-red-100 px-1 py-0.5 text-[9px] font-semibold leading-snug text-red-700 sm:px-1.5 sm:py-1 sm:text-[10px]"
+      >
+        <span className="flex items-start gap-0.5">
+          <Sun size={10} className="mt-0.5 hidden shrink-0 sm:inline" />
+          <span className={titleClass}>Weekly Holiday</span>
+        </span>
       </div>
     );
   }
 
-  if (event.source === 'calendarific' || event.source === 'curated' || event.source === 'nager' || event.source === 'govt') {
+  if (
+    event.source === 'calendarific' ||
+    event.source === 'curated' ||
+    event.source === 'nager' ||
+    event.source === 'govt'
+  ) {
     return (
-      <div className="rounded-md border border-violet-100 bg-violet-50 px-1.5 py-1 text-[10px] font-semibold text-violet-800">
-        <p className="truncate">{event.title}</p>
+      <div
+        title={fullLabel}
+        className="rounded-md border border-violet-100 bg-violet-50 px-1 py-0.5 text-[9px] font-semibold leading-snug text-violet-800 sm:px-1.5 sm:py-1 sm:text-[10px]"
+      >
+        <p className={titleClass}>{event.title}</p>
       </div>
     );
   }
 
-  const style = EVENT_TYPES[event.type] || EVENT_TYPES.event;
+  const style = EVENT_TYPES[event.type] || EVENT_TYPES.other;
   const Icon =
-    event.type === 'exam' ? FlaskConical : event.type === 'important' ? Users : event.type === 'event' ? Star : Calendar;
+    event.type === 'exam'
+      ? FlaskConical
+      : event.type === 'important'
+        ? Users
+        : event.type === 'event'
+          ? Star
+          : Calendar;
 
   return (
-    <div className={`flex items-start gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold leading-tight ${style.chip}`}>
-      <Icon size={11} className="mt-0.5 shrink-0" />
-      <div className="min-w-0">
-        <p className="truncate">{event.title}</p>
-        {event.subtitle && <p className="truncate font-medium opacity-80">{event.subtitle}</p>}
+    <div
+      title={fullLabel}
+      className={`rounded-md border px-1 py-0.5 text-[9px] font-semibold leading-snug sm:px-1.5 sm:py-1 sm:text-[10px] ${style.chip}`}
+    >
+      <div className="flex items-start gap-0.5">
+        <Icon size={10} className="mt-0.5 hidden shrink-0 sm:inline" />
+        <div className="min-w-0 flex-1">
+          <p className={titleClass}>{event.title}</p>
+          {event.subtitle ? (
+            <p className={`font-medium opacity-80 ${compact ? 'line-clamp-1 break-words' : 'break-words'}`}>
+              {event.subtitle}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
 }
 
 function DayEvents({ events }) {
-  const maxVisible = 2;
+  const maxVisible = 3;
   const visible = events.slice(0, maxVisible);
   const hidden = events.length - visible.length;
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5 sm:space-y-1">
       {visible.map((event) => (
-        <EventChip key={event.id} event={event} />
+        <EventChip key={event.id} event={event} compact />
       ))}
-      {hidden > 0 && <p className="text-[10px] font-semibold text-indigo-600">+{hidden} more</p>}
+      {hidden > 0 ? (
+        <p className="text-[9px] font-semibold text-indigo-600 sm:text-[10px]">+{hidden} more</p>
+      ) : null}
     </div>
   );
 }
@@ -233,6 +176,7 @@ export default function AcademicCalendarPage() {
     title: '',
     date: `${defaultYear}-07-15`,
     type: 'event',
+    customType: '',
     subtitle: '',
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -244,6 +188,11 @@ export default function AcademicCalendarPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [govtCount, setGovtCount] = useState(0);
   const [holidayState, setHolidayState] = useState(getDefaultHolidayState());
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [exportNotice, setExportNotice] = useState('');
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [previewMeta, setPreviewMeta] = useState(null);
 
   const calendarificReady = isCalendarificConfigured();
   const holidayStates = getHolidayStates();
@@ -281,6 +230,10 @@ export default function AcademicCalendarPage() {
       cancelled = true;
     };
   }, [year, month, reloadKey, holidayState]);
+
+  useEffect(() => {
+    setSelectedDay(null);
+  }, [year, month]);
 
   const monthCells = useMemo(() => buildMonthDays(year, month), [year, month]);
 
@@ -360,6 +313,7 @@ export default function AcademicCalendarPage() {
       title: '',
       date: `${year}-${pad(month + 1)}-15`,
       type: 'event',
+      customType: '',
       subtitle: '',
     });
     setEventSubmitted(false);
@@ -367,26 +321,61 @@ export default function AcademicCalendarPage() {
     setShowEventForm(true);
   };
 
-  const handleDownloadCalendar = () => {
-    if (events.length === 0) {
-      setError('No events in the current month to download.');
-      return;
-    }
+  const academicStartYear = useMemo(
+    () => resolveAcademicYearStart(year, month),
+    [year, month]
+  );
+
+  const runAcademicCalendarExport = async () => {
+    setExporting(true);
     setError('');
-    const filename = `academic-calendar-${year}-${String(month + 1).padStart(2, '0')}.csv`;
-    downloadTextFile(filename, eventsToCsv(events), 'text/csv;charset=utf-8');
+    setExportNotice('');
+    try {
+      const yearEvents = await getAcademicYearEvents(academicStartYear, holidayState);
+      const today = new Date();
+      const dateLabel = today.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        weekday: 'long',
+      });
+      exportAcademicCalendarPdf({
+        startYear: academicStartYear,
+        events: yearEvents,
+        dateLabel,
+      });
+      setExportNotice('Print dialog opened — choose Save as PDF (landscape A4).');
+      return { yearEvents, dateLabel };
+    } finally {
+      setExporting(false);
+    }
   };
 
-  const handleExportCalendar = () => {
-    if (events.length === 0) {
-      setError('No events in the current month to export.');
-      return;
+  const handleDownloadCalendar = async () => {
+    try {
+      await runAcademicCalendarExport();
+    } catch (err) {
+      setError(err.message || 'Failed to download calendar');
     }
+  };
+
+  const handleExportCalendar = async () => {
     setError('');
-    const label = `${MONTHS[month]} ${year}`;
-    const filename = `academic-calendar-${year}-${String(month + 1).padStart(2, '0')}.ics`;
-    downloadTextFile(filename, eventsToIcs(events, `Academic Calendar — ${label}`), 'text/calendar;charset=utf-8');
-    openPrintFriendlyCalendar(events, `Academic Calendar — ${label}`);
+    setExportNotice('');
+    setPreviewMeta({
+      startYear: academicStartYear,
+      label: `${academicStartYear} – ${String(academicStartYear + 1).slice(-2)}`,
+    });
+    setPdfPreviewOpen(true);
+  };
+
+  const handleSaveCalendarExport = async () => {
+    try {
+      await runAcademicCalendarExport();
+      setPdfPreviewOpen(false);
+    } catch (err) {
+      setError(err.message || 'Failed to export calendar');
+    }
   };
 
   const handleSubmitEvent = async (e) => {
@@ -399,13 +388,23 @@ export default function AcademicCalendarPage() {
       setError('Please choose a date.');
       return;
     }
+    const customType = eventForm.customType.trim();
+    if (eventForm.type === 'other' && !customType) {
+      setError('Please specify the type.');
+      return;
+    }
+    if (eventForm.type === 'other' && customType.length > 50) {
+      setError('Custom type must be 50 characters or less.');
+      return;
+    }
+    const resolvedType = eventForm.type === 'other' ? customType : eventForm.type;
     setSavingEvent(true);
     setError('');
     try {
       await createCalendarEvent({
         title: eventForm.title.trim(),
         date: eventForm.date,
-        type: eventForm.type,
+        type: resolvedType,
         subtitle: eventForm.subtitle.trim(),
       });
       setEventSubmitted(true);
@@ -460,6 +459,11 @@ export default function AcademicCalendarPage() {
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
+      {exportNotice ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {exportNotice}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_280px]">
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -493,7 +497,27 @@ export default function AcademicCalendarPage() {
                 </select>
                 <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
               </div>
-              <span className="text-sm font-semibold text-gray-900">{year}</span>
+
+              <div className="relative">
+                <select
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                  className="appearance-none rounded-lg border border-gray-200 py-2 pl-3 pr-8 text-sm font-semibold text-gray-900"
+                  aria-label="Year"
+                >
+                  {Array.from(
+                    new Set([
+                      ...Array.from({ length: 11 }, (_, i) => defaultYear - 5 + i),
+                      year,
+                    ])
+                  )
+                    .sort((a, b) => a - b)
+                    .map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
+              </div>
 
               <div className="relative">
                 <select
@@ -507,6 +531,10 @@ export default function AcademicCalendarPage() {
                 </select>
                 <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400" />
               </div>
+
+              <span className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900">
+                AY {academicStartYear}–{String(academicStartYear + 1).slice(-2)}
+              </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -553,9 +581,11 @@ export default function AcademicCalendarPage() {
 
           {viewMode === 'calendar' ? (
             <>
-              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50 text-center text-xs font-bold uppercase tracking-wide text-gray-500">
+              <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50 text-center text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:text-xs">
                 {WEEKDAYS.map((day) => (
-                  <div key={day} className={`px-2 py-3 ${day === 'Sun' ? 'text-red-500' : ''}`}>{day}</div>
+                  <div key={day} className={`px-1 py-2 sm:px-2 sm:py-3 ${day === 'Sun' ? 'text-red-500' : ''}`}>
+                    {day}
+                  </div>
                 ))}
               </div>
 
@@ -563,25 +593,86 @@ export default function AcademicCalendarPage() {
                 {monthCells.map((cell, idx) => {
                   const dayEvents = cell.inMonth ? eventsByDay[cell.day] || [] : [];
                   const isSunday = cell.inMonth && dayEvents.some((e) => e.source === 'sunday');
+                  const isSelected = cell.inMonth && selectedDay === cell.day;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={`${cell.day}-${idx}`}
-                      className={`min-h-[108px] border-b border-r border-gray-100 p-2 ${
+                      disabled={!cell.inMonth}
+                      onClick={() => {
+                        if (!cell.inMonth) return;
+                        setSelectedDay((prev) => (prev === cell.day ? null : cell.day));
+                      }}
+                      className={`min-h-[118px] border-b border-r border-gray-100 p-1 text-left align-top sm:min-h-[108px] sm:p-2 ${
                         !cell.inMonth
                           ? 'bg-gray-50/80 text-gray-300'
-                          : isSunday
-                            ? 'bg-red-50/70'
-                            : 'bg-white'
+                          : isSelected
+                            ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-400'
+                            : isSunday
+                              ? 'bg-red-50/70'
+                              : 'bg-white hover:bg-slate-50'
                       }`}
                     >
-                      <p className={`mb-1.5 text-sm font-semibold ${cell.inMonth ? 'text-gray-800' : 'text-gray-300'}`}>
+                      <p
+                        className={`mb-1 text-sm font-semibold ${
+                          cell.inMonth ? 'text-gray-800' : 'text-gray-300'
+                        }`}
+                      >
                         {cell.day}
                       </p>
-                      {cell.inMonth && <DayEvents events={dayEvents} />}
-                    </div>
+                      {cell.inMonth ? <DayEvents events={dayEvents} /> : null}
+                    </button>
                   );
                 })}
               </div>
+
+              {selectedDay ? (
+                <div className="border-t border-indigo-100 bg-indigo-50/60 px-4 py-3 sm:px-5">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-gray-900">
+                      {String(selectedDay).padStart(2, '0')} {MONTHS[month]} {year}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDay(null)}
+                      className="text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {(eventsByDay[selectedDay] || []).length ? (
+                    <ul className="space-y-2">
+                      {(eventsByDay[selectedDay] || []).map((event) => {
+                        const style = EVENT_TYPES[event.type] || EVENT_TYPES.other;
+                        const label =
+                          event.source === 'sunday'
+                            ? 'Weekly Holiday'
+                            : style.label;
+                        return (
+                          <li
+                            key={event.id}
+                            className="rounded-lg border border-white bg-white px-3 py-2 shadow-sm"
+                          >
+                            <p className="text-sm font-semibold text-gray-900">
+                              {event.source === 'sunday' ? 'Weekly Holiday' : event.title}
+                            </p>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              {label}
+                              {event.subtitle ? ` · ${event.subtitle}` : ''}
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">No events on this day.</p>
+                  )}
+                </div>
+              ) : (
+                <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 sm:hidden">
+                  Tap a date to read the full event name.
+                </p>
+              )}
 
               <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 bg-gray-50 px-5 py-3 text-xs text-gray-600">
                 <span className="flex items-center gap-1.5">
@@ -617,7 +708,7 @@ export default function AcademicCalendarPage() {
                 [...events]
                   .sort((a, b) => a.day - b.day)
                   .map((event) => {
-                    const style = EVENT_TYPES[event.type] || EVENT_TYPES.event;
+                    const style = EVENT_TYPES[event.type] || EVENT_TYPES.other;
                     return (
                       <div key={event.id} className="flex items-center justify-between gap-3 px-5 py-3">
                         <div>
@@ -658,7 +749,7 @@ export default function AcademicCalendarPage() {
             ) : (
               <ul className="space-y-2.5">
                 {(upcomingInMonth.length > 0 ? upcomingInMonth : scheduledEvents).map((event) => {
-                  const style = EVENT_TYPES[event.type] || EVENT_TYPES.event;
+                  const style = EVENT_TYPES[event.type] || EVENT_TYPES.other;
                   return (
                     <li key={event.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
                       <p className="text-xs font-semibold text-gray-900">{event.title}</p>
@@ -696,16 +787,19 @@ export default function AcademicCalendarPage() {
               <button
                 type="button"
                 onClick={handleDownloadCalendar}
-                className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50"
+                disabled={exporting}
+                className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
               >
-                <Download size={14} className="text-indigo-600" /> Download Calendar
+                <Download size={14} className="text-indigo-600" />
+                {exporting ? 'Preparing PDF…' : 'Download Academic Calendar'}
               </button>
               <button
                 type="button"
                 onClick={handleExportCalendar}
-                className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50"
+                disabled={exporting}
+                className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
               >
-                <FileDown size={14} className="text-indigo-600" /> Export as PDF / ICS
+                <FileDown size={14} className="text-indigo-600" /> Export Academic Calendar
               </button>
             </div>
           </div>
@@ -782,7 +876,13 @@ export default function AcademicCalendarPage() {
                 <label className="mb-1 block text-xs text-gray-500">Type</label>
                 <select
                   value={eventForm.type}
-                  onChange={(e) => setEventForm((prev) => ({ ...prev, type: e.target.value }))}
+                  onChange={(e) =>
+                    setEventForm((prev) => ({
+                      ...prev,
+                      type: e.target.value,
+                      customType: e.target.value === 'other' ? prev.customType : '',
+                    }))
+                  }
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                 >
                   {EVENT_FORM_TYPES.map((option) => (
@@ -790,6 +890,22 @@ export default function AcademicCalendarPage() {
                   ))}
                 </select>
               </div>
+              {eventForm.type === 'other' && (
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">Specify</label>
+                  <input
+                    type="text"
+                    value={eventForm.customType}
+                    onChange={(e) =>
+                      setEventForm((prev) => ({ ...prev, customType: e.target.value }))
+                    }
+                    placeholder="e.g. Workshop, Sports Day, Assembly"
+                    maxLength={50}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+              )}
               <div>
                 <label className="mb-1 block text-xs text-gray-500">Subtitle / notes (optional)</label>
                 <input
@@ -908,6 +1024,65 @@ export default function AcademicCalendarPage() {
           </form>
         </div>
       )}
+
+      {pdfPreviewOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5 sm:py-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 sm:text-lg">
+                  Academic Calendar — {previewMeta?.label || `${academicStartYear} – ${String(academicStartYear + 1).slice(-2)}`}
+                </h3>
+                <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+                  Two-page school calendar (Jun–Nov / Dec–Apr) with Day Order, colour-coded holidays &amp; events, and Important Details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPdfPreviewOpen(false)}
+                className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                aria-label="Close preview"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 space-y-3 overflow-auto px-4 py-4 sm:px-5">
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-sm text-indigo-950">
+                <p className="font-semibold">Page 1 — June to November {academicStartYear}</p>
+                <p className="mt-1 text-xs text-indigo-800/80">Six month columns · Date · Day · DO · Remarks</p>
+              </div>
+              <div className="rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3 text-sm text-amber-950">
+                <p className="font-semibold">Page 2 — December {academicStartYear} to April {academicStartYear + 1}</p>
+                <p className="mt-1 text-xs text-amber-800/80">Same layout with Important Details legend on each page</p>
+              </div>
+              <ul className="list-disc space-y-1 pl-5 text-xs text-gray-600">
+                <li>Sundays and holidays show “-” in DO and do not count</li>
+                <li>Working days use Roman Day Order (I, II, III…)</li>
+                <li>Print in <strong>landscape A4</strong> and choose Save as PDF</li>
+              </ul>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 sm:px-5">
+              <button
+                type="button"
+                onClick={() => setPdfPreviewOpen(false)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCalendarExport}
+                disabled={exporting}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {exporting ? <LoaderCircle size={14} className="animate-spin" /> : <FileDown size={14} />}
+                <span className="sm:hidden">Save PDF</span>
+                <span className="hidden sm:inline">Save as PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

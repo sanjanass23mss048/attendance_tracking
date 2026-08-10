@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Grid3x3, Hash, LayoutList, MoreHorizontal, PieChart, Mail } from 'lucide-react';
+import { Grid3x3, Hash, LayoutList, MoreHorizontal, PieChart } from 'lucide-react';
 
 const PRIMARY = [
   { id: 'grid', label: 'Grid View', short: 'Grid', icon: Grid3x3 },
@@ -9,7 +9,6 @@ const PRIMARY = [
 
 const MORE_VIEWS = [
   { id: 'summary', label: 'Summary', icon: PieChart },
-  { id: 'messages', label: 'Messages', icon: Mail },
 ];
 
 export default function ViewModeTabs({ activeView, onChange }) {

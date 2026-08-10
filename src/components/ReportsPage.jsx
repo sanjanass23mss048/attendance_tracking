@@ -5,10 +5,10 @@ import {
   CalendarDays,
   Download,
   FileText,
-  Lightbulb,
   LoaderCircle,
   Printer,
   Users,
+  X,
 } from 'lucide-react';
 import { ATTENDANCE_STATUS } from '../data/mockData';
 import { formatAttendanceDate, getTodayAttendanceDate } from '../utils/attendance';
@@ -17,12 +17,13 @@ import { formatClassLabel } from '../data/schoolGrades.js';
 import { getClasses, resolveSectionId } from '../services/classService.js';
 import { getStudents } from '../services/studentService.js';
 import {
-  downloadCsv,
-  escapeCsv,
+  exportNominalRollPdf,
+  exportTablePdfReport,
   getDailyReport,
   getMonthlyReport,
-  openPrintWindow,
 } from '../services/reportService.js';
+import { canManageTeachers } from '../data/navItems.js';
+import { getTeachers } from '../services/teacherService.js';
 
 const REPORT_TYPES = [
   {
@@ -180,22 +181,24 @@ function FilterBar({ children, onRun, loading, runLabel = 'Generate' }) {
   );
 }
 
-function ExportButtons({ onCsv, onPrint }) {
+function ExportButtons({ onCsv, onPrint, exporting = false }) {
   return (
     <div className="flex flex-wrap gap-2">
       <button
         type="button"
         onClick={onCsv}
-        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        disabled={exporting}
+        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60"
       >
-        <Download size={16} />
-        Export CSV
+        {exporting ? <LoaderCircle size={16} className="animate-spin" /> : <Download size={16} />}
+        {exporting ? 'Exporting…' : 'Export PDF'}
       </button>
       {onPrint ? (
         <button
           type="button"
           onClick={onPrint}
-          className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
+          disabled={exporting}
+          className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 disabled:opacity-60"
         >
           <Printer size={16} />
           Print / PDF
@@ -225,12 +228,15 @@ function DailyReportView({ onBack }) {
   } = useClassSectionOptions();
   const [date, setDate] = useState(() => getTodayAttendanceDate());
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
+  const [exportNotice, setExportNotice] = useState('');
   const [report, setReport] = useState(null);
 
   const run = async () => {
     setLoading(true);
     setError('');
+    setExportNotice('');
     try {
       let data;
       if (selectedClass === allFilter) {
@@ -251,19 +257,27 @@ function DailyReportView({ onBack }) {
     }
   };
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
     if (!report) return;
-    const header = dailyReportCsvHeaders(report).map(escapeCsv).join(',');
-    const rows = report.students.map((s) =>
-      dailyReportRowCells(report, s).map(escapeCsv).join(',')
-    );
-    const suffix =
-      report.sectionName === 'all'
-        ? report.className === 'all'
-          ? 'all-classes'
-          : `${report.className}-all-sections`
-        : `${report.className}${report.sectionName}`;
-    downloadCsv(`daily-attendance-${suffix}-${report.date}.csv`, [header, ...rows]);
+    setExporting(true);
+    setError('');
+    setExportNotice('');
+    try {
+      const headers = dailyReportCsvHeaders(report);
+      const rows = report.students.map((s) => dailyReportRowCells(report, s));
+      exportTablePdfReport({
+        title: 'ATTENDANCE REPORT',
+        pill: report.label || 'Daily',
+        dateLabel: formatAttendanceDate(report.date),
+        headers,
+        rows,
+      });
+      setExportNotice('Print dialog opened — choose Save as PDF.');
+    } catch (err) {
+      setError(err.message || 'Failed to export PDF');
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -320,6 +334,7 @@ function DailyReportView({ onBack }) {
       </FilterBar>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {exportNotice ? <p className="text-sm text-emerald-700">{exportNotice}</p> : null}
 
       {!report && !loading ? (
         <EmptyState message="Choose filters and generate the daily attendance report." />
@@ -332,7 +347,7 @@ function DailyReportView({ onBack }) {
               <h3 className="text-lg font-semibold text-gray-900">{report.label}</h3>
               <p className="text-sm text-gray-500">{formatAttendanceDate(report.date)}</p>
             </div>
-            <ExportButtons onCsv={exportCsv} />
+            <ExportButtons onCsv={exportCsv} exporting={exporting} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -410,8 +425,11 @@ function MonthlyReportView({ onBack }) {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [scope, setScope] = useState('section');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
+  const [exportNotice, setExportNotice] = useState('');
   const [report, setReport] = useState(null);
+  const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   const monthLabel = useMemo(
     () =>
@@ -422,9 +440,26 @@ function MonthlyReportView({ onBack }) {
     [year, month]
   );
 
+  useEffect(() => {
+    if (!pdfPreviewOpen) return undefined;
+    window.history.pushState({ monthlyPrintPreview: true }, '');
+    const onPopState = () => setPdfPreviewOpen(false);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [pdfPreviewOpen]);
+
+  const dismissPdfPreview = () => {
+    if (window.history.state?.monthlyPrintPreview) {
+      window.history.back();
+    } else {
+      setPdfPreviewOpen(false);
+    }
+  };
+
   const run = async () => {
     setLoading(true);
     setError('');
+    setExportNotice('');
     try {
       let sectionId;
       if (scope === 'section') {
@@ -441,66 +476,81 @@ function MonthlyReportView({ onBack }) {
     }
   };
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
     if (!report) return;
-    if (report.mode === 'students') {
-      const header = ['Roll', 'Name', 'Present', 'Absent', 'Late', 'Half Day', 'OD Half', 'OD Full', 'Marked', 'Attendance %']
-        .map(escapeCsv)
-        .join(',');
-      const rows = report.students.map((s) =>
-        [s.rollNo, s.name, s.present, s.absent, s.late, s.halfDay, s.odHalfDay, s.odFullDay, s.marked, s.attendancePercent]
-          .map(escapeCsv)
-          .join(',')
-      );
-      downloadCsv(`monthly-${report.className}${report.sectionName}-${year}-${month}.csv`, [
-        header,
-        ...rows,
-      ]);
-      return;
+    setExporting(true);
+    setError('');
+    setExportNotice('');
+    try {
+      if (report.mode === 'students') {
+        exportTablePdfReport({
+          title: 'MONTHLY SUMMARY',
+          pill: report.label || monthLabel,
+          dateLabel: monthLabel,
+          headers: ['Roll', 'Name', 'Present', 'Absent', 'Late', 'Half Day', 'OD Half', 'OD Full', 'Marked', 'Attendance %'],
+          rows: report.students.map((s) => [
+            s.rollNo,
+            s.name,
+            s.present,
+            s.absent,
+            s.late,
+            s.halfDay,
+            s.odHalfDay,
+            s.odFullDay,
+            s.marked,
+            `${s.attendancePercent}%`,
+          ]),
+        });
+      } else {
+        exportTablePdfReport({
+          title: 'MONTHLY SUMMARY',
+          pill: 'All classes',
+          dateLabel: monthLabel,
+          headers: ['Class', 'Section', 'Students', 'Present', 'Absent', 'Late', 'Half Day', 'OD Half', 'OD Full', 'Attendance %'],
+          rows: report.classes.map((c) => [
+            c.className,
+            c.sectionName,
+            c.studentCount,
+            c.present,
+            c.absent,
+            c.late,
+            c.halfDay,
+            c.odHalfDay,
+            c.odFullDay,
+            `${c.attendancePercent}%`,
+          ]),
+        });
+      }
+      setExportNotice('Print dialog opened — choose Save as PDF.');
+    } catch (err) {
+      setError(err.message || 'Failed to export PDF');
+    } finally {
+      setExporting(false);
     }
-    const header = ['Class', 'Section', 'Students', 'Present', 'Absent', 'Late', 'Half Day', 'OD Half', 'OD Full', 'Attendance %']
-      .map(escapeCsv)
-      .join(',');
-    const rows = report.classes.map((c) =>
-      [c.className, c.sectionName, c.studentCount, c.present, c.absent, c.late, c.halfDay, c.odHalfDay, c.odFullDay, c.attendancePercent]
-        .map(escapeCsv)
-        .join(',')
-    );
-    downloadCsv(`monthly-all-classes-${year}-${month}.csv`, [header, ...rows]);
   };
 
   const printPdf = () => {
     if (!report) return;
-    const title = `Monthly summary — ${monthLabel}`;
-    const subtitle = report.label
-      ? `${report.label} · Print or Save as PDF`
-      : 'All classes · Print or Save as PDF';
-    let body;
-    if (report.mode === 'students') {
-      const rows = report.students
-        .map(
-          (s) =>
-            `<tr><td>${s.rollNo}</td><td>${s.name}</td><td>${s.present}</td><td>${s.absent}</td><td>${s.late}</td><td>${s.halfDay}</td><td>${s.odHalfDay}</td><td>${s.odFullDay}</td><td>${s.attendancePercent}%</td></tr>`
-        )
-        .join('');
-      body = `<table><thead><tr><th>Roll</th><th>Name</th><th>P</th><th>A</th><th>L</th><th>H</th><th>OH</th><th>OF</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
-    } else {
-      const rows = report.classes
-        .map(
-          (c) =>
-            `<tr><td>${c.label}</td><td>${c.studentCount}</td><td>${c.present}</td><td>${c.absent}</td><td>${c.late}</td><td>${c.halfDay}</td><td>${c.odHalfDay}</td><td>${c.odFullDay}</td><td>${c.attendancePercent}%</td></tr>`
-        )
-        .join('');
-      body = `<table><thead><tr><th>Class</th><th>Students</th><th>P</th><th>A</th><th>L</th><th>H</th><th>OH</th><th>OF</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
+    setPdfPreviewOpen(true);
+  };
+
+  const savePdfPreview = async () => {
+    if (!report) return;
+    setError('');
+    setExportNotice('');
+    try {
+      await exportCsv();
+      dismissPdfPreview();
+    } catch (err) {
+      setError(err.message || 'Failed to export');
     }
-    openPrintWindow(title, body, subtitle);
   };
 
   return (
     <div className="space-y-4">
       <ReportHeader
         title="Monthly summary PDF"
-        subtitle="Month picker with P/A/L/H/OH/OF counts — print to PDF or export CSV"
+        subtitle="Month picker with P/A/L/H/OH/OF counts — print or export as PDF"
         onBack={onBack}
       />
       <FilterBar onRun={run} loading={loading}>
@@ -555,6 +605,7 @@ function MonthlyReportView({ onBack }) {
       </FilterBar>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {exportNotice ? <p className="text-sm text-emerald-700">{exportNotice}</p> : null}
       {!report && !loading ? (
         <EmptyState message="Pick a month and generate the monthly summary." />
       ) : null}
@@ -572,7 +623,7 @@ function MonthlyReportView({ onBack }) {
                 {report.totals.attendancePercent}% present
               </p>
             </div>
-            <ExportButtons onCsv={exportCsv} onPrint={printPdf} />
+            <ExportButtons onCsv={exportCsv} onPrint={printPdf} exporting={exporting} />
           </div>
 
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -637,6 +688,110 @@ function MonthlyReportView({ onBack }) {
           </div>
         </div>
       ) : null}
+
+      {pdfPreviewOpen && report ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5 sm:py-4">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 sm:text-lg">
+                  Monthly summary — {monthLabel}
+                </h3>
+                <p className="text-xs text-gray-500 sm:text-sm">
+                  {report.label || 'All classes'} · Preview stays in the app. Back or Close returns here.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={dismissPdfPreview}
+                className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                aria-label="Close preview"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto px-4 py-3 sm:px-5">
+              <table className="min-w-full text-left text-sm">
+                <thead className="sticky top-0 bg-white text-xs uppercase tracking-wide text-gray-500">
+                  {report.mode === 'students' ? (
+                    <tr>
+                      <th className="py-2 pr-3">Roll</th>
+                      <th className="py-2 pr-3">Name</th>
+                      <th className="py-2 pr-2">P</th>
+                      <th className="py-2 pr-2">A</th>
+                      <th className="py-2 pr-2">L</th>
+                      <th className="py-2 pr-2">H</th>
+                      <th className="py-2 pr-2">OH</th>
+                      <th className="py-2 pr-2">OF</th>
+                      <th className="py-2">%</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th className="py-2 pr-3">Class</th>
+                      <th className="py-2 pr-3">Students</th>
+                      <th className="py-2 pr-2">P</th>
+                      <th className="py-2 pr-2">A</th>
+                      <th className="py-2 pr-2">L</th>
+                      <th className="py-2 pr-2">H</th>
+                      <th className="py-2 pr-2">OH</th>
+                      <th className="py-2 pr-2">OF</th>
+                      <th className="py-2">%</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {report.mode === 'students'
+                    ? report.students.map((s) => (
+                        <tr key={s.studentId} className="border-t border-gray-100">
+                          <td className="py-2 pr-3 font-medium">{s.rollNo}</td>
+                          <td className="py-2 pr-3">{s.name}</td>
+                          <td className="py-2 pr-2">{s.present}</td>
+                          <td className="py-2 pr-2">{s.absent}</td>
+                          <td className="py-2 pr-2">{s.late}</td>
+                          <td className="py-2 pr-2">{s.halfDay}</td>
+                          <td className="py-2 pr-2">{s.odHalfDay}</td>
+                          <td className="py-2 pr-2">{s.odFullDay}</td>
+                          <td className="py-2 font-semibold text-indigo-700">{s.attendancePercent}%</td>
+                        </tr>
+                      ))
+                    : report.classes.map((c) => (
+                        <tr key={c.sectionId} className="border-t border-gray-100">
+                          <td className="py-2 pr-3 font-medium">{c.label}</td>
+                          <td className="py-2 pr-3">{c.studentCount}</td>
+                          <td className="py-2 pr-2">{c.present}</td>
+                          <td className="py-2 pr-2">{c.absent}</td>
+                          <td className="py-2 pr-2">{c.late}</td>
+                          <td className="py-2 pr-2">{c.halfDay}</td>
+                          <td className="py-2 pr-2">{c.odHalfDay}</td>
+                          <td className="py-2 pr-2">{c.odFullDay}</td>
+                          <td className="py-2 font-semibold text-indigo-700">{c.attendancePercent}%</td>
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 px-4 py-3 sm:px-5">
+              <button
+                type="button"
+                onClick={dismissPdfPreview}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={savePdfPreview}
+                disabled={exporting}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {exporting ? <LoaderCircle size={14} className="animate-spin" /> : <Download size={14} />}
+                <span className="sm:hidden">Share / Save</span>
+                <span className="hidden sm:inline">Save as PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -674,13 +829,17 @@ function classLevelBand(className) {
   return 'General';
 }
 
-function ReportsLanding({ onSelect }) {
+function ReportsLanding({ onSelect, user }) {
+  const showTeacherColumn = canManageTeachers(user);
   const [classesData, setClassesData] = useState([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [nominalTarget, setNominalTarget] = useState(null);
   const [nominalStudents, setNominalStudents] = useState([]);
+  const [teacherBySection, setTeacherBySection] = useState({});
   const [nominalLoading, setNominalLoading] = useState(false);
   const [nominalError, setNominalError] = useState('');
+  const [downloadingClassId, setDownloadingClassId] = useState(null);
+  const [downloadNotice, setDownloadNotice] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -702,29 +861,108 @@ function ReportsLanding({ onSelect }) {
 
   const assignedCount = classesData.length;
 
+  const fetchClassStudents = async (klass) => {
+    const sections = klass.sections || [];
+    if (!sections.length) return [];
+    const lists = await Promise.all(
+      sections.map(async (sec) => {
+        if (!sec?.id) {
+          throw new Error(`Section ${sec?.name || '?'} is missing an id`);
+        }
+        const data = await getStudents({ sectionId: sec.id });
+        return (data.students || []).map((s) => ({
+          ...s,
+          sectionName: sec.name,
+        }));
+      })
+    );
+    return lists
+      .flat()
+      .sort(
+        (a, b) =>
+          String(a.sectionName).localeCompare(String(b.sectionName)) ||
+          Number(a.rollNo ?? a.roll) - Number(b.rollNo ?? b.roll)
+      );
+  };
+
+  const buildTeacherMap = async (klass) => {
+    if (!showTeacherColumn) return {};
+    try {
+      const data = await getTeachers();
+      const map = {};
+      const classKey = String(klass.name || '').toUpperCase();
+      for (const t of data.teachers || []) {
+        const parts = String(t.classesAssigned || '')
+          .split(/[,;]/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+        for (const part of parts) {
+          const m = part.match(/^(.+?)[\s\-–]+([A-Za-z0-9]+)$/);
+          if (!m) continue;
+          const grade = m[1].trim().toUpperCase();
+          const sec = m[2].trim().toUpperCase();
+          if (grade === classKey || formatClassLabel(grade).toUpperCase() === formatClassLabel(klass.name).toUpperCase()) {
+            map[sec] = t.name;
+          }
+        }
+      }
+      return map;
+    } catch {
+      return {};
+    }
+  };
+
+  const nominalDateLabel = () => {
+    const iso = getTodayAttendanceDate();
+    const d = new Date(`${iso}T12:00:00`);
+    const datePart = d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' });
+    return `${datePart}, ${weekday}`;
+  };
+
+  const sectionLabelForStudents = (students, klass) => {
+    const secs = [...new Set(students.map((s) => s.sectionName).filter(Boolean))];
+    if (secs.length === 1) return secs[0];
+    const fromClass = (klass.sections || []).map((s) => s.name);
+    if (fromClass.length === 1) return fromClass[0];
+    return '';
+  };
+
+  const openNominalPdf = (klass, students, teachersMap = {}) => {
+    const classLabel = formatClassLabel(klass.name);
+    const sectionLabel = sectionLabelForStudents(students, klass);
+    exportNominalRollPdf({
+      classLabel,
+      sectionLabel,
+      dateLabel: nominalDateLabel(),
+      showTeacherColumn,
+      rows: students.map((s) => ({
+        roll: s.rollNo ?? s.roll,
+        name: s.name,
+        section: s.sectionName,
+        teacher: teachersMap[String(s.sectionName || '').toUpperCase()] || '',
+      })),
+    });
+  };
+
   const loadNominalRoll = async (klass) => {
     setNominalTarget(klass);
     setNominalLoading(true);
     setNominalError('');
     setNominalStudents([]);
+    setTeacherBySection({});
+    setDownloadNotice('');
     try {
-      const lists = await Promise.all(
-        (klass.sections || []).map(async (sec) => {
-          const data = await getStudents({ sectionId: sec.id });
-          return (data.students || []).map((s) => ({
-            ...s,
-            sectionName: sec.name,
-          }));
-        })
-      );
-      const merged = lists
-        .flat()
-        .sort(
-          (a, b) =>
-            String(a.sectionName).localeCompare(String(b.sectionName)) ||
-            Number(a.rollNo ?? a.roll) - Number(b.rollNo ?? b.roll)
-        );
-      setNominalStudents(merged);
+      const [students, teachersMap] = await Promise.all([
+        fetchClassStudents(klass),
+        buildTeacherMap(klass),
+      ]);
+      setNominalStudents(students);
+      setTeacherBySection(teachersMap);
     } catch (err) {
       setNominalError(err.message || 'Failed to load nominal roll');
     } finally {
@@ -733,41 +971,28 @@ function ReportsLanding({ onSelect }) {
   };
 
   const downloadNominalRoll = async (klass) => {
+    const classKey = klass.id || klass.name;
+    setNominalError('');
+    setDownloadNotice('');
+    setDownloadingClassId(classKey);
     try {
-      const lists = await Promise.all(
-        (klass.sections || []).map(async (sec) => {
-          const data = await getStudents({ sectionId: sec.id });
-          return (data.students || []).map((s) => ({
-            ...s,
-            sectionName: sec.name,
-          }));
-        })
-      );
-      const students = lists
-        .flat()
-        .sort(
-          (a, b) =>
-            String(a.sectionName).localeCompare(String(b.sectionName)) ||
-            Number(a.rollNo ?? a.roll) - Number(b.rollNo ?? b.roll)
-        );
-      const header = ['Class', 'Section', 'Roll', 'Name', 'Status'].map(escapeCsv).join(',');
-      const rows = students.map((s) =>
-        [
-          formatClassLabel(klass.name),
-          s.sectionName,
-          s.rollNo ?? s.roll,
-          s.name,
-          s.status || 'Active',
-        ]
-          .map(escapeCsv)
-          .join(',')
-      );
-      downloadCsv(
-        `nominal-roll-${klass.name}-${(klass.sections || []).map((s) => s.name).join('')}.csv`,
-        [header, ...rows]
-      );
+      const reuse =
+        nominalTarget &&
+        (nominalTarget.id || nominalTarget.name) === classKey &&
+        nominalStudents.length > 0 &&
+        !nominalLoading;
+      const students = reuse ? nominalStudents : await fetchClassStudents(klass);
+      if (!students.length) {
+        setNominalError('No students to download for this class.');
+        return;
+      }
+      const teachersMap = reuse ? teacherBySection : await buildTeacherMap(klass);
+      openNominalPdf(klass, students, teachersMap);
+      setDownloadNotice('Print dialog opened — choose Save as PDF.');
     } catch (err) {
       setNominalError(err.message || 'Failed to download nominal roll');
+    } finally {
+      setDownloadingClassId(null);
     }
   };
 
@@ -831,6 +1056,17 @@ function ReportsLanding({ onSelect }) {
           </span>
         </div>
 
+        {nominalError && !nominalTarget ? (
+          <div className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
+            {nominalError}
+          </div>
+        ) : null}
+        {downloadNotice && !nominalTarget ? (
+          <div className="border-t border-emerald-100 bg-emerald-50 px-5 py-3 text-sm text-emerald-800">
+            {downloadNotice}
+          </div>
+        ) : null}
+
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-gray-500">
@@ -864,8 +1100,10 @@ function ReportsLanding({ onSelect }) {
                   0
                 );
                 const sections = klass.sections || [];
+                const classKey = klass.id || klass.name;
+                const isDownloading = downloadingClassId === classKey;
                 return (
-                  <tr key={klass.id || klass.name} className="border-t border-gray-100">
+                  <tr key={classKey} className="border-t border-gray-100">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-sm font-bold text-violet-700">
@@ -916,10 +1154,15 @@ function ReportsLanding({ onSelect }) {
                       <button
                         type="button"
                         onClick={() => downloadNominalRoll(klass)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+                        disabled={Boolean(downloadingClassId)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60"
                       >
-                        <Download size={14} />
-                        Download
+                        {isDownloading ? (
+                          <LoaderCircle size={14} className="animate-spin" />
+                        ) : (
+                          <Download size={14} />
+                        )}
+                        {isDownloading ? 'Preparing…' : 'Download'}
                       </button>
                     </td>
                   </tr>
@@ -928,42 +1171,50 @@ function ReportsLanding({ onSelect }) {
             </tbody>
           </table>
         </div>
-
-        <div className="border-t border-sky-100 bg-sky-50 px-5 py-3 text-sm text-sky-900">
-          If you need access to other classes, please contact the In-Charge or Administrator.
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-xs text-violet-900">
-        <span className="inline-flex items-center gap-1.5 font-semibold">
-          <Lightbulb size={14} className="text-violet-600" />
-          Tip
-        </span>
-        {' — '}
-        Daily reports support a single class/section. Monthly reports can be generated for any class
-        you have access to.
       </div>
 
       {nominalTarget ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">
-                  Nominal Roll — {formatClassLabel(nominalTarget.name)}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Sections{' '}
-                  {(nominalTarget.sections || []).map((s) => s.name).join(', ') || '—'}
-                </p>
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="border-b-4 border-[#1e3a8a] px-5 py-4" style={{ borderImage: 'linear-gradient(to right, #1e3a8a 0, #1e3a8a 72px, #c9a227 72px, #c9a227 144px, #1e3a8a 144px) 1' }}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                    RIOBizSols
+                  </p>
+                  <h3 className="text-xl font-extrabold tracking-wide text-[#1e3a8a]">
+                    SCHOOL NOMINAL ROLL
+                  </h3>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-[#1e3a8a] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+                      Class {formatClassLabel(nominalTarget.name)}
+                    </span>
+                    {(nominalTarget.sections || []).slice(0, 3).map((s) => (
+                      <span
+                        key={s.id || s.name}
+                        className="rounded-full bg-[#1e3a8a] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white"
+                      >
+                        Section {s.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Date</p>
+                  <p className="text-sm font-bold text-slate-900">{nominalDateLabel()}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNominalTarget(null);
+                      setDownloadNotice('');
+                      setNominalError('');
+                    }}
+                    className="mt-2 rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                  >
+                    <X size={16} className="inline" /> Close
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setNominalTarget(null)}
-                className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-              >
-                Close
-              </button>
             </div>
             <div className="flex-1 overflow-auto px-5 py-3">
               {nominalLoading ? (
@@ -973,38 +1224,97 @@ function ReportsLanding({ onSelect }) {
               ) : null}
               {nominalError ? <p className="py-6 text-sm text-red-600">{nominalError}</p> : null}
               {!nominalLoading && !nominalError ? (
-                <table className="min-w-full text-left text-sm">
-                  <thead className="sticky top-0 bg-white text-xs uppercase tracking-wide text-gray-500">
-                    <tr>
-                      <th className="py-2 pr-3">Section</th>
-                      <th className="py-2 pr-3">Roll</th>
-                      <th className="py-2">Name</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {nominalStudents.map((s) => (
-                      <tr key={s.id} className="border-t border-gray-100">
-                        <td className="py-2 pr-3 text-gray-600">{s.sectionName}</td>
-                        <td className="py-2 pr-3 font-medium">{s.rollNo ?? s.roll}</td>
-                        <td className="py-2 text-gray-900">{s.name}</td>
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-[#1e3a8a] text-xs font-bold uppercase tracking-wide text-white">
+                      <tr>
+                        {(nominalTarget.sections || []).length > 1 ? (
+                          <th className="px-4 py-3">Section</th>
+                        ) : null}
+                        <th className="px-4 py-3 text-center">Roll No.</th>
+                        <th className="px-4 py-3">Student Name</th>
+                        {showTeacherColumn ? (
+                          <th className="px-4 py-3">Teacher</th>
+                        ) : null}
+                        <th className="px-4 py-3">Remarks / Notes</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {nominalStudents.map((s, i) => (
+                        <tr
+                          key={s.id}
+                          className={i % 2 ? 'bg-sky-50/70' : 'bg-white'}
+                        >
+                          {(nominalTarget.sections || []).length > 1 ? (
+                            <td className="px-4 py-2.5 text-center text-slate-600">
+                              {s.sectionName}
+                            </td>
+                          ) : null}
+                          <td className="px-4 py-2.5 text-center font-semibold text-slate-700">
+                            {s.rollNo ?? s.roll}
+                          </td>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900">{s.name}</td>
+                          {showTeacherColumn ? (
+                            <td className="px-4 py-2.5 text-slate-700">
+                              {teacherBySection[String(s.sectionName || '').toUpperCase()] || '—'}
+                            </td>
+                          ) : null}
+                          <td className="px-4 py-2.5 text-slate-400">&nbsp;</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : null}
               {!nominalLoading && !nominalError && !nominalStudents.length ? (
                 <p className="py-8 text-center text-sm text-gray-500">No students in this class.</p>
               ) : null}
+              {!nominalLoading && !nominalError && nominalStudents.length ? (
+                <div className="mt-3 flex items-start gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-xs font-semibold text-[#1e3a8a]">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1e3a8a] text-[10px] font-bold text-white">
+                    i
+                  </span>
+                  <span>
+                    This is the nominal roll for Class {formatClassLabel(nominalTarget.name)}
+                    {sectionLabelForStudents(nominalStudents, nominalTarget)
+                      ? ` - Section ${sectionLabelForStudents(nominalStudents, nominalTarget)}`
+                      : ''}
+                    .
+                  </span>
+                </div>
+              ) : null}
             </div>
-            <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-3">
-              <button
-                type="button"
-                onClick={() => downloadNominalRoll(nominalTarget)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
-              >
-                <Download size={14} />
-                Download CSV
-              </button>
+            <div className="flex flex-col gap-2 border-t border-gray-100 px-5 py-3">
+              {downloadNotice ? (
+                <p className="text-sm text-emerald-700">{downloadNotice}</p>
+              ) : null}
+              {nominalError ? <p className="text-sm text-red-600">{nominalError}</p> : null}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadNominalRoll(nominalTarget)}
+                  disabled={Boolean(downloadingClassId) || nominalLoading || !nominalStudents.length}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#1e3a8a] bg-white px-3 py-2 text-sm font-medium text-[#1e3a8a] hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+                >
+                  <Printer size={14} />
+                  Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadNominalRoll(nominalTarget)}
+                  disabled={Boolean(downloadingClassId) || nominalLoading || !nominalStudents.length}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {downloadingClassId === (nominalTarget.id || nominalTarget.name) ? (
+                    <LoaderCircle size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  {downloadingClassId === (nominalTarget.id || nominalTarget.name)
+                    ? 'Preparing…'
+                    : 'Download PDF'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1013,11 +1323,11 @@ function ReportsLanding({ onSelect }) {
   );
 }
 
-export default function ReportsPage() {
+export default function ReportsPage({ user }) {
   const [activeReport, setActiveReport] = useState(null);
 
   if (activeReport === 'daily') return <DailyReportView onBack={() => setActiveReport(null)} />;
   if (activeReport === 'monthly') return <MonthlyReportView onBack={() => setActiveReport(null)} />;
 
-  return <ReportsLanding onSelect={setActiveReport} />;
+  return <ReportsLanding onSelect={setActiveReport} user={user} />;
 }

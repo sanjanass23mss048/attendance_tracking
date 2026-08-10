@@ -14,9 +14,10 @@ import {
   Pin,
   PinOff,
   ArrowRight,
+  X,
 } from 'lucide-react';
-import { navItems } from '../data/navItems';
-import attendanceLogo from '../assets/attendance-logo.png';
+import { navItemsForUser } from '../data/navItems';
+import attendanceLogoMark from '../assets/attendance-logo-mark.png';
 
 const iconMap = {
   LayoutDashboard,
@@ -40,8 +41,10 @@ export default function Sidebar({
   onHoveredChange,
   isMobileOpen,
   onMobileOpenChange,
+  user = null,
 }) {
   const [isMobile, setIsMobile] = useState(false);
+  const items = navItemsForUser(user);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)');
@@ -87,10 +90,15 @@ export default function Sidebar({
         }}
       >
         <div className="flex items-center justify-between gap-2 border-b border-indigo-800 px-3 py-4">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => handleNavigate('dashboard')}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left hover:bg-indigo-900/50"
+            aria-label="Go to Dashboard"
+          >
             <img
-              src={attendanceLogo}
-              alt="Presence"
+              src={attendanceLogoMark}
+              alt=""
               className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-0.5 ring-1 ring-white/20"
             />
             <div className="min-w-0">
@@ -99,9 +107,18 @@ export default function Sidebar({
               </p>
               <p className="truncate text-[11px] leading-tight text-indigo-300">School attendance</p>
             </div>
-          </div>
+          </button>
 
-          {!isMobile && (
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={() => onMobileOpenChange?.(false)}
+              className="rounded-lg p-1.5 text-indigo-200 hover:bg-indigo-900 hover:text-white"
+              aria-label="Close menu"
+            >
+              <X size={20} />
+            </button>
+          ) : (
             <button
               type="button"
               onClick={() => onPinnedChange?.(!isPinned)}
@@ -120,7 +137,7 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const Icon = iconMap[item.icon];
             const isActive = activePage === item.id;
             return (

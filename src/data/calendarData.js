@@ -35,6 +35,12 @@ export const EVENT_TYPES = {
     chip: 'bg-violet-100 text-violet-900 border-violet-200',
     cardIcon: 'bg-violet-100 text-violet-700',
   },
+  other: {
+    label: 'Others',
+    dot: 'bg-slate-500',
+    chip: 'bg-slate-50 text-slate-800 border-slate-200',
+    cardIcon: 'bg-slate-50 text-slate-600',
+  },
 };
 
 /** Demo school events shown on Academic Calendar (July 2026 mockup). */
@@ -108,4 +114,5 @@ export const CALENDAR_LEGEND = [
   { id: 'exam', label: 'Exam', color: 'bg-emerald-500' },
   { id: 'event', label: 'Event', color: 'bg-sky-500' },
   { id: 'important', label: 'Important', color: 'bg-amber-400' },
+  { id: 'other', label: 'Others', color: 'bg-slate-500' },
 ];

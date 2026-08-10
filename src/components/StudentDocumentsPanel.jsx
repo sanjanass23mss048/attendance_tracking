@@ -11,7 +11,6 @@ import {
 import {
   DOCUMENT_TYPES,
   LEAVE_REASONS,
-  LEAVE_STATUSES,
   deleteDocument,
   documentTypeLabel,
   downloadDocument,
@@ -38,17 +37,6 @@ function formatPeriod(from, to) {
   if (from && to && from === to) return formatDate(from);
   if (from && to) return `${formatDate(from)} – ${formatDate(to)}`;
   return formatDate(from || to);
-}
-
-function StatusBadge({ status }) {
-  const meta = LEAVE_STATUSES[status] || LEAVE_STATUSES.pending;
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${meta.className}`}
-    >
-      {meta.label}
-    </span>
-  );
 }
 
 const emptyForm = () => ({
@@ -420,7 +408,6 @@ export default function StudentDocumentsPanel({ studentRecordId, studentName }) 
                   <th className="px-3 py-2">Leave type</th>
                   <th className="px-3 py-2">Period</th>
                   <th className="px-3 py-2">Reason</th>
-                  <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2 text-right">Action</th>
                 </tr>
               </thead>
@@ -438,9 +425,6 @@ export default function StudentDocumentsPanel({ studentRecordId, studentName }) 
                     </td>
                     <td className="max-w-[220px] px-3 py-2.5 text-gray-600" title={doc.reason || undefined}>
                       <span className="line-clamp-2">{doc.reason || '—'}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge status={doc.status} />
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex justify-end gap-1">

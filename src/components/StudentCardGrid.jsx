@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Info, Calendar, Maximize2, Minimize2, Users, ClipboardList } from 'lucide-react';
+import { Info, Maximize2, Minimize2, Users, ClipboardList } from 'lucide-react';
 import { ATTENDANCE_STATUS, PERIOD_COUNT } from '../data/mockData';
 import AttendanceMarkControls from './AttendanceMarkControls';
 import AttendanceFooterBar from './AttendanceFooterBar';
@@ -69,13 +69,13 @@ export default function StudentCardGrid({
       }`}
     >
       <div className="relative flex shrink-0 flex-col gap-3 border-b border-gray-100 bg-gray-50/80 px-3 py-3 sm:px-4 sm:py-2.5 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between lg:gap-2 lg:px-3 lg:py-1.5 lg:pr-14">
-        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
           <div className="min-w-0">
             <label className="mb-1 block text-[10px] text-gray-500 sm:text-xs">Class</label>
             <select
               value={selectedClass}
               onChange={(e) => onClassChange(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-2 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:rounded-lg sm:px-3"
+              className="w-full rounded-xl border border-gray-200 px-2.5 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:rounded-lg sm:px-3"
             >
               {classOptions.map((c) => (
                 <option key={c} value={c}>
@@ -89,7 +89,7 @@ export default function StudentCardGrid({
             <select
               value={selectedSection}
               onChange={(e) => onSectionChange(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-2 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:rounded-lg sm:px-3"
+              className="w-full rounded-xl border border-gray-200 px-2.5 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:rounded-lg sm:px-3"
             >
               {sectionOptions.map((s) => (
                 <option key={s} value={s}>
@@ -98,26 +98,20 @@ export default function StudentCardGrid({
               ))}
             </select>
           </div>
-          <div className="min-w-0">
+          <div className="col-span-2 min-w-0 sm:col-span-1 sm:min-w-[11.5rem]">
             <label className="mb-1 block text-[10px] text-gray-500 sm:text-xs">Date</label>
-            <div className="relative">
-              <Calendar
-                size={15}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-indigo-600 sm:left-3"
-              />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => onDateChange(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-1 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-auto sm:rounded-lg sm:pl-9 sm:pr-3"
-              />
-            </div>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="date-input w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:rounded-lg"
+            />
           </div>
           <button
             type="button"
             onClick={onLoadStudents}
             disabled={loading}
-            className="col-span-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 sm:col-span-1 sm:w-auto sm:rounded-lg sm:py-2 sm:font-medium"
+            className="col-span-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 sm:col-span-1 sm:w-auto sm:rounded-lg sm:py-2.5 sm:font-medium"
           >
             <Users size={16} className="sm:hidden" />
             {loading ? 'Loading…' : 'Load Students'}

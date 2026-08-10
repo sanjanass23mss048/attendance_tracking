@@ -22,6 +22,7 @@ import {
   SUBJECT_STYLES,
   TIMETABLE_DAYS,
 } from '../data/timetableData.js';
+import { exportTablePdfReport } from '../services/reportService.js';
 import TimetableAddPeriodModal from './TimetableAddPeriodModal.jsx';
 
 const SUBJECT_ICONS = {
@@ -198,8 +199,8 @@ export default function WeeklyTimetablePage() {
     setShowAddPeriod(false);
   };
 
-  const handleExportCsv = () => {
-    const header = ['Day', ...periods.map((p) => `P${p.period} (${p.time})`)];
+  const handleExportPdf = () => {
+    const headers = ['Day', ...periods.map((p) => `P${p.period} (${p.time})`)];
     const rows = TIMETABLE_DAYS.map((day, di) => {
       const cells = periods.map((_, pi) => {
         const e = timetableGrid[pi]?.[di];
@@ -207,16 +208,14 @@ export default function WeeklyTimetablePage() {
       });
       return [day, ...cells];
     });
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `timetable-class-${selectedClass?.name || 'x'}-sec-${selectedSection?.name || sectionName}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const sec = selectedSection?.name || sectionName;
+    exportTablePdfReport({
+      title: 'WEEKLY TIMETABLE',
+      pill: `Class ${formatClassLabel(selectedClass?.name || '—')} · Sec ${sec}`,
+      dateLabel: `Class ${formatClassLabel(selectedClass?.name || '—')} · Section ${sec}`,
+      headers,
+      rows,
+    });
   };
 
   const nextPeriod =
@@ -267,11 +266,11 @@ export default function WeeklyTimetablePage() {
         </button>
         <button
           type="button"
-          onClick={handleExportCsv}
+          onClick={handleExportPdf}
           className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           <Download size={15} />
-          Export CSV
+          Export PDF
         </button>
       </div>
 

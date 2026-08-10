@@ -307,6 +307,20 @@ export async function getDailyMarksInRange(studentClassIds, start, end) {
   }));
 }
 
+/**
+ * Count days in range that have a daily attendance header for this class-section.
+ * Used so monthly reports can treat unmarked students as Present on those days.
+ */
+export async function countAttendanceDaysForSection(classSectionId, start, end) {
+  if (!classSectionId) return 0;
+  return prisma.tblAttendance.count({
+    where: {
+      Attendance_Date: { gte: start, lte: end },
+      Attendance_id: { endsWith: `-${classSectionId}` },
+    },
+  });
+}
+
 /** Remove legacy daily Present rows (Session D or null). Safe to run once after deploy. */
 export async function cleanupStoredPresentDailyMarks() {
   return prisma.tblStudentAtt_list.deleteMany({

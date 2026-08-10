@@ -41,6 +41,14 @@ const SAMPLE_VARIANTS = [
 export const createSampleGrid = (rowCount = STUDENTS_PER_SECTION) =>
   Array.from({ length: rowCount }, (_, i) => [...SAMPLE_VARIANTS[i % SAMPLE_VARIANTS.length]]);
 
+/** Deterministic mock daily status for a student index on YYYY-MM-DD. */
+export function mockDailyStatusForStudent(studentIndex, dateStr) {
+  const grid = createSampleGrid();
+  const day = Number(String(dateStr || '').slice(-2)) || 1;
+  const col = Math.min(grid[0].length - 1, (day + studentIndex) % grid[0].length);
+  return grid[studentIndex % grid.length]?.[col] ?? 'P';
+}
+
 export const todayClasses = [
   { id: '1-A', classNum: '1', section: 'A', label: 'Class 1 - A', students: 40, percent: 85.0 },
   { id: '1-B', classNum: '1', section: 'B', label: 'Class 1 - B', students: 40, percent: 90.0 },

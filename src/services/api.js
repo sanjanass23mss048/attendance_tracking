@@ -18,16 +18,30 @@ export function useMock() {
 }
 
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch (err) {
+    const e = new Error('Could not save login session (browser storage blocked)');
+    e.cause = err;
+    throw e;
+  }
 }
 
 export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function getStoredUser() {
@@ -111,6 +125,17 @@ export async function apiFetch(path, options = {}) {
     const err = new Error(data?.error || res.statusText || 'Request failed');
     err.status = res.status;
     err.data = data;
+    // Session gone — clear stored auth so the app returns to login once.
+    if (res.status === 401 && path !== '/api/auth/login') {
+      err.isAuth = true;
+      clearToken();
+      clearStoredUser();
+      try {
+        window.dispatchEvent(new CustomEvent('presence:auth-expired', { detail: err }));
+      } catch {
+        // ignore
+      }
+    }
     throw err;
   }
 

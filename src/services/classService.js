@@ -13,6 +13,17 @@ const MOCK_TEACHER_SECTIONS = {
     { className: '2', sectionName: 'A' },
     { className: '3', sectionName: 'A' },
   ],
+  'mock-priya': [{ className: 'LKG', sectionName: 'A' }],
+  'mock-anil': [{ className: 'UKG', sectionName: 'A' }],
+  'mock-kavita': [
+    { className: '4', sectionName: 'A' },
+    { className: '5', sectionName: 'A' },
+  ],
+  'mock-suresh': [{ className: '6', sectionName: 'A' }],
+  'mock-meena': [
+    { className: '7', sectionName: 'A' },
+    { className: '8', sectionName: 'A' },
+  ],
 };
 
 function mockClasses() {

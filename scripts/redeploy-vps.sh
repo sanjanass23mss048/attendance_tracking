@@ -18,8 +18,10 @@ sed -i 's#"80:4000"#"4001:4000"#g; s#"8080:4000"#"4001:4000"#g; s#"\${PORT:-4000
 
 echo "=== verify new files ==="
 ls -la /opt/attendance-tracking/src/assets/attendance-logo.png
+ls -la /opt/attendance-tracking/server/src/lib/sms.js
 ls -la /opt/attendance-tracking/server/src/lib/whatsapp.js
-grep -n "Attendance Tracker\|attendance-logo" /opt/attendance-tracking/src/components/LoginPage.jsx | head -5
+grep -n "Presence\|attendance-logo" /opt/attendance-tracking/src/components/LoginPage.jsx | head -5 || true
+grep -n "SMS_PROVIDER\|sendSms" /opt/attendance-tracking/server/src/routes/attendance.js | head -5 || true
 
 echo "=== rebuild (takes a few minutes) ==="
 cd /opt/attendance-tracking
