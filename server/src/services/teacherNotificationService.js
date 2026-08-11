@@ -8,7 +8,6 @@ import {
   listEnrollmentsForSection,
 } from './schoolRepo.js';
 import { classSortRank } from '../lib/schoolGrades.js';
-import { sendSms } from '../lib/sms.js';
 import { saveFile, storageKeyFor } from '../lib/storage.js';
 
 export const RECIPIENT_TYPES = {
@@ -437,7 +436,8 @@ export async function saveTeacherNotification({
   }
 
   if (status === NOTIF_STATUSES.SENT) {
-    // Notice Board + FCM first (don't wait on SMS — that was blocking parent push)
+    // Notice Board + FCM only — do not SMS. MSG91 is an attendance-absence
+    // DLT template and would send blank "Your ward is absent" texts.
     try {
       const mirrored = await publishToParentNoticeBoard({
         userId,
@@ -450,10 +450,15 @@ export async function saveTeacherNotification({
       if (mirrored?.id) {
         console.log(`Teacher notification ${notificationId} → parent notice ${mirrored.id}`);
       }
+      if (students.length) {
+        await prisma.tblTeacher_Notification_Recipients.updateMany({
+          where: { notification_id: notificationId },
+          data: { delivery_status: 'NOTICE_BOARD' },
+        });
+      }
     } catch (err) {
       console.warn('Parent notice board mirror / push failed', err?.message || err);
     }
-    await deliverSmsToParents(notificationId, students, data.title, data.message);
   }
 
   const row = await prisma.tblTeacher_Notifications.findUnique({
@@ -546,25 +551,6 @@ async function publishToParentNoticeBoard({
       : `users=${push?.userIds?.length ?? 0} tokens=${push?.tokens ?? 0} ok=${push?.fcm?.success ?? 0}`
   );
   return notice;
-}
-
-async function deliverSmsToParents(notificationId, students, title, message) {
-  const body = `${title}\n\n${message}`.slice(0, 600);
-  for (const s of students) {
-    let delivery = 'SKIPPED';
-    if (s.parentPhone) {
-      try {
-        const result = await sendSms({ to: s.parentPhone, body });
-        delivery = result?.ok === false ? 'FAILED' : 'SENT';
-      } catch {
-        delivery = 'FAILED';
-      }
-    }
-    await prisma.tblTeacher_Notification_Recipients.updateMany({
-      where: { notification_id: notificationId, student_class_id: s.id },
-      data: { delivery_status: delivery },
-    });
-  }
 }
 
 export async function previewTeacherNotification(userId, role, body) {
