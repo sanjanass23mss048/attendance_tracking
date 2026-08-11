@@ -28,6 +28,7 @@ import 'screens/students_screen.dart';
 import 'screens/teachers_screen.dart';
 import 'services/parent_push_service.dart';
 import 'state/auth_state.dart';
+import 'state/parent_students_state.dart';
 import 'theme.dart';
 
 void main() async {
@@ -49,6 +50,7 @@ class PresenceApp extends StatefulWidget {
 
 class _PresenceAppState extends State<PresenceApp> {
   late final AuthState auth;
+  late final ParentStudentsState parentStudents;
   late final ParentPushService push;
   late final GoRouter router;
 
@@ -56,6 +58,8 @@ class _PresenceAppState extends State<PresenceApp> {
   void initState() {
     super.initState();
     auth = AuthState(widget.client);
+    parentStudents = ParentStudentsState(auth);
+    auth.attachStudents(parentStudents);
     push = ParentPushService(auth.api);
     auth.attachPush(push);
     push.onOpenRoute = (route) {
@@ -159,8 +163,11 @@ class _PresenceAppState extends State<PresenceApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: auth,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: auth),
+        ChangeNotifierProvider.value(value: parentStudents),
+      ],
       child: MaterialApp.router(
         title: 'Presence',
         debugShowCheckedModeBanner: false,

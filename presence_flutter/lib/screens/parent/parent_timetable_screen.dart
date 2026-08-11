@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/auth_state.dart';
+import '../../state/parent_students_state.dart';
 import '../../theme.dart';
 
 class ParentTimetableScreen extends StatefulWidget {
@@ -15,22 +16,50 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
   Map<String, dynamic>? timetable;
   bool loading = true;
   String? error;
+  String? _loadedForSection;
+  ParentStudentsState? _students;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _students = context.read<ParentStudentsState>();
+      _students!.addListener(_onStudentsChanged);
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _students?.removeListener(_onStudentsChanged);
+    super.dispose();
+  }
+
+  void _onStudentsChanged() {
+    final sectionId = _students?.selectedSectionId;
+    if (sectionId != _loadedForSection) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
+    final students = context.read<ParentStudentsState>();
+    final sectionId = students.selectedSectionId;
     setState(() {
       loading = true;
       error = null;
     });
     try {
-      final data = await context.read<AuthState>().api.parentTimetable();
-      setState(() => timetable = data);
+      final data = await context.read<AuthState>().api.parentTimetable(
+            classSectionId: sectionId,
+          );
+      if (!mounted) return;
+      setState(() {
+        timetable = data;
+        _loadedForSection = sectionId;
+      });
     } catch (e) {
+      if (!mounted) return;
       setState(() => error = e.toString());
     } finally {
       if (mounted) setState(() => loading = false);

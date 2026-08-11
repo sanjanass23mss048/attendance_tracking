@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/auth_state.dart';
+import '../../state/parent_students_state.dart';
 import '../../theme.dart';
 
 class ParentDiaryScreen extends StatefulWidget {
@@ -40,6 +41,16 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedSectionId = context.watch<ParentStudentsState>().selectedSectionId;
+    final visible = entries.where((e) {
+      if (selectedSectionId == null || selectedSectionId.isEmpty) return true;
+      final m = Map<String, dynamic>.from(e as Map);
+      final section = m['section'] is Map ? Map<String, dynamic>.from(m['section'] as Map) : null;
+      final id = section?['id']?.toString() ?? m['classSectionId']?.toString();
+      if (id == null || id.isEmpty) return true;
+      return id == selectedSectionId;
+    }).toList();
+
     return RefreshIndicator(
       onRefresh: _load,
       child: loading
@@ -53,7 +64,7 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
                     ),
                   ],
                 )
-              : entries.isEmpty
+              : visible.isEmpty
                   ? ListView(
                       children: const [
                         SizedBox(height: 80),
@@ -62,9 +73,9 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
-                      itemCount: entries.length,
+                      itemCount: visible.length,
                       itemBuilder: (context, i) {
-                        final m = Map<String, dynamic>.from(entries[i] as Map);
+                        final m = Map<String, dynamic>.from(visible[i] as Map);
                         final section = m['section'] is Map
                             ? Map<String, dynamic>.from(m['section'] as Map)
                             : null;

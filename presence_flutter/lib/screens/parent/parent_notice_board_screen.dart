@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/auth_state.dart';
+import '../../state/parent_students_state.dart';
 import '../../theme.dart';
 import '../widgets/notice_card.dart';
 
@@ -65,9 +66,16 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final students = context.watch<ParentStudentsState>();
+    final selectedClassId = students.selectedStudentClassId;
+    final selectedSectionId = students.selectedSectionId;
+
     final filtered = notices.where((n) {
-      if (query.trim().isEmpty) return true;
       final m = Map<String, dynamic>.from(n as Map);
+      if (!_noticeVisibleForStudent(m, selectedClassId, selectedSectionId)) {
+        return false;
+      }
+      if (query.trim().isEmpty) return true;
       final hay = [
         m['audienceLabel'],
         m['title'],
@@ -141,6 +149,30 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
         ),
       ],
     );
+  }
+
+  bool _noticeVisibleForStudent(
+    Map<String, dynamic> notice,
+    String? studentClassId,
+    String? sectionId,
+  ) {
+    final type = (notice['audienceType']?.toString() ?? '').toUpperCase();
+    if (type == 'ALL' || type.isEmpty) return true;
+
+    final targets = (notice['targets'] as List?) ?? const [];
+    if (targets.isEmpty) {
+      // CLASS / CLASSES without detailed targets — keep visible
+      return type != 'STUDENTS';
+    }
+
+    for (final t in targets) {
+      if (t is! Map) continue;
+      final scId = t['studentClassId']?.toString();
+      final csId = t['classSectionId']?.toString();
+      if (studentClassId != null && scId == studentClassId) return true;
+      if (sectionId != null && csId == sectionId) return true;
+    }
+    return false;
   }
 
   String _fmtDate(String? raw) {

@@ -4,6 +4,7 @@ import '../api/api_client.dart';
 import '../api/presence_api.dart';
 import '../config.dart';
 import '../services/parent_push_service.dart';
+import 'parent_students_state.dart';
 
 class AuthState extends ChangeNotifier {
   AuthState(this.client) : api = PresenceApi(client);
@@ -11,6 +12,7 @@ class AuthState extends ChangeNotifier {
   final ApiClient client;
   final PresenceApi api;
   ParentPushService? _push;
+  ParentStudentsState? students;
 
   bool booting = true;
   String? error;
@@ -28,6 +30,10 @@ class AuthState extends ChangeNotifier {
     _push = push;
   }
 
+  void attachStudents(ParentStudentsState state) {
+    students = state;
+  }
+
   Future<void> boot() async {
     booting = true;
     error = null;
@@ -37,9 +43,13 @@ class AuthState extends ChangeNotifier {
       if (client.isLoggedIn) {
         await api.me();
         await _syncPush();
+        await students?.load(force: true);
+      } else {
+        await students?.clear();
       }
     } catch (_) {
       await client.clearSession();
+      await students?.clear();
     } finally {
       booting = false;
       notifyListeners();
@@ -52,6 +62,7 @@ class AuthState extends ChangeNotifier {
     try {
       await api.login(email, password);
       await _syncPush();
+      await students?.load(force: true);
       notifyListeners();
     } catch (e) {
       error = e.toString();
@@ -64,6 +75,7 @@ class AuthState extends ChangeNotifier {
     try {
       await _push?.stop();
     } catch (_) {}
+    await students?.clear();
     await api.logout();
     notifyListeners();
   }
