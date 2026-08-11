@@ -139,9 +139,9 @@ export async function createNotice({
     // School-wide — no row targets; parents see via Audience_Type = ALL
   } else if (type === 'STUDENTS') {
     for (const sid of studentClassIds) {
+      // Nested creates must omit Notice_id — Prisma sets the FK from the parent row.
       targets.push({
         Target_id: newId('NTT'),
-        Notice_id: noticeId,
         Student_Class_id: sid,
         Class_Section_id: null,
       });
@@ -150,7 +150,6 @@ export async function createNotice({
     for (const csId of classSectionIds) {
       targets.push({
         Target_id: newId('NTT'),
-        Notice_id: noticeId,
         Class_Section_id: csId,
         Student_Class_id: null,
       });
