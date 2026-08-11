@@ -99,7 +99,10 @@ async function sendViaHttpV1(tokens, { title, body, data }) {
                 priority: 'HIGH',
                 notification: {
                   channel_id: 'notices',
+                  // Opens the launcher activity (MainActivity). Do not set a custom
+                  // click_action unless AndroidManifest has a matching intent-filter.
                   click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                  default_sound: true,
                 },
               },
             },

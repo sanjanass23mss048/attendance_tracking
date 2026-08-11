@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -32,6 +33,7 @@ import 'theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   } catch (_) {}
   runApp(PresenceApp(client: ApiClient()));
@@ -57,9 +59,16 @@ class _PresenceAppState extends State<PresenceApp> {
     push = ParentPushService(auth.api);
     auth.attachPush(push);
     push.onOpenRoute = (route) {
-      if (auth.isLoggedIn) {
+      void attempt() {
+        if (auth.booting) {
+          Future.delayed(const Duration(milliseconds: 120), attempt);
+          return;
+        }
+        if (!auth.isLoggedIn) return;
         router.go(route);
       }
+
+      Future.microtask(attempt);
     };
 
     router = GoRouter(
@@ -142,7 +151,10 @@ class _PresenceAppState extends State<PresenceApp> {
         ),
       ],
     );
-    auth.boot();
+    auth.boot().then((_) {
+      // Notification tap that launched a killed app — navigate once session is ready.
+      push.flushPendingRoute();
+    });
   }
 
   @override

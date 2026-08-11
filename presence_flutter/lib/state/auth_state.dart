@@ -72,6 +72,7 @@ class AuthState extends ChangeNotifier {
     if (!isParent) return;
     try {
       await _push?.startForParent();
+      _push?.flushPendingRoute();
     } catch (e) {
       debugPrint('Parent push start failed: $e');
     }
