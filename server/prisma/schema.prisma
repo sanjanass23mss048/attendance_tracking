@@ -49,6 +49,9 @@ model tblClass_Section {
   tblStudent_Class tblStudent_Class[]
   tblTeacher_Class tblTeacher_Class[]
   tblClass_Section_Approver tblClass_Section_Approver?
+  tblNotice_Targets tblNotice_Targets[]
+  tblClass_Diary   tblClass_Diary[]
+  tblTimetable     tblTimetable?
 }
 
 model tblClass_Section_Approver {
@@ -186,6 +189,7 @@ model tblStudent_Class {
   tblStudentAtt_list tblStudentAtt_list[]
   tblStudents        tblStudents          @relation(fields: [Student_id], references: [Student_id], onDelete: NoAction, onUpdate: NoAction)
   tblClass_Section   tblClass_Section     @relation(fields: [class_section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+  tblNotice_Targets  tblNotice_Targets[]
 }
 
 model tblStudents {
@@ -215,6 +219,7 @@ model tblStudents {
   Changed_By         String?            @db.VarChar(50)
   Changed_On         DateTime?          @db.Timestamptz(6)
   tblStudent_Class   tblStudent_Class[]
+  tblParent_Student  tblParent_Student[]
 }
 
 model tblDocuments {
@@ -285,4 +290,92 @@ model tblUsers {
   editRequestsAsTeacher  tblAttendance_Edit_Requests[] @relation("EditRequestTeacher")
   editRequestsAsApprover tblAttendance_Edit_Requests[] @relation("EditRequestApprover")
   tblRoles         tblRoles?          @relation(fields: [role_id], references: [Role_id], onDelete: NoAction, onUpdate: NoAction)
+  tblParent_Student tblParent_Student[]
+  noticesCreated   tblNotices[]       @relation("NoticeAuthor")
+  diaryCreated     tblClass_Diary[]   @relation("DiaryAuthor")
+  deviceTokens     tblDevice_Tokens[]
+}
+
+/// Links a PARENT user account to one or more students.
+model tblParent_Student {
+  Link_id    String      @id @db.VarChar(50)
+  user_id    String      @db.VarChar(50)
+  Student_id String      @db.VarChar(50)
+  Int_Status Int?        @default(1)
+  Created_On DateTime?   @default(now()) @db.Timestamptz(6)
+  tblUsers   tblUsers    @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  tblStudents tblStudents @relation(fields: [Student_id], references: [Student_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, Student_id])
+  @@index([user_id])
+  @@index([Student_id])
+}
+
+/// School notices / messages for parents (staff-authored).
+model tblNotices {
+  Notice_id       String              @id @db.VarChar(50)
+  Title           String?             @db.VarChar(255)
+  Body            String
+  Audience_Type   String              @db.VarChar(20)
+  Attachment_Name String?             @db.VarChar(255)
+  Attachment_Url  String?             @db.VarChar(500)
+  Created_By      String              @db.VarChar(50)
+  Created_On      DateTime            @default(now()) @db.Timestamptz(6)
+  Int_Status      Int?                @default(1)
+  author          tblUsers            @relation("NoticeAuthor", fields: [Created_By], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  targets         tblNotice_Targets[]
+
+  @@index([Created_On])
+  @@index([Audience_Type])
+}
+
+model tblNotice_Targets {
+  Target_id        String            @id @db.VarChar(50)
+  Notice_id        String            @db.VarChar(50)
+  Class_Section_id String?           @db.VarChar(50)
+  Student_Class_id String?           @db.VarChar(50)
+  notice           tblNotices        @relation(fields: [Notice_id], references: [Notice_id], onDelete: Cascade, onUpdate: NoAction)
+  classSection     tblClass_Section? @relation(fields: [Class_Section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+  studentClass     tblStudent_Class? @relation(fields: [Student_Class_id], references: [student_class_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([Notice_id])
+  @@index([Class_Section_id])
+  @@index([Student_Class_id])
+}
+
+model tblClass_Diary {
+  Diary_id         String           @id @db.VarChar(50)
+  Class_Section_id String           @db.VarChar(50)
+  Entry_Date       DateTime         @db.Date
+  Title            String           @db.VarChar(255)
+  Body             String
+  Created_By       String           @db.VarChar(50)
+  Created_On       DateTime         @default(now()) @db.Timestamptz(6)
+  Int_Status       Int?             @default(1)
+  classSection     tblClass_Section @relation(fields: [Class_Section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+  author           tblUsers         @relation("DiaryAuthor", fields: [Created_By], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([Class_Section_id, Entry_Date])
+}
+
+model tblTimetable {
+  Timetable_id     String           @id @db.VarChar(50)
+  Class_Section_id String           @unique @db.VarChar(50)
+  Grid_Json        Json
+  Updated_On       DateTime         @default(now()) @db.Timestamptz(6)
+  classSection     tblClass_Section @relation(fields: [Class_Section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// FCM (or other) push tokens for parent devices.
+model tblDevice_Tokens {
+  Token_id   String   @id @db.VarChar(50)
+  user_id    String   @db.VarChar(50)
+  Token      String   @db.VarChar(512)
+  Platform   String?  @db.VarChar(20)
+  Updated_On DateTime @default(now()) @db.Timestamptz(6)
+  Int_Status Int?     @default(1)
+  tblUsers   tblUsers @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([Token])
+  @@index([user_id])
 }

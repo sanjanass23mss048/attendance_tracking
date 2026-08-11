@@ -34,6 +34,7 @@ async function main() {
   await upsertRole('ADMIN', 'Admin');
   await upsertRole('INCHARGE', 'Incharge');
   await upsertRole('TEACHER', 'Teacher');
+  await upsertRole('PARENT', 'Parent');
 
   const passwordHash = await bcrypt.hash('password123', 10);
   const inchargeEmail = 'incharge@brightfuture.edu.in';
@@ -401,6 +402,138 @@ async function main() {
   }
   console.log('Teacher class links ensured');
 
+  // Demo parent linked to first student in Class 1-A (or any active enrollment)
+  let linkStudent = await prisma.tblStudent_Class.findFirst({
+    where: { class_section_id: 'CS-1-A', Int_Status: { not: 0 } },
+    include: { tblStudents: true },
+    orderBy: { Roll_No: 'asc' },
+  });
+  if (!linkStudent) {
+    linkStudent = await prisma.tblStudent_Class.findFirst({
+      where: { Int_Status: { not: 0 } },
+      include: { tblStudents: true },
+    });
+  }
+
+  const parentEmail = 'parent@brightfuture.edu.in';
+  await prisma.tblUsers.upsert({
+    where: { email: parentEmail },
+    create: {
+      user_id: 'USR-PARENT-001',
+      name: linkStudent?.tblStudents
+        ? `${linkStudent.tblStudents.Father_Name || 'Parent'} (Parent)`
+        : 'Demo Parent',
+      email: parentEmail,
+      password: passwordHash,
+      role_id: 'PARENT',
+      int_status: 1,
+      phone: linkStudent?.tblStudents?.Father_Number || null,
+    },
+    update: {
+      password: passwordHash,
+      role_id: 'PARENT',
+      int_status: 1,
+    },
+  });
+
+  if (linkStudent) {
+    await prisma.tblParent_Student.upsert({
+      where: {
+        user_id_Student_id: {
+          user_id: 'USR-PARENT-001',
+          Student_id: linkStudent.Student_id,
+        },
+      },
+      create: {
+        Link_id: 'PS-PARENT-001',
+        user_id: 'USR-PARENT-001',
+        Student_id: linkStudent.Student_id,
+        Int_Status: 1,
+      },
+      update: { Int_Status: 1 },
+    });
+    console.log(
+      `Demo parent linked to ${linkStudent.tblStudents?.First_Name || linkStudent.Student_id} (${linkStudent.class_section_id})`
+    );
+
+    // Sample timetable for child's section
+    const { buildDefaultWeeklyTimetable } = await import('../src/lib/defaultTimetable.js');
+    await prisma.tblTimetable.upsert({
+      where: { Class_Section_id: linkStudent.class_section_id },
+      create: {
+        Timetable_id: `TTB-${linkStudent.class_section_id}`,
+        Class_Section_id: linkStudent.class_section_id,
+        Grid_Json: buildDefaultWeeklyTimetable(),
+      },
+      update: {},
+    });
+
+    // Sample diary entry
+    const diaryCount = await prisma.tblClass_Diary.count({
+      where: { Class_Section_id: linkStudent.class_section_id },
+    });
+    if (diaryCount === 0) {
+      await prisma.tblClass_Diary.create({
+        data: {
+          Diary_id: 'DRY-DEMO-001',
+          Class_Section_id: linkStudent.class_section_id,
+          Entry_Date: dateUTC(toDateString(new Date()) || '2026-08-10'),
+          Title: 'Homework — Maths practice',
+          Body: 'Complete worksheet page 12. Revise multiplication tables 2 to 10.',
+          Created_By: 'USR-INCHARGE',
+          Int_Status: 1,
+        },
+      });
+    }
+
+    // Sample notices (class + specific student)
+    const noticeCount = await prisma.tblNotices.count();
+    if (noticeCount === 0) {
+      const classNoticeId = 'NTC-DEMO-CLASS';
+      await prisma.tblNotices.create({
+        data: {
+          Notice_id: classNoticeId,
+          Title: 'PTA meeting',
+          Body: 'Dear Parents, PTA meeting is scheduled this Saturday at 10:00 AM in the school auditorium. Kindly attend.',
+          Audience_Type: 'CLASS',
+          Created_By: 'USR-INCHARGE',
+          Int_Status: 1,
+          targets: {
+            create: [
+              {
+                Target_id: 'NTT-DEMO-CLASS-1',
+                Class_Section_id: linkStudent.class_section_id,
+              },
+            ],
+          },
+        },
+      });
+
+      const studentNoticeId = 'NTC-DEMO-STU';
+      await prisma.tblNotices.create({
+        data: {
+          Notice_id: studentNoticeId,
+          Title: 'Attendance concern',
+          Body: `CONCERN: ${linkStudent.tblStudents?.First_Name || 'Student'} — please ensure regular attendance. Contact the class teacher if there is any difficulty.`,
+          Audience_Type: 'STUDENTS',
+          Created_By: 'USR-INCHARGE',
+          Int_Status: 1,
+          targets: {
+            create: [
+              {
+                Target_id: 'NTT-DEMO-STU-1',
+                Student_Class_id: linkStudent.student_class_id,
+              },
+            ],
+          },
+        },
+      });
+      console.log('Seeded demo notices + diary for parent portal');
+    }
+  } else {
+    console.log('No students found — parent user created without student link');
+  }
+
   const counts = {
     statuses: await prisma.tblAttendanceStatus.count(),
     users: await prisma.tblUsers.count(),
@@ -410,9 +543,12 @@ async function main() {
     enrollments: await prisma.tblStudent_Class.count(),
     holidays: await prisma.tblHolidays.count(),
     calendarEvents: await prisma.tblCalendarEvents.count(),
+    parents: await prisma.tblParent_Student.count(),
+    notices: await prisma.tblNotices.count(),
   };
   console.log('Done.', counts);
   console.log('Login (full access): incharge@brightfuture.edu.in / password123');
+  console.log('Parent login: parent@brightfuture.edu.in / password123');
   console.log('Teachers (all password123):');
   console.log('  neha.sharma@brightfuture.edu.in → 1-A');
   console.log('  rakesh.verma@brightfuture.edu.in → 2-A, 3-A');

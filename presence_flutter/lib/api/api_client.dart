@@ -76,7 +76,11 @@ class ApiClient {
         res = await http.put(uri, headers: headers, body: jsonBody == null ? null : jsonEncode(jsonBody));
         break;
       case 'DELETE':
-        res = await http.delete(uri, headers: headers);
+        res = await http.delete(
+          uri,
+          headers: headers,
+          body: jsonBody == null ? null : jsonEncode(jsonBody),
+        );
         break;
       default:
         res = await http.get(uri, headers: headers);

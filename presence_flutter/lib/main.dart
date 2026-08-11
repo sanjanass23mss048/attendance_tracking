@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -9,18 +10,30 @@ import 'screens/attendance_classes_screen.dart';
 import 'screens/attendance_mark_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/classes_screen.dart';
+import 'screens/compose_notice_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/parent/parent_calendar_screen.dart';
+import 'screens/parent/parent_diary_screen.dart';
+import 'screens/parent/parent_notice_board_screen.dart';
+import 'screens/parent/parent_profile_screen.dart';
+import 'screens/parent/parent_shell.dart';
+import 'screens/parent/parent_timetable_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/staff_notice_board_screen.dart';
 import 'screens/students_screen.dart';
 import 'screens/teachers_screen.dart';
+import 'services/parent_push_service.dart';
 import 'state/auth_state.dart';
 import 'theme.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (_) {}
   runApp(PresenceApp(client: ApiClient()));
 }
 
@@ -34,27 +47,48 @@ class PresenceApp extends StatefulWidget {
 
 class _PresenceAppState extends State<PresenceApp> {
   late final AuthState auth;
+  late final ParentPushService push;
   late final GoRouter router;
 
   @override
   void initState() {
     super.initState();
     auth = AuthState(widget.client);
+    push = ParentPushService(auth.api);
+    auth.attachPush(push);
+    push.onOpenRoute = (route) {
+      if (auth.isLoggedIn) {
+        router.go(route);
+      }
+    };
+
     router = GoRouter(
       initialLocation: '/login',
       refreshListenable: auth,
       redirect: (context, state) {
-        // Stay on a simple boot route until session is loaded.
         if (auth.booting) {
           if (state.matchedLocation != '/boot') return '/boot';
           return null;
         }
-        final onBoot = state.matchedLocation == '/boot';
-        final loggingIn = state.matchedLocation == '/login';
+        final loc = state.matchedLocation;
+        final onBoot = loc == '/boot';
+        final loggingIn = loc == '/login';
+        final isParentPath = loc.startsWith('/parent');
+
         if (!auth.isLoggedIn) {
           return loggingIn ? null : '/login';
         }
-        if (loggingIn || onBoot) return '/dashboard';
+
+        if (loggingIn || onBoot) {
+          return auth.isParent ? '/parent/notices' : '/dashboard';
+        }
+
+        if (auth.isParent && !isParentPath) {
+          return '/parent/notices';
+        }
+        if (!auth.isParent && isParentPath) {
+          return '/dashboard';
+        }
         return null;
       },
       routes: [
@@ -70,6 +104,7 @@ class _PresenceAppState extends State<PresenceApp> {
           routes: [
             GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
             GoRoute(path: '/attendance', builder: (_, __) => const AttendanceClassesScreen()),
+            GoRoute(path: '/notices', builder: (_, __) => const StaffNoticeBoardScreen()),
             GoRoute(path: '/students', builder: (_, __) => const StudentsScreen()),
             GoRoute(path: '/calendar', builder: (_, __) => const CalendarScreen()),
             GoRoute(path: '/classes', builder: (_, __) => const ClassesScreen()),
@@ -79,6 +114,20 @@ class _PresenceAppState extends State<PresenceApp> {
             GoRoute(path: '/teachers', builder: (_, __) => const TeachersScreen()),
             GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
           ],
+        ),
+        ShellRoute(
+          builder: (context, state, child) => ParentShell(child: child),
+          routes: [
+            GoRoute(path: '/parent/notices', builder: (_, __) => const ParentNoticeBoardScreen()),
+            GoRoute(path: '/parent/profile', builder: (_, __) => const ParentProfileScreen()),
+            GoRoute(path: '/parent/diary', builder: (_, __) => const ParentDiaryScreen()),
+            GoRoute(path: '/parent/timetable', builder: (_, __) => const ParentTimetableScreen()),
+            GoRoute(path: '/parent/calendar', builder: (_, __) => const ParentCalendarScreen()),
+          ],
+        ),
+        GoRoute(
+          path: '/notices/compose',
+          builder: (_, __) => const ComposeNoticeScreen(),
         ),
         GoRoute(
           path: '/attendance/mark',
@@ -93,7 +142,6 @@ class _PresenceAppState extends State<PresenceApp> {
         ),
       ],
     );
-    // Start auth after router exists so refreshListenable notifies safely.
     auth.boot();
   }
 
