@@ -3,10 +3,19 @@
  * No-ops when credentials are missing so local/dev still works (Socket.IO notifies).
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 let cachedAccessToken = null;
 let cachedAccessTokenExp = 0;
+let loggedStatus = false;
 
-function hasServiceAccount() {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** server/ root (…/server/src/lib → …/server) */
+const SERVER_ROOT = path.resolve(__dirname, '../..');
+
+function hasServiceAccountConfig() {
   return Boolean(
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
       process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
@@ -14,16 +23,73 @@ function hasServiceAccount() {
   );
 }
 
+/**
+ * Resolve FIREBASE_SERVICE_ACCOUNT_PATH against cwd and server root
+ * so Docker (WORKDIR /app/server) and local runs both find the file.
+ */
+function resolveServiceAccountPath(rawPath) {
+  if (!rawPath) return null;
+  const candidates = [];
+  if (path.isAbsolute(rawPath)) {
+    candidates.push(rawPath);
+  } else {
+    candidates.push(path.resolve(process.cwd(), rawPath));
+    candidates.push(path.resolve(SERVER_ROOT, rawPath));
+    candidates.push(path.resolve(SERVER_ROOT, path.basename(rawPath)));
+  }
+  for (const p of candidates) {
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) return p;
+  }
+  return null;
+}
+
 async function loadServiceAccount() {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
     return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
   }
   if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-    const fs = await import('fs/promises');
-    const raw = await fs.readFile(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8');
+    const resolved = resolveServiceAccountPath(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+    if (!resolved) {
+      console.warn(
+        `FCM: FIREBASE_SERVICE_ACCOUNT_PATH=${process.env.FIREBASE_SERVICE_ACCOUNT_PATH} not found ` +
+          `(cwd=${process.cwd()}). Mount server/firebase-service-account.json into the container.`
+      );
+      return null;
+    }
+    const raw = await fs.promises.readFile(resolved, 'utf8');
     return JSON.parse(raw);
   }
   return null;
+}
+
+/** Log once at startup / first send so ops can see if production FCM is wired. */
+export async function logFcmStartupStatus() {
+  if (loggedStatus) return;
+  loggedStatus = true;
+
+  if (process.env.FCM_SERVER_KEY && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH && !process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    console.log('FCM: using legacy FCM_SERVER_KEY');
+    return;
+  }
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    console.log('FCM: using FIREBASE_SERVICE_ACCOUNT_JSON (inline)');
+    return;
+  }
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+    const resolved = resolveServiceAccountPath(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+    if (resolved) {
+      console.log(`FCM: service account file OK → ${resolved}`);
+    } else {
+      console.warn(
+        `FCM: configured PATH but file missing (${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}). ` +
+          'Teacher Send Notification will land on Notice Board without push until you mount the JSON and restart.'
+      );
+    }
+    return;
+  }
+  console.warn(
+    'FCM: not configured — Notice Board + Socket.IO still work; background push needs FIREBASE_SERVICE_ACCOUNT_PATH on the host.'
+  );
 }
 
 async function getGoogleAccessToken(sa) {
@@ -70,7 +136,7 @@ async function getGoogleAccessToken(sa) {
 async function sendViaHttpV1(tokens, { title, body, data }) {
   const sa = await loadServiceAccount();
   if (!sa?.project_id || !sa?.client_email || !sa?.private_key) {
-    return null;
+    return { success: 0, failure: tokens.length, invalidTokens: [], provider: 'httpv1', skipped: true };
   }
   const accessToken = await getGoogleAccessToken(sa);
   const invalidTokens = [];
@@ -168,10 +234,12 @@ async function sendViaLegacy(tokens, { title, body, data }) {
  * @returns {Promise<null | { success: number, failure: number, invalidTokens: string[], provider: string, skipped?: boolean }>}
  */
 export async function sendFcmToTokens(tokens, message) {
+  await logFcmStartupStatus();
+
   const list = [...new Set((tokens || []).filter(Boolean))];
   if (!list.length) return { success: 0, failure: 0, invalidTokens: [], provider: 'none' };
 
-  if (!hasServiceAccount()) {
+  if (!hasServiceAccountConfig()) {
     console.log(
       `FCM skipped (${list.length} tokens) — set FIREBASE_SERVICE_ACCOUNT_JSON/PATH or FCM_SERVER_KEY`
     );
@@ -180,7 +248,13 @@ export async function sendFcmToTokens(tokens, message) {
 
   try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      return await sendViaHttpV1(list, message);
+      const result = await sendViaHttpV1(list, message);
+      if (result?.skipped) {
+        console.log(
+          `FCM skipped (${list.length} tokens) — service account file missing or invalid on this host`
+        );
+      }
+      return result;
     }
     return await sendViaLegacy(list, message);
   } catch (e) {

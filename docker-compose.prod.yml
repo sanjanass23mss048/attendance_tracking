@@ -20,6 +20,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - attendance_uploads:/app/server/uploads
+      # Required for parent push when teachers use Send Notification (gitignored — copy onto host)
+      - ./server/firebase-service-account.json:/app/server/firebase-service-account.json:ro
     healthcheck:
       test:
         [

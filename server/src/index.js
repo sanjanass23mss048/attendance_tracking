@@ -28,6 +28,7 @@ import parentRoutes from './routes/parent.js';
 import { requireStaff } from './middleware/roles.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
 import { ensureUploadDir } from './lib/storage.js';
+import { logFcmStartupStatus } from './lib/fcm.js';
 import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
 
@@ -176,4 +177,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Attendance app listening on http://0.0.0.0:${PORT}`);
   console.log(`Mode: ${isProd ? 'production (UI + API)' : 'api-only'}`);
   console.log(`Realtime: Socket.IO (CORS ${CORS_ORIGINS.join(', ')})`);
+  logFcmStartupStatus().catch(() => {});
 });

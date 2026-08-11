@@ -13,6 +13,14 @@ grep -q 'CLIENT_ORIGIN=' /opt/attendance-tracking/server/.env \
   && sed -i 's#^CLIENT_ORIGIN=.*#CLIENT_ORIGIN="https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"#' /opt/attendance-tracking/server/.env
 sed -i 's#^NODE_ENV=.*#NODE_ENV=production#' /opt/attendance-tracking/server/.env
 
+# Ensure FCM path is set (file itself is secret — must already be on host)
+if ! grep -q '^FIREBASE_SERVICE_ACCOUNT_PATH=' /opt/attendance-tracking/server/.env; then
+  echo 'FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json' >> /opt/attendance-tracking/server/.env
+fi
+if [ ! -f /opt/attendance-tracking/server/firebase-service-account.json ]; then
+  echo "WARNING: missing /opt/attendance-tracking/server/firebase-service-account.json — parent push will be skipped"
+fi
+
 # Force port 4001 in compose
 sed -i 's#"80:4000"#"4001:4000"#g; s#"8080:4000"#"4001:4000"#g; s#"\${PORT:-4000}:4000"#"4001:4000"#g; s#"4000:4000"#"4001:4000"#g' /opt/attendance-tracking/docker-compose.prod.yml
 

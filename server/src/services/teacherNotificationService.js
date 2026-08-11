@@ -437,18 +437,23 @@ export async function saveTeacherNotification({
   }
 
   if (status === NOTIF_STATUSES.SENT) {
+    // Notice Board + FCM first (don't wait on SMS — that was blocking parent push)
+    try {
+      const mirrored = await publishToParentNoticeBoard({
+        userId,
+        role,
+        data,
+        students,
+        attachmentName: attachment.attachment_name,
+        attachmentKey: attachment.attachment_key,
+      });
+      if (mirrored?.id) {
+        console.log(`Teacher notification ${notificationId} → parent notice ${mirrored.id}`);
+      }
+    } catch (err) {
+      console.warn('Parent notice board mirror / push failed', err?.message || err);
+    }
     await deliverSmsToParents(notificationId, students, data.title, data.message);
-    // Also land on parent Notice Board + FCM / socket push
-    await publishToParentNoticeBoard({
-      userId,
-      role,
-      data,
-      students,
-      attachmentName: attachment.attachment_name,
-      attachmentKey: attachment.attachment_key,
-    }).catch((err) => {
-      console.warn('Parent notice board mirror failed', err?.message || err);
-    });
   }
 
   const row = await prisma.tblTeacher_Notifications.findUnique({
@@ -529,11 +534,17 @@ async function publishToParentNoticeBoard({
     createdBy: userId,
   });
 
-  await notifyParentsOfNotice(notice, {
+  const push = await notifyParentsOfNotice(notice, {
     audienceType,
     classSectionIds,
     studentClassIds,
   });
+  console.log(
+    `Teacher→parent push notice=${notice.id}`,
+    push?.fcm?.skipped
+      ? 'FCM_SKIPPED'
+      : `users=${push?.userIds?.length ?? 0} tokens=${push?.tokens ?? 0} ok=${push?.fcm?.success ?? 0}`
+  );
   return notice;
 }
 
