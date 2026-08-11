@@ -31,7 +31,7 @@ class _NoticeCardState extends State<NoticeCard> {
   bool opening = false;
 
   String get _chipLabel {
-    final name = (widget.attachmentName || '').toLowerCase();
+    final name = (widget.attachmentName ?? '').toLowerCase();
     if (name.endsWith('.pdf')) return 'PDF';
     if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')) {
       return 'IMG';
