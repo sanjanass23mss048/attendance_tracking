@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   Eye,
+  FileSpreadsheet,
   Maximize2,
   Minimize2,
   MoreHorizontal,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getClasses } from '../services/classService.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
+import { canBulkImportStudents } from '../data/navItems.js';
 import {
   createStudent,
   getStudents,
@@ -92,7 +94,8 @@ function selectClass() {
   return inputClass();
 }
 
-export default function StudentsPage() {
+export default function StudentsPage({ user = null, onNavigate } = {}) {
+  const canImport = canBulkImportStudents(user);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('1');
   const [selectedSection, setSelectedSection] = useState('A');
@@ -451,6 +454,16 @@ export default function StudentsPage() {
               <Plus size={16} />
               Add Student
             </button>
+            {canImport && typeof onNavigate === 'function' && (
+              <button
+                type="button"
+                onClick={() => onNavigate('student-import')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+              >
+                <FileSpreadsheet size={16} />
+                Import Students
+              </button>
+            )}
             <button
               type="button"
               onClick={handleExport}

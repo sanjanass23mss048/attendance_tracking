@@ -20,6 +20,10 @@ const PAGE_TITLES = {
     subtitle: 'View pending requests — approve or deny only via WhatsApp.',
   },
   students: { title: 'Students', subtitle: 'Manage student records.' },
+  'student-import': {
+    title: 'Import Students',
+    subtitle: 'Bulk upload students from Excel.',
+  },
   'leave-letters': { title: 'Leave Letters', subtitle: 'Upload and track student leave letters.' },
   classes: { title: 'Classes', subtitle: 'Class and section management.' },
   teachers: { title: 'Teachers', subtitle: 'Staff directory and management.' },
@@ -28,6 +32,10 @@ const PAGE_TITLES = {
   daywise: { title: 'Day-wise Attendance', subtitle: 'Mark period-wise attendance for the selected day.' },
   reports: { title: 'Reports', subtitle: 'Analytics and exports.' },
   notifications: { title: 'Notifications', subtitle: 'Alerts and school announcements.' },
+  'send-notification': {
+    title: 'Send Notification',
+    subtitle: 'Message classes, groups, or individual students.',
+  },
   settings: { title: 'Settings', subtitle: 'System configuration.' },
   support: { title: 'Support Center', subtitle: 'Get help from Rio Biz Solutions.' },
 };

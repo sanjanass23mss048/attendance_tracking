@@ -11,6 +11,7 @@ import {
   Headset,
   Shield,
   CalendarDays,
+  Megaphone,
   Pin,
   PinOff,
   ArrowRight,
@@ -30,6 +31,7 @@ const iconMap = {
   FileText,
   Shield,
   CalendarDays,
+  Megaphone,
 };
 
 export default function Sidebar({

@@ -21,6 +21,7 @@ export const navItems = [
     roles: EDIT_APPROVER_ROLES,
   },
   { id: 'students', label: 'Students', icon: 'Users' },
+  { id: 'send-notification', label: 'Send Notification', icon: 'Megaphone' },
   { id: 'leave-letters', label: 'Leave Letters', icon: 'FileText' },
   { id: 'calendar', label: 'Academic Calendar', icon: 'CalendarDays' },
   { id: 'classes', label: 'Classes', icon: 'BookOpen' },
@@ -54,6 +55,11 @@ export function canApproveEditRequests(user) {
 
 /** Teachers page — In-charge (e.g. A. Pune) and school leadership only. */
 export function canManageTeachers(user) {
+  return hasLeadershipRole(user);
+}
+
+/** Bulk student Excel import — same leadership roles as staff directory. */
+export function canBulkImportStudents(user) {
   return hasLeadershipRole(user);
 }
 

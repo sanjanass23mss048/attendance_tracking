@@ -11,6 +11,7 @@ import { initRealtime } from './lib/realtime.js';
 import authRoutes from './routes/auth.js';
 import classRoutes from './routes/classes.js';
 import studentRoutes from './routes/students.js';
+import studentImportRoutes from './routes/studentImport.js';
 import attendanceRoutes from './routes/attendance.js';
 import holidayRoutes from './routes/holidays.js';
 import calendarRoutes from './routes/calendar.js';
@@ -19,8 +20,11 @@ import reportRoutes from './routes/reports.js';
 import documentRoutes from './routes/documents.js';
 import attendanceEditRequestRoutes from './routes/attendanceEditRequests.js';
 import whatsappWebhookRoutes from './routes/whatsappWebhook.js';
+import teacherNotificationRoutes from './routes/teacherNotifications.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
 import { ensureUploadDir } from './lib/storage.js';
+import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
+import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'];
 for (const key of required) {
@@ -118,6 +122,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
 });
 
 app.use('/api/classes', classRoutes);
+app.use('/api/students/import', studentImportRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/reports', reportRoutes);
@@ -126,6 +131,7 @@ app.use('/api/holidays', holidayRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/attendance-edit-requests', attendanceEditRequestRoutes);
+app.use('/api/teacher-notifications', teacherNotificationRoutes);
 app.use('/api/webhooks/whatsapp', whatsappWebhookRoutes);
 
 app.use((err, _req, res, _next) => {
@@ -146,8 +152,12 @@ initRealtime(server, allowAnyOrigin ? true : CORS_ORIGINS);
 
 ensureUploadDir()
   .then(() => ensureAttendanceStatuses())
+  .then(() => ensureStudentImportTables())
+  .then(() => ensureTeacherNotificationTables())
   .then(() => {
     console.log('Attendance statuses ensured (P/A/L/H/OH/OF)');
+    console.log('Student import tables ensured');
+    console.log('Teacher notification tables ensured');
   })
   .catch((err) => {
     console.error('Startup init failed', err);

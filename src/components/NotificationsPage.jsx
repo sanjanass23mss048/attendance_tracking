@@ -90,7 +90,7 @@ export default function NotificationsPage({ onNavigate, onFeedLoaded, onMarkAllR
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100">
               <Bell size={24} className="text-indigo-600" />
@@ -100,14 +100,23 @@ export default function NotificationsPage({ onNavigate, onFeedLoaded, onMarkAllR
               <p className="text-sm text-gray-500">Alerts, holidays, and attendance reminders</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleMarkAllRead}
-            disabled={unreadCount === 0}
-            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-400 disabled:hover:bg-white"
-          >
-            Mark all as read
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate?.('send-notification')}
+              className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700"
+            >
+              Send Notification
+            </button>
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              disabled={unreadCount === 0}
+              className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:border-gray-100 disabled:text-gray-400 disabled:hover:bg-white"
+            >
+              Mark all as read
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2">

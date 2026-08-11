@@ -10,6 +10,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ClassesScreen from './src/screens/ClassesScreen';
 import AttendanceScreen from './src/screens/AttendanceScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import SendNotificationScreen from './src/screens/SendNotificationScreen';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -69,6 +70,16 @@ function RootNavigator() {
             options={{
               headerStyle: { backgroundColor: colors.primaryDark },
               headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="SendNotification"
+            component={SendNotificationScreen}
+            options={{
+              title: 'Send Notification',
+              headerStyle: { backgroundColor: colors.primaryDark },
+              headerTintColor: '#fff',
+              headerTitleStyle: { fontWeight: '700' },
             }}
           />
         </>

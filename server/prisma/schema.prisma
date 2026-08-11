@@ -285,4 +285,82 @@ model tblUsers {
   editRequestsAsTeacher  tblAttendance_Edit_Requests[] @relation("EditRequestTeacher")
   editRequestsAsApprover tblAttendance_Edit_Requests[] @relation("EditRequestApprover")
   tblRoles         tblRoles?          @relation(fields: [role_id], references: [Role_id], onDelete: NoAction, onUpdate: NoAction)
+  tblStudent_Import_History tblStudent_Import_History[]
+}
+
+model tblStudent_Import_History {
+  import_id              String    @id @db.VarChar(50)
+  uploaded_by            String    @db.VarChar(50)
+  original_file_name     String    @db.VarChar(255)
+  total_rows             Int       @default(0)
+  successful_rows        Int       @default(0)
+  failed_rows            Int       @default(0)
+  duplicate_rows         Int       @default(0)
+  status                 String    @db.VarChar(40)
+  imported_at            DateTime? @db.Timestamptz(6)
+  completed_at           DateTime? @db.Timestamptz(6)
+  error_report_reference String?   @db.VarChar(500)
+  validation_reference   String?   @db.VarChar(500)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime  @default(now()) @db.Timestamptz(6)
+  tblUsers               tblUsers  @relation(fields: [uploaded_by], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([uploaded_by, created_at], map: "tblStudent_Import_History_user_idx")
+  @@index([status], map: "tblStudent_Import_History_status_idx")
+}
+
+model tblStudent_Import_Audit {
+  audit_id         String   @id @db.VarChar(50)
+  import_id        String?  @db.VarChar(50)
+  event_type       String   @db.VarChar(80)
+  user_id          String?  @db.VarChar(50)
+  student_id       String?  @db.VarChar(50)
+  admission_no     String?  @db.VarChar(100)
+  class_name       String?  @db.VarChar(100)
+  section_name     String?  @db.VarChar(50)
+  file_name        String?  @db.VarChar(255)
+  total_rows       Int?
+  successful_count Int?
+  failed_count     Int?
+  duplicate_count  Int?
+  details          String?  @db.Text
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([import_id], map: "tblStudent_Import_Audit_import_idx")
+  @@index([event_type, created_at], map: "tblStudent_Import_Audit_event_idx")
+}
+
+model tblTeacher_Notifications {
+  notification_id    String    @id @db.VarChar(50)
+  created_by         String    @db.VarChar(50)
+  title              String    @db.VarChar(100)
+  message            String    @db.Text
+  category           String?   @db.VarChar(40)
+  recipient_type     String    @db.VarChar(40)
+  recipient_payload  String?   @db.Text
+  recipient_summary  String?   @db.VarChar(500)
+  recipient_count    Int       @default(0)
+  status             String    @db.VarChar(30)
+  scheduled_at       DateTime? @db.Timestamptz(6)
+  sent_at            DateTime? @db.Timestamptz(6)
+  attachment_name    String?   @db.VarChar(255)
+  attachment_key     String?   @db.VarChar(500)
+  attachment_mime    String?   @db.VarChar(100)
+  attachment_size    Int?
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([created_by, created_at], map: "tblTeacher_Notifications_user_idx")
+  @@index([status, scheduled_at], map: "tblTeacher_Notifications_status_idx")
+}
+
+model tblTeacher_Notification_Recipients {
+  id               String   @id @db.VarChar(50)
+  notification_id  String   @db.VarChar(50)
+  student_class_id String   @db.VarChar(50)
+  student_id       String?  @db.VarChar(50)
+  delivery_status  String   @default("PENDING") @db.VarChar(30)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([notification_id], map: "tblTeacher_Notification_Recipients_notif_idx")
 }

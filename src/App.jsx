@@ -13,6 +13,7 @@ import MessagePreviewPanel from './components/MessagePreviewPanel';
 import AcademicCalendarPage from './components/AcademicCalendarPage';
 import DayWiseAttendancePage from './components/DayWiseAttendancePage';
 import StudentsPage from './components/StudentsPage';
+import StudentBulkImportPage from './components/StudentBulkImportPage';
 import LeaveLettersPage from './components/LeaveLettersPage';
 import ClassesPage from './components/ClassesPage';
 import SettingsPage from './components/SettingsPage';
@@ -24,6 +25,7 @@ import TeachersPage from './components/TeachersPage';
 import EditApprovalsPage from './components/EditApprovalsPage';
 import AttendanceEditRequestModal from './components/AttendanceEditRequestModal';
 import NotificationsPage from './components/NotificationsPage';
+import SendNotificationPage from './components/SendNotificationPage';
 import RightPanel from './components/RightPanel';
 import AppToast from './components/AppToast';
 import MobileBottomNav from './components/MobileBottomNav';
@@ -50,7 +52,7 @@ import {
 import { isHolidayDate } from './services/calendarService';
 import { getNotificationsFeed, markNotificationsSeen } from './services/notificationService.js';
 import { exportAttendanceReportPdf } from './services/reportService.js';
-import { canApproveEditRequests, canManageTeachers } from './data/navItems.js';
+import { canApproveEditRequests, canBulkImportStudents, canManageTeachers } from './data/navItems.js';
 import { getToken, useMock } from './services/api.js';
 import { getMe, logout as authLogout } from './services/authService.js';
 import { getClasses, resolveSectionId } from './services/classService.js';
@@ -523,6 +525,10 @@ export default function App() {
       setActivePage('dashboard');
       return;
     }
+    if (pageId === 'student-import' && !canBulkImportStudents(user)) {
+      setActivePage('students');
+      return;
+    }
     setActivePage(pageId);
     if (pageId === 'attendance') {
       setActiveView(view || 'grid');
@@ -539,6 +545,10 @@ export default function App() {
     setActivePage('dashboard');
   }, []);
 
+  const denyStudentImportAccess = useCallback(() => {
+    setActivePage('students');
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     if (activePage === 'edit-approvals' && !canApproveEditRequests(user)) {
@@ -547,7 +557,10 @@ export default function App() {
     if (activePage === 'teachers' && !canManageTeachers(user)) {
       denyTeachersAccess();
     }
-  }, [activePage, user, denyEditApprovalsAccess, denyTeachersAccess]);
+    if (activePage === 'student-import' && !canBulkImportStudents(user)) {
+      denyStudentImportAccess();
+    }
+  }, [activePage, user, denyEditApprovalsAccess, denyTeachersAccess, denyStudentImportAccess]);
 
   const loadClass = async (classNum, section, date = selectedDate, { silent = false } = {}) => {
     if (!silent) setLoadingStudents(true);
@@ -1082,6 +1095,7 @@ export default function App() {
 
   const showClassSelector = ['roll', 'list'].includes(activeView);
   const isAttendancePage = activePage === 'attendance';
+  const sidebarPage = activePage === 'student-import' ? 'students' : isAttendancePage ? 'attendance' : activePage;
 
   if (!authReady) {
     return <BootSplash />;
@@ -1104,7 +1118,7 @@ export default function App() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50">
       <Sidebar
-        activePage={isAttendancePage ? 'attendance' : activePage}
+        activePage={sidebarPage}
         onNavigate={handleNavigate}
         isPinned={isPinned}
         onPinnedChange={setIsPinned}
@@ -1285,7 +1299,14 @@ export default function App() {
               />
             ) : null
           ) : activePage === 'students' ? (
-            <StudentsPage />
+            <StudentsPage user={user} onNavigate={handleNavigate} />
+          ) : activePage === 'student-import' ? (
+            canBulkImportStudents(user) ? (
+              <StudentBulkImportPage
+                user={user}
+                onBack={() => setActivePage('students')}
+              />
+            ) : null
           ) : activePage === 'leave-letters' ? (
             <LeaveLettersPage />
           ) : activePage === 'classes' ? (
@@ -1302,6 +1323,8 @@ export default function App() {
               onFeedLoaded={handleNotificationsFeedLoaded}
               onMarkAllRead={clearNotificationBadge}
             />
+          ) : activePage === 'send-notification' ? (
+            <SendNotificationPage user={user} />
           ) : activePage === 'reports' ? (
             <ReportsPage user={user} />
           ) : activePage === 'settings' ? (

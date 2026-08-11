@@ -79,6 +79,14 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.ctaSub}>Open your assigned classes →</Text>
       </Pressable>
 
+      <Pressable
+        style={styles.ctaSecondary}
+        onPress={() => navigation.navigate('SendNotification')}
+      >
+        <Text style={styles.ctaSecondaryTitle}>Send notification</Text>
+        <Text style={styles.ctaSecondarySub}>Message class, groups, or students →</Text>
+      </Pressable>
+
       <Text style={styles.dateNote}>Today · {date}</Text>
     </ScrollView>
   );
@@ -118,5 +126,15 @@ const styles = StyleSheet.create({
   },
   ctaTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
   ctaSub: { color: '#ddd6fe', marginTop: 4, fontSize: 13 },
+  ctaSecondary: {
+    marginTop: 12,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: colors.primaryDark,
+  },
+  ctaSecondaryTitle: { color: colors.primaryDark, fontSize: 17, fontWeight: '700' },
+  ctaSecondarySub: { color: colors.muted, marginTop: 4, fontSize: 13 },
   dateNote: { marginTop: 16, textAlign: 'center', color: colors.muted, fontSize: 12 },
 });
