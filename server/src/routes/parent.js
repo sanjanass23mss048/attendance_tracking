@@ -36,6 +36,52 @@ router.get('/notices', async (req, res) => {
   return res.json({ notices });
 });
 
+/** Download a notice attachment the parent is allowed to see. */
+router.get('/notices/:id/attachment', async (req, res) => {
+  const noticeId = String(req.params.id || '');
+  const notice = await prisma.tblNotices.findFirst({
+    where: { Notice_id: noticeId, Int_Status: { not: 0 } },
+  });
+  if (!notice) return res.status(404).json({ error: 'Notice not found' });
+
+  const scope = await parentAudienceScope(req.user.sub);
+  const visible = await listNoticesForParentScope({
+    classSectionIds: scope.classSectionIds,
+    studentClassIds: scope.studentClassIds,
+    limit: 200,
+  });
+  if (!visible.some((n) => n.id === noticeId)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const storageKey = notice.Attachment_Url;
+  if (!storageKey) {
+    return res.status(404).json({ error: 'No attachment on this notice' });
+  }
+
+  try {
+    const { readFile } = await import('../lib/storage.js');
+    const buffer = await readFile(storageKey);
+    const name = String(notice.Attachment_Name || 'attachment').replace(/"/g, '');
+    const lower = name.toLowerCase();
+    let mime = 'application/octet-stream';
+    if (lower.endsWith('.pdf')) mime = 'application/pdf';
+    else if (/\.jpe?g$/.test(lower)) mime = 'image/jpeg';
+    else if (lower.endsWith('.png')) mime = 'image/png';
+    else if (lower.endsWith('.webp')) mime = 'image/webp';
+    else if (lower.endsWith('.doc')) mime = 'application/msword';
+    else if (lower.endsWith('.docx')) {
+      mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `inline; filename="${name}"`);
+    return res.send(buffer);
+  } catch (err) {
+    console.error('Parent notice attachment download failed', err?.message || err);
+    return res.status(404).json({ error: 'File not found on disk' });
+  }
+});
+
 const deviceTokenSchema = z.object({
   token: z.string().min(8).max(512),
   platform: z.enum(['android', 'ios', 'web', 'socket']).optional(),
@@ -58,6 +104,17 @@ router.post('/device-token', async (req, res) => {
         Int_Status: 1,
       },
     });
+    // Real FCM token → drop socket placeholders for this user
+    if (!String(token).startsWith('sock_')) {
+      await prisma.tblDevice_Tokens.updateMany({
+        where: {
+          user_id: req.user.sub,
+          Token: { startsWith: 'sock_' },
+          Int_Status: { not: 0 },
+        },
+        data: { Int_Status: 0 },
+      });
+    }
     return res.json({ ok: true, id: row.Token_id });
   }
   const row = await prisma.tblDevice_Tokens.create({
@@ -69,6 +126,16 @@ router.post('/device-token', async (req, res) => {
       Int_Status: 1,
     },
   });
+  if (!String(token).startsWith('sock_')) {
+    await prisma.tblDevice_Tokens.updateMany({
+      where: {
+        user_id: req.user.sub,
+        Token: { startsWith: 'sock_' },
+        Int_Status: { not: 0 },
+      },
+      data: { Int_Status: 0 },
+    });
+  }
   return res.json({ ok: true, id: row.Token_id });
 });
 

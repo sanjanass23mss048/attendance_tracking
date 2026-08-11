@@ -1,5 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/auth_state.dart';
@@ -37,6 +42,24 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
       setState(() => error = e.toString());
     } finally {
       if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _openAttachment(Map<String, dynamic> notice) async {
+    final id = notice['id']?.toString() ?? '';
+    if (id.isEmpty) throw Exception('Missing notice id');
+    final nameHint = notice['attachmentName']?.toString() ?? 'attachment';
+    final api = context.read<AuthState>().api;
+    final file = await api.downloadNoticeAttachment(id);
+    final dir = await getTemporaryDirectory();
+    final safeName = file.fileName.isNotEmpty ? file.fileName : nameHint;
+    final out = File(p.join(dir.path, 'notice_${id}_$safeName'));
+    await out.writeAsBytes(file.bytes, flush: true);
+    final result = await OpenFilex.open(out.path);
+    if (result.type != ResultType.done && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
     }
   }
 
@@ -100,12 +123,17 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
                             separatorBuilder: (_, __) => const Divider(height: 1),
                             itemBuilder: (context, i) {
                               final m = Map<String, dynamic>.from(filtered[i] as Map);
+                              final hasFile = (m['attachmentUrl']?.toString().isNotEmpty ?? false) ||
+                                  (m['attachmentName']?.toString().isNotEmpty ?? false);
+                              final canOpen = m['attachmentUrl']?.toString().isNotEmpty ?? false;
                               return NoticeCard(
                                 audienceLabel: m['audienceLabel']?.toString() ?? 'Notice',
                                 dateLabel: _fmtDate(m['date']?.toString() ?? m['createdOn']?.toString()),
                                 body: m['body']?.toString() ?? '',
                                 title: m['title']?.toString(),
                                 attachmentName: m['attachmentName']?.toString(),
+                                hasAttachment: hasFile,
+                                onOpenAttachment: canOpen ? () => _openAttachment(m) : null,
                               );
                             },
                           ),

@@ -445,6 +445,7 @@ export async function saveTeacherNotification({
       data,
       students,
       attachmentName: attachment.attachment_name,
+      attachmentKey: attachment.attachment_key,
     }).catch((err) => {
       console.warn('Parent notice board mirror failed', err?.message || err);
     });
@@ -475,7 +476,14 @@ export async function saveTeacherNotification({
  * Mirror a sent teacher notification into tblNotices so the parent Flutter
  * Notice Board + push (FCM / Socket.IO) pick it up.
  */
-async function publishToParentNoticeBoard({ userId, role, data, students, attachmentName }) {
+async function publishToParentNoticeBoard({
+  userId,
+  role,
+  data,
+  students,
+  attachmentName,
+  attachmentKey,
+}) {
   const { createNotice } = await import('./noticeRepo.js');
   const { notifyParentsOfNotice } = await import('./parentNotify.js');
 
@@ -516,6 +524,8 @@ async function publishToParentNoticeBoard({ userId, role, data, students, attach
     classSectionIds,
     studentClassIds,
     attachmentName: attachmentName || null,
+    // Storage key — parents download via GET /api/parent/notices/:id/attachment
+    attachmentUrl: attachmentKey || null,
     createdBy: userId,
   });
 

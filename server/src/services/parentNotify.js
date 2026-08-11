@@ -81,12 +81,18 @@ export async function notifyParentsOfNotice(notice, {
     }
   }
 
-  // FCM push (background / killed)
+  // FCM push (background / killed) — skip socket fallback tokens
   const tokenRows = await prisma.tblDevice_Tokens.findMany({
     where: { user_id: { in: userIds }, Int_Status: { not: 0 } },
-    select: { Token: true, Token_id: true },
+    select: { Token: true, Token_id: true, Platform: true },
   });
-  const tokens = [...new Set(tokenRows.map((t) => t.Token).filter(Boolean))];
+  const tokens = [
+    ...new Set(
+      tokenRows
+        .map((t) => t.Token)
+        .filter((t) => t && !String(t).startsWith('sock_') && String(t).length > 40)
+    ),
+  ];
   let fcm = null;
   if (tokens.length) {
     fcm = await sendFcmToTokens(tokens, {
@@ -98,6 +104,10 @@ export async function notifyParentsOfNotice(notice, {
         route: '/parent/notices',
       },
     });
+    console.log(
+      `Parent notice push → users=${userIds.length} fcmTokens=${tokens.length}`,
+      fcm?.skipped ? 'FCM_SKIPPED' : `ok=${fcm?.success ?? 0} fail=${fcm?.failure ?? 0}`
+    );
 
     // Drop invalid tokens
     if (fcm?.invalidTokens?.length) {
@@ -106,6 +116,10 @@ export async function notifyParentsOfNotice(notice, {
         data: { Int_Status: 0 },
       });
     }
+  } else {
+    console.warn(
+      `Parent notice push: no FCM tokens for users ${userIds.join(',') || '(none)'} — parents must open the app once with Firebase configured`
+    );
   }
 
   return { userIds, tokens: tokens.length, fcm };

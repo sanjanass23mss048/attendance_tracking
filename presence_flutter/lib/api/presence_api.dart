@@ -1,3 +1,6 @@
+import 'package:http/http.dart' as http;
+
+import '../config.dart';
 import 'api_client.dart';
 
 class PresenceApi {
@@ -213,6 +216,32 @@ class PresenceApi {
       '/api/parent/device-token',
       method: 'DELETE',
       jsonBody: {'token': token},
+    );
+  }
+
+  /// Download notice attachment bytes (authenticated).
+  Future<({List<int> bytes, String fileName, String? contentType})> downloadNoticeAttachment(
+    String noticeId,
+  ) async {
+    final uri = Uri.parse(
+      '${AppConfig.apiBase}/api/parent/notices/${Uri.encodeComponent(noticeId)}/attachment',
+    );
+    final headers = <String, String>{
+      'Accept': '*/*',
+      if (client.token != null && client.token!.isNotEmpty) 'Authorization': 'Bearer ${client.token}',
+    };
+    final res = await http.get(uri, headers: headers);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException('Could not download attachment (${res.statusCode})', status: res.statusCode);
+    }
+    final disposition = res.headers['content-disposition'] ?? '';
+    var fileName = 'attachment';
+    final m = RegExp(r'filename="?([^";]+)"?', caseSensitive: false).firstMatch(disposition);
+    if (m != null) fileName = m.group(1)!.trim();
+    return (
+      bytes: res.bodyBytes,
+      fileName: fileName,
+      contentType: res.headers['content-type'],
     );
   }
 }
