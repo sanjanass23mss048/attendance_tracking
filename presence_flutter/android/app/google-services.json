@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "448741077090",
+    "project_id": "attendance-a4dfe",
+    "storage_bucket": "attendance-a4dfe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:448741077090:android:de29d6f72da7935096213b",
+        "android_client_info": {
+          "package_name": "edu.presence.flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdo4wFNCNIncLwBjCNPVCxmtZS08gvKLs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

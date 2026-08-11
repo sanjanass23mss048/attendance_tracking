@@ -175,9 +175,71 @@ export async function listClassesForUser(userId, role) {
 /** Whether the user may access this class-section. */
 export async function canAccessSection(userId, role, classSectionId) {
   if (!classSectionId) return false;
+  const r = String(role || '').toUpperCase();
+  if (r === 'PARENT') return false;
   if (hasFullClassAccess(role)) return true;
   const allowed = await listAssignedSectionIds(userId);
   return allowed.includes(String(classSectionId));
+}
+
+export function isParentRole(role) {
+  return String(role || '').toUpperCase() === 'PARENT';
+}
+
+export function isStaffRole(role) {
+  const r = String(role || '').toUpperCase();
+  return Boolean(r) && r !== 'PARENT';
+}
+
+/** Active enrollments for students linked to a parent user. */
+export async function listChildrenForParent(userId) {
+  const links = await prisma.tblParent_Student.findMany({
+    where: { user_id: userId, Int_Status: { not: 0 } },
+    include: {
+      tblStudents: {
+        include: {
+          tblStudent_Class: {
+            where: { Int_Status: { not: 0 } },
+            include: {
+              tblClass_Section: {
+                include: { tblClass: true, tblSection: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const children = [];
+  for (const link of links) {
+    const st = link.tblStudents;
+    if (!st || st.Int_Status === 0) continue;
+    for (const sc of st.tblStudent_Class || []) {
+      children.push({
+        ...serializeEnrollment(sc, sc.tblClass_Section),
+        fatherName: st.Father_Name ?? null,
+        motherName: st.Mother_Name ?? null,
+        fatherPhone: st.Father_Number ?? null,
+        motherPhone: st.Mother_Number ?? null,
+        guardianName: st.Guardian_Name ?? null,
+        guardianPhone: st.Guardian_Number ?? null,
+        addressLine1: st.Address_Line_1 ?? null,
+        addressLine2: st.Address_Line_2 ?? null,
+        city: st.City ?? null,
+        state: st.State ?? null,
+        pinCode: st.Pin_Code ?? null,
+      });
+    }
+  }
+  return children.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function parentAudienceScope(userId) {
+  const children = await listChildrenForParent(userId);
+  const studentClassIds = [...new Set(children.map((c) => c.id).filter(Boolean))];
+  const classSectionIds = [...new Set(children.map((c) => c.sectionId).filter(Boolean))];
+  return { children, studentClassIds, classSectionIds };
 }
 
 export async function assertEnrollmentsInSection(classSectionId, studentClassIds) {
@@ -192,6 +254,7 @@ export async function assertEnrollmentsInSection(classSectionId, studentClassIds
 
 export function mapRoleToApp(roleId, roleName) {
   const raw = String(roleName || roleId || 'INCHARGE').toUpperCase();
+  if (raw.includes('PARENT')) return 'PARENT';
   if (raw.includes('ADMIN')) return 'ADMIN';
   if (raw.includes('PRINCIPAL') && !raw.includes('VICE')) return 'PRINCIPAL';
   if (raw.includes('VICE') && raw.includes('PRINCIPAL')) return 'VICE_PRINCIPAL';

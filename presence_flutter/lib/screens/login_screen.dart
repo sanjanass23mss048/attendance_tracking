@@ -105,7 +105,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 10),
                           const Text(
-                            'Uses the same school account as the Presence website.',
+                            'Staff and parent accounts use the same login.\n'
+                            'Demo parent: parent@brightfuture.edu.in / password123',
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 12, color: PresenceColors.muted),
                           ),

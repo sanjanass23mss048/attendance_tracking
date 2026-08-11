@@ -10,3 +10,12 @@ export function requireRoles(...allowed) {
     return next();
   };
 }
+
+/** Reject PARENT accounts from staff-only routes. */
+export function requireStaff(req, res, next) {
+  const role = String(req.user?.role || '').toUpperCase();
+  if (!role || role === 'PARENT') {
+    return res.status(403).json({ error: 'Forbidden for this role' });
+  }
+  return next();
+}

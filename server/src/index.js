@@ -21,6 +21,11 @@ import documentRoutes from './routes/documents.js';
 import attendanceEditRequestRoutes from './routes/attendanceEditRequests.js';
 import whatsappWebhookRoutes from './routes/whatsappWebhook.js';
 import teacherNotificationRoutes from './routes/teacherNotifications.js';
+import noticeRoutes from './routes/notices.js';
+import diaryRoutes from './routes/diary.js';
+import timetableRoutes from './routes/timetable.js';
+import parentRoutes from './routes/parent.js';
+import { requireStaff } from './middleware/roles.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
 import { ensureUploadDir } from './lib/storage.js';
 import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
@@ -121,18 +126,22 @@ app.get('/api/me', requireAuth, async (req, res) => {
   });
 });
 
-app.use('/api/classes', classRoutes);
-app.use('/api/students/import', studentImportRoutes);
-app.use('/api/students', studentRoutes);
-app.use('/api/teachers', teacherRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/holidays', holidayRoutes);
-app.use('/api/calendar', calendarRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/attendance-edit-requests', attendanceEditRequestRoutes);
-app.use('/api/teacher-notifications', teacherNotificationRoutes);
+app.use('/api/classes', requireAuth, requireStaff, classRoutes);
+app.use('/api/students/import', requireAuth, requireStaff, studentImportRoutes);
+app.use('/api/students', requireAuth, requireStaff, studentRoutes);
+app.use('/api/teachers', requireAuth, requireStaff, teacherRoutes);
+app.use('/api/reports', requireAuth, requireStaff, reportRoutes);
+app.use('/api/attendance', requireAuth, requireStaff, attendanceRoutes);
+app.use('/api/holidays', requireAuth, requireStaff, holidayRoutes);
+app.use('/api/calendar', requireAuth, requireStaff, calendarRoutes);
+app.use('/api/documents', requireAuth, requireStaff, documentRoutes);
+app.use('/api/attendance-edit-requests', requireAuth, requireStaff, attendanceEditRequestRoutes);
+app.use('/api/teacher-notifications', requireAuth, requireStaff, teacherNotificationRoutes);
 app.use('/api/webhooks/whatsapp', whatsappWebhookRoutes);
+app.use('/api/notices', noticeRoutes);
+app.use('/api/diary', diaryRoutes);
+app.use('/api/timetable', timetableRoutes);
+app.use('/api/parent', parentRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

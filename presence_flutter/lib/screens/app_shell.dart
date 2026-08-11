@@ -12,6 +12,7 @@ class AppShell extends StatelessWidget {
   static const destinations = [
     _Dest('/dashboard', 'Dashboard', Icons.dashboard_outlined),
     _Dest('/attendance', 'Attendance', Icons.fact_check_outlined),
+    _Dest('/notices', 'Notice Board', Icons.campaign_outlined),
     _Dest('/students', 'Students', Icons.groups_outlined),
     _Dest('/calendar', 'Calendar', Icons.calendar_month_outlined),
     _Dest('/classes', 'Classes', Icons.menu_book_outlined),

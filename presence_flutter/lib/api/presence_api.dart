@@ -140,4 +140,79 @@ class PresenceApi {
     }).query;
     return await client.fetch('/api/reports/daily?$q') as Map<String, dynamic>;
   }
+
+  // —— Notices (staff) ——
+  Future<List<dynamic>> listNotices() async {
+    final data = await client.fetch('/api/notices') as Map<String, dynamic>;
+    return (data['notices'] as List?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> createNotice({
+    String? title,
+    required String body,
+    required String audienceType,
+    List<String> classSectionIds = const [],
+    List<String> studentClassIds = const [],
+    String? attachmentName,
+    String? attachmentUrl,
+  }) async {
+    return await client.fetch(
+      '/api/notices',
+      method: 'POST',
+      jsonBody: {
+        if (title != null) 'title': title,
+        'body': body,
+        'audienceType': audienceType,
+        'classSectionIds': classSectionIds,
+        'studentClassIds': studentClassIds,
+        if (attachmentName != null) 'attachmentName': attachmentName,
+        if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+      },
+    ) as Map<String, dynamic>;
+  }
+
+  // —— Parent portal ——
+  Future<List<dynamic>> parentChildren() async {
+    final data = await client.fetch('/api/parent/children') as Map<String, dynamic>;
+    return (data['children'] as List?) ?? [];
+  }
+
+  Future<List<dynamic>> parentNotices() async {
+    final data = await client.fetch('/api/parent/notices') as Map<String, dynamic>;
+    return (data['notices'] as List?) ?? [];
+  }
+
+  Future<List<dynamic>> parentDiary() async {
+    final data = await client.fetch('/api/parent/diary') as Map<String, dynamic>;
+    return (data['entries'] as List?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> parentCalendar({required String from, required String to}) async {
+    final q = Uri(queryParameters: {'from': from, 'to': to}).query;
+    return await client.fetch('/api/parent/calendar?$q') as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> parentTimetable({String? classSectionId}) async {
+    final q = classSectionId == null || classSectionId.isEmpty
+        ? ''
+        : '?${Uri(queryParameters: {'classSectionId': classSectionId}).query}';
+    final data = await client.fetch('/api/parent/timetable$q') as Map<String, dynamic>;
+    return Map<String, dynamic>.from((data['timetable'] as Map?) ?? {});
+  }
+
+  Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {
+    await client.fetch(
+      '/api/parent/device-token',
+      method: 'POST',
+      jsonBody: {'token': token, 'platform': platform},
+    );
+  }
+
+  Future<void> unregisterDeviceToken(String token) async {
+    await client.fetch(
+      '/api/parent/device-token',
+      method: 'DELETE',
+      jsonBody: {'token': token},
+    );
+  }
 }

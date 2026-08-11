@@ -16,6 +16,7 @@ dist-ssr
 .env.*.local
 server/.env
 server/.env.production.vps
+server/firebase-service-account.json
 server/node_modules
 server/uploads
 
