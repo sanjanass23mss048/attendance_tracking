@@ -438,6 +438,16 @@ export async function saveTeacherNotification({
 
   if (status === NOTIF_STATUSES.SENT) {
     await deliverSmsToParents(notificationId, students, data.title, data.message);
+    // Also land on parent Notice Board + FCM / socket push
+    await publishToParentNoticeBoard({
+      userId,
+      role,
+      data,
+      students,
+      attachmentName: attachment.attachment_name,
+    }).catch((err) => {
+      console.warn('Parent notice board mirror failed', err?.message || err);
+    });
   }
 
   const row = await prisma.tblTeacher_Notifications.findUnique({
@@ -459,6 +469,62 @@ export async function saveTeacherNotification({
       })),
     },
   };
+}
+
+/**
+ * Mirror a sent teacher notification into tblNotices so the parent Flutter
+ * Notice Board + push (FCM / Socket.IO) pick it up.
+ */
+async function publishToParentNoticeBoard({ userId, role, data, students, attachmentName }) {
+  const { createNotice } = await import('./noticeRepo.js');
+  const { notifyParentsOfNotice } = await import('./parentNotify.js');
+
+  let audienceType = 'STUDENTS';
+  let classSectionIds = [];
+  let studentClassIds = [];
+
+  if (data.recipientType === RECIPIENT_TYPES.ALL_STUDENTS && hasFullClassAccess(role)) {
+    audienceType = 'ALL';
+  } else if (
+    data.recipientType === RECIPIENT_TYPES.SPECIFIC_STUDENTS ||
+    data.recipientType === RECIPIENT_TYPES.INDIVIDUAL
+  ) {
+    audienceType = 'STUDENTS';
+    studentClassIds = [...new Set(students.map((s) => s.id).filter(Boolean))];
+  } else {
+    // ENTIRE_CLASS / CLASS_GROUP / scoped ALL_STUDENTS
+    classSectionIds = [
+      ...new Set(
+        [
+          ...(data.sectionIds || []),
+          ...students.map((s) => s.sectionId).filter(Boolean),
+        ].filter(Boolean)
+      ),
+    ];
+    audienceType = classSectionIds.length === 1 ? 'CLASS' : 'CLASSES';
+  }
+
+  if (audienceType !== 'ALL' && !classSectionIds.length && !studentClassIds.length) {
+    return null;
+  }
+
+  const titleParts = [data.category, data.title].filter(Boolean);
+  const notice = await createNotice({
+    title: titleParts.join(' · ') || data.title,
+    body: data.message,
+    audienceType,
+    classSectionIds,
+    studentClassIds,
+    attachmentName: attachmentName || null,
+    createdBy: userId,
+  });
+
+  await notifyParentsOfNotice(notice, {
+    audienceType,
+    classSectionIds,
+    studentClassIds,
+  });
+  return notice;
 }
 
 async function deliverSmsToParents(notificationId, students, title, message) {
