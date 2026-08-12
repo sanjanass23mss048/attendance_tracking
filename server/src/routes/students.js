@@ -11,6 +11,7 @@ import {
   serializeClassSection,
   serializeEnrollment,
 } from '../services/schoolRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -191,9 +192,22 @@ router.post('/', requireAuth, async (req, res) => {
     include: { tblStudents: true },
   });
 
-  return res.status(201).json({
-    student: serializeEnrollment(enrollment, section),
+  const student = serializeEnrollment(enrollment, section);
+  logAdminAudit(req, {
+    action: 'STUDENT_CREATE',
+    category: 'STUDENT',
+    entityType: 'student_class',
+    entityId: student_class_id,
+    summary: `Created student ${body.name} (roll ${rollStr}) in ${section.Class_Section_id}`,
+    details: {
+      studentId: Student_id,
+      rollNo: rollStr,
+      sectionId: section.Class_Section_id,
+      admissionNo: body.admissionNo || null,
+    },
   });
+
+  return res.status(201).json({ student });
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
@@ -288,9 +302,20 @@ router.put('/:id', requireAuth, async (req, res) => {
     },
   });
 
-  return res.json({
-    student: serializeEnrollment(updated, updated.tblClass_Section),
+  const student = serializeEnrollment(updated, updated.tblClass_Section);
+  logAdminAudit(req, {
+    action: 'STUDENT_UPDATE',
+    category: 'STUDENT',
+    entityType: 'student_class',
+    entityId: existing.student_class_id,
+    summary: `Updated student ${student?.name || existing.Student_id} (${existing.student_class_id})`,
+    details: {
+      fields: Object.keys({ ...studentData, ...enrollmentData }),
+      sectionId: updated.class_section_id,
+    },
   });
+
+  return res.json({ student });
 });
 
 export default router;

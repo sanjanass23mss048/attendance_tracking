@@ -31,6 +31,7 @@ import {
   markRequestUsed,
 } from '../services/editRequestRepo.js';
 import { writeAttendanceAuditLogs } from '../services/attendanceAuditRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { attendanceHeaderId } from '../lib/ids.js';
 import { isSmsConfigured, parentContactsForEnrollments, resolveRecipientPhones, sendSms } from '../lib/sms.js';
 import { isWhatsAppConfigured, sendAbsenceAlertWhatsApp } from '../lib/whatsapp.js';
@@ -276,6 +277,23 @@ router.put('/daily', requireAuth, async (req, res) => {
     type: 'daily',
   });
 
+  const className = section.tblClass?.Class_Name || '';
+  const sectionName = section.tblSection?.Section_Name || '';
+  logAdminAudit(req, {
+    action: 'ATTENDANCE_SAVE_DAILY',
+    category: 'ATTENDANCE',
+    entityType: 'class_section',
+    entityId: section.Class_Section_id,
+    summary: `Saved daily attendance for Class ${className}-${sectionName} on ${parsed.data.date} (${fullMarks.length} students, ${auditEntries.length} status changes)`,
+    details: {
+      date: parsed.data.date,
+      sectionId: section.Class_Section_id,
+      updated: fullMarks.length,
+      statusChanges: auditEntries.length,
+      requestUsed: Boolean(activePermission),
+    },
+  });
+
   return res.json({
     ok: true,
     date: parsed.data.date,
@@ -383,6 +401,19 @@ router.put('/periods', requireAuth, async (req, res) => {
     sectionId: section.Class_Section_id,
     date: parsed.data.date,
     type: 'periods',
+  });
+
+  logAdminAudit(req, {
+    action: 'ATTENDANCE_SAVE_PERIODS',
+    category: 'ATTENDANCE',
+    entityType: 'class_section',
+    entityId: section.Class_Section_id,
+    summary: `Saved period attendance for ${section.Class_Section_id} on ${parsed.data.date} (${parsed.data.marks.length} marks)`,
+    details: {
+      date: parsed.data.date,
+      sectionId: section.Class_Section_id,
+      updated: parsed.data.marks.length,
+    },
   });
 
   return res.json({
@@ -551,7 +582,7 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
 
   const sentMessages = await listParentMessages(section.Class_Section_id, date);
 
-  return res.json({
+  const payload = {
     ok: true,
     date: parsed.data.date,
     sectionId: section.Class_Section_id,
@@ -578,7 +609,24 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
       skipped: sendWhatsAppChannel ? countChannel('whatsapp', (c) => c.skipped) : 0,
       failed: sendWhatsAppChannel ? countChannel('whatsapp', (c) => !c.ok && !c.skipped) : 0,
     },
+  };
+
+  logAdminAudit(req, {
+    action: 'PARENT_ALERT_SEND',
+    category: 'NOTIFICATION',
+    entityType: 'class_section',
+    entityId: section.Class_Section_id,
+    summary: `Sent parent attendance alerts for ${section.Class_Section_id} on ${parsed.data.date} via ${channel} (${sentOk} sent, ${sentFailed} failed)`,
+    details: {
+      date: parsed.data.date,
+      channel,
+      recipient,
+      recorded: saved.length,
+      summary: payload.summary,
+    },
   });
+
+  return res.json(payload);
 });
 
 router.get('/parent-messages', requireAuth, async (req, res) => {

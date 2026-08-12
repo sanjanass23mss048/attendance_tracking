@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { newId, parseDateOnly, toDateString } from '../lib/ids.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -113,6 +114,18 @@ router.post('/events', requireAuth, async (req, res) => {
 
   try {
     const row = await upsertCalendarEvent(parsed.data);
+    logAdminAudit(req, {
+      action: 'CALENDAR_EVENT_UPSERT',
+      category: 'CALENDAR',
+      entityType: 'calendar_event',
+      entityId: row.Event_id,
+      summary: `Saved calendar event “${row.Text || parsed.data.title}” on ${parsed.data.date}`,
+      details: {
+        type: parsed.data.type,
+        date: parsed.data.date,
+        source: parsed.data.source || null,
+      },
+    });
     return res.status(201).json({ event: serializeCalendarEvent(row) });
   } catch (err) {
     if (err.message === 'date must be YYYY-MM-DD') {
@@ -138,6 +151,14 @@ router.post('/sync', requireAuth, async (req, res) => {
     }
   }
 
+  logAdminAudit(req, {
+    action: 'CALENDAR_SYNC',
+    category: 'CALENDAR',
+    entityType: 'calendar',
+    summary: `Synced ${upserted} calendar event(s)`,
+    details: { upserted, submitted: parsed.data.events.length },
+  });
+
   return res.json({ ok: true, upserted });
 });
 
@@ -149,6 +170,17 @@ router.delete('/events/:id', requireAuth, async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Event not found' });
 
   await prisma.tblCalendarEvents.delete({ where: { Event_id: id } });
+  logAdminAudit(req, {
+    action: 'CALENDAR_EVENT_DELETE',
+    category: 'CALENDAR',
+    entityType: 'calendar_event',
+    entityId: id,
+    summary: `Deleted calendar event “${existing.Text || id}”`,
+    details: {
+      date: toDateString(existing.Date),
+      type: existing.Type || null,
+    },
+  });
   return res.json({ ok: true });
 });
 

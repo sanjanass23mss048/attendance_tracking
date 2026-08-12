@@ -15,6 +15,7 @@ import {
   saveFile,
   storageKeyFor,
 } from '../lib/storage.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -116,6 +117,23 @@ router.post('/', requireAuth, upload.single('file'), async (req, res) => {
       notes: notes || null,
       status: 'pending',
     });
+    logAdminAudit(req, {
+      action: 'DOCUMENT_UPLOAD',
+      category: 'OTHER',
+      entityType: entityType || 'document',
+      entityId: documentId,
+      summary: `Uploaded ${documentType || 'leave_letter'} “${req.file.originalname || 'file'}” for ${entityType}/${entityId}`,
+      details: {
+        documentType: documentType || 'leave_letter',
+        entityType,
+        entityId,
+        fileName: req.file.originalname || 'file',
+        mimeType: req.file.mimetype,
+        fileSize: req.file.size,
+        leaveFrom: leaveFrom || null,
+        leaveTo: leaveTo || null,
+      },
+    });
     return res.status(201).json({ document: doc });
   } catch (err) {
     console.error('Upload failed', err);
@@ -152,6 +170,18 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
   await softDeleteDocument(row.Document_id);
   await deleteFile(row.Storage_Key).catch(() => {});
+  logAdminAudit(req, {
+    action: 'DOCUMENT_DELETE',
+    category: 'OTHER',
+    entityType: row.Entity_Type || 'document',
+    entityId: row.Document_id,
+    summary: `Deleted document “${row.File_Name || row.Document_id}”`,
+    details: {
+      documentType: row.Document_Type || null,
+      entityType: row.Entity_Type || null,
+      linkedEntityId: row.Entity_id || null,
+    },
+  });
   return res.json({ ok: true });
 });
 

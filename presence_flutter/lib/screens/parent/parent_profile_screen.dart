@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
+import '../widgets/parent_child_dropdown.dart';
 import '../widgets/student_identity_chip.dart';
 
 class ParentProfileScreen extends StatelessWidget {
@@ -25,104 +26,17 @@ class ParentProfileScreen extends StatelessWidget {
       return const Center(child: Text('No linked student profile.'));
     }
 
+    final child = students.selected!;
+
     return RefreshIndicator(
       onRefresh: () => students.load(force: true),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
-          const Text(
-            'My Children',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: PresenceColors.text,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'All linked siblings — no switching required.',
-            style: TextStyle(fontSize: 12, color: PresenceColors.muted),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final child in students.children)
-                _MyChildCard(students: students, child: child),
-            ],
-          ),
-          const SizedBox(height: 20),
-          for (final child in students.children) ...[
-            _ChildDetailSection(students: students, child: child),
-            const SizedBox(height: 12),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _MyChildCard extends StatelessWidget {
-  const _MyChildCard({required this.students, required this.child});
-  final ParentStudentsState students;
-  final Map<String, dynamic> child;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = child['name']?.toString() ?? 'Student';
-    final classLabel = ParentStudentsState.shortClassLabelFor(child);
-    final color = siblingChipColorForChild(students, child);
-
-    return Container(
-      width: 150,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: color.withValues(alpha: 0.15),
-            child: Text(
-              ParentStudentsState.initialsFor(name),
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            classLabel.isEmpty ? '—' : classLabel,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: PresenceColors.muted,
-            ),
+          const ParentChildDropdown(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _ChildDetailSection(students: students, child: child),
           ),
         ],
       ),
@@ -139,17 +53,41 @@ class _ChildDetailSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = siblingChipColorForChild(students, child);
     final classLabel = ParentStudentsState.displayClassLabelFor(child);
+    final name = child['name']?.toString() ?? 'Student';
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            StudentIdentityBlock.fromChild(students, child),
-            const SizedBox(height: 12),
-            if (child['rollNo'] != null)
-              _infoRow('Roll No', child['rollNo']?.toString()),
+            Center(
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: color.withValues(alpha: 0.15),
+                    child: Text(
+                      ParentStudentsState.initialsFor(name),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    name,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                  if (classLabel.isNotEmpty)
+                    Text(classLabel, style: const TextStyle(color: PresenceColors.muted)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (child['rollNo'] != null) _infoRow('Roll No', child['rollNo']?.toString()),
             _infoRow('Admission No', child['admissionNo']?.toString()),
             _infoRow('Date of birth', _fmtDob(child['dob']?.toString())),
             _infoRow('Gender', child['gender']?.toString()),
@@ -161,25 +99,6 @@ class _ChildDetailSection extends StatelessWidget {
             ),
             _infoRow('Address', child['address']?.toString() ?? child['addressLine1']?.toString()),
             _infoRow('Status', child['status']?.toString()),
-            if (classLabel.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    classLabel,
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -189,12 +108,12 @@ class _ChildDetailSection extends StatelessWidget {
   Widget _infoRow(String label, String? value) {
     if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(fontSize: 11, color: PresenceColors.muted)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
         ],
       ),
     );

@@ -76,6 +76,12 @@ Health: `GET http://localhost:4000/health`
 
 | Field    | Value                         |
 |----------|-------------------------------|
+| Email    | `admin@brightfuture.edu.in`   |
+| Password | `password123`                 |
+| Role     | `ADMIN` (Audit Logs)          |
+
+| Field    | Value                         |
+|----------|-------------------------------|
 | Email    | `incharge@brightfuture.edu.in` |
 | Password | `password123`                 |
 | Role     | `INCHARGE`                    |

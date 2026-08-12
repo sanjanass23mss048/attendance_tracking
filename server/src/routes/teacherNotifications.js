@@ -7,6 +7,7 @@ import {
   saveTeacherNotification,
 } from '../services/teacherNotificationService.js';
 import { listEnrollmentsForSection, canAccessSection } from '../services/schoolRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -121,6 +122,21 @@ router.post('/', requireAuth, uploadOptional, async (req, res) => {
       role: req.user.role,
       body,
       file: req.file || null,
+    });
+    const n = result?.notification;
+    logAdminAudit(req, {
+      action: n?.status === 'SENT' ? 'NOTIFICATION_SEND' : 'NOTIFICATION_SAVE',
+      category: 'NOTIFICATION',
+      entityType: 'teacher_notification',
+      entityId: n?.id,
+      summary: `${n?.status === 'SENT' ? 'Sent' : 'Saved'} notification “${n?.title || body?.title || 'Untitled'}” to ${n?.recipientCount ?? 0} recipients`,
+      details: {
+        status: n?.status,
+        category: n?.category,
+        recipientType: n?.recipientType,
+        recipientSummary: n?.recipientSummary,
+        recipientCount: n?.recipientCount,
+      },
     });
     return res.status(201).json(result);
   } catch (err) {

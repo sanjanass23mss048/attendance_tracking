@@ -46,6 +46,12 @@ export const navItems = [
     icon: 'GraduationCap',
     roles: STAFF_MANAGER_ROLES,
   },
+  {
+    id: 'audit-logs',
+    label: 'Audit Logs',
+    icon: 'ScrollText',
+    roles: ['ADMIN'],
+  },
   { id: 'reports', label: 'Reports', icon: 'BarChart3' },
   { id: 'settings', label: 'Settings', icon: 'Settings' },
 ];
@@ -60,6 +66,7 @@ export function canAccessNavItem(item, user) {
   if (!item?.roles?.length) return true;
   if (item.id === 'edit-approvals') return canApproveEditRequests(user);
   if (item.id === 'teachers') return canManageTeachers(user);
+  if (item.id === 'audit-logs') return canViewAuditLogs(user);
   const role = String(user?.role || user?.role_id || '').toUpperCase();
   return item.roles.map((r) => String(r).toUpperCase()).includes(role);
 }
@@ -76,6 +83,12 @@ export function canManageTeachers(user) {
 /** Bulk student Excel import — same leadership roles as staff directory. */
 export function canBulkImportStudents(user) {
   return hasLeadershipRole(user);
+}
+
+/** School-wide audit feed — administrators only. */
+export function canViewAuditLogs(user) {
+  const role = String(user?.role || user?.role_id || '').toUpperCase();
+  return role === 'ADMIN';
 }
 
 export function navItemsForUser(user) {

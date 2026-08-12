@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/roles.js';
 import { mapRoleToApp, syncTeacherClassAssignments } from '../services/schoolRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -201,6 +202,18 @@ router.post('/', requireAuth, staffManagers, async (req, res) => {
     });
     await syncTeacherClassAssignments(user.user_id, body.classesAssigned || null);
     const assigned = await classesAssignedForUser(user.user_id);
+    logAdminAudit(req, {
+      action: 'TEACHER_CREATE',
+      category: 'TEACHER',
+      entityType: 'user',
+      entityId: user.user_id,
+      summary: `Created staff account ${user.name} (${user.email})`,
+      details: {
+        employeeId: user.user_id,
+        role: body.role || 'Subject Teacher',
+        staffType: body.staffType || 'teaching',
+      },
+    });
     return res.status(201).json({
       teacher: serializeTeacher(user, assigned),
     });
@@ -255,6 +268,14 @@ router.put('/:id', requireAuth, staffManagers, async (req, res) => {
       await syncTeacherClassAssignments(user.user_id, body.classesAssigned);
     }
     const assigned = await classesAssignedForUser(user.user_id);
+    logAdminAudit(req, {
+      action: 'TEACHER_UPDATE',
+      category: 'TEACHER',
+      entityType: 'user',
+      entityId: user.user_id,
+      summary: `Updated staff account ${user.name} (${user.user_id})`,
+      details: { fields: Object.keys(body) },
+    });
     return res.json({ teacher: serializeTeacher(user, assigned) });
   } catch (err) {
     if (err?.code === 'P2002') {

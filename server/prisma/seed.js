@@ -37,6 +37,29 @@ async function main() {
   await upsertRole('PARENT', 'Parent');
 
   const passwordHash = await bcrypt.hash('password123', 10);
+
+  const adminEmail = 'admin@brightfuture.edu.in';
+  const existingAdmin = await prisma.tblUsers.findUnique({ where: { email: adminEmail } });
+  if (!existingAdmin) {
+    await prisma.tblUsers.create({
+      data: {
+        user_id: 'USR-ADMIN',
+        name: 'School Admin',
+        email: adminEmail,
+        password: passwordHash,
+        role_id: 'ADMIN',
+        int_status: 1,
+      },
+    });
+    console.log('Created admin user');
+  } else {
+    await prisma.tblUsers.update({
+      where: { email: adminEmail },
+      data: { password: passwordHash, role_id: 'ADMIN', int_status: 1, name: 'School Admin' },
+    });
+    console.log('Updated admin user for demo login');
+  }
+
   const inchargeEmail = 'incharge@brightfuture.edu.in';
   const existingUser = await prisma.tblUsers.findUnique({ where: { email: inchargeEmail } });
   if (!existingUser) {
@@ -456,12 +479,12 @@ async function main() {
       `Demo parent linked to ${linkStudent.tblStudents?.First_Name || linkStudent.Student_id} (${linkStudent.class_section_id})`
     );
 
-    // Second sibling (another class) so Switch Student is demoable
+    // Second sibling (Class 11) so parent can switch between very different grades
     let sibling = await prisma.tblStudent_Class.findFirst({
       where: {
         Int_Status: { not: 0 },
         Student_id: { not: linkStudent.Student_id },
-        class_section_id: { startsWith: 'CS-3' },
+        class_section_id: { startsWith: 'CS-11' },
       },
       include: { tblStudents: true },
       orderBy: { Roll_No: 'asc' },
@@ -497,17 +520,28 @@ async function main() {
       );
     }
 
-    // Sample timetable for child's section
+    // Sample timetable for child's section (grade-aware default)
     const { buildDefaultWeeklyTimetable } = await import('../src/lib/defaultTimetable.js');
     await prisma.tblTimetable.upsert({
       where: { Class_Section_id: linkStudent.class_section_id },
       create: {
         Timetable_id: `TTB-${linkStudent.class_section_id}`,
         Class_Section_id: linkStudent.class_section_id,
-        Grid_Json: buildDefaultWeeklyTimetable(),
+        Grid_Json: buildDefaultWeeklyTimetable(linkStudent.class_section_id),
       },
       update: {},
     });
+    if (sibling) {
+      await prisma.tblTimetable.upsert({
+        where: { Class_Section_id: sibling.class_section_id },
+        create: {
+          Timetable_id: `TTB-${sibling.class_section_id}`,
+          Class_Section_id: sibling.class_section_id,
+          Grid_Json: buildDefaultWeeklyTimetable(sibling.class_section_id),
+        },
+        update: {},
+      });
+    }
 
     // Sample diary entry
     const diaryCount = await prisma.tblClass_Diary.count({
@@ -588,6 +622,7 @@ async function main() {
     notices: await prisma.tblNotices.count(),
   };
   console.log('Done.', counts);
+  console.log('Admin login (Audit Logs): admin@brightfuture.edu.in / password123');
   console.log('Login (full access): incharge@brightfuture.edu.in / password123');
   console.log('Parent login: parent@brightfuture.edu.in / password123');
   console.log('Teachers (all password123):');

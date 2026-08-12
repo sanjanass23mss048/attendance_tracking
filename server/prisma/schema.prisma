@@ -457,3 +457,27 @@ model tblDevice_Tokens {
   @@unique([Token])
   @@index([user_id])
 }
+
+/// Cross-cutting admin audit feed (who did what).
+model tblAdmin_Audit_Logs {
+  Log_id         String   @id @db.VarChar(50)
+  Created_On     DateTime @default(now()) @db.Timestamptz(6)
+  Actor_User_id  String?  @db.VarChar(50)
+  Actor_Name     String?  @db.VarChar(255)
+  Actor_Email    String?  @db.VarChar(255)
+  Actor_Role     String?  @db.VarChar(50)
+  Action         String   @db.VarChar(80)
+  Category       String   @db.VarChar(40)
+  Entity_Type    String?  @db.VarChar(80)
+  Entity_id      String?  @db.VarChar(80)
+  Summary        String   @db.VarChar(500)
+  Details_Json   Json?
+  Ip_Address     String?  @db.VarChar(64)
+  User_Agent     String?  @db.VarChar(500)
+  Success        Boolean  @default(true)
+
+  @@index([Created_On])
+  @@index([Category, Created_On])
+  @@index([Actor_User_id, Created_On])
+  @@index([Action, Created_On])
+}

@@ -7,6 +7,7 @@ import {
   findLatestPendingForApprover,
 } from '../services/editRequestRepo.js';
 import { verifyMetaSignature, normalizePhone } from '../lib/attendanceEditRules.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -107,9 +108,53 @@ router.post('/', async (req, res) => {
           if (parsed.action === 'approve') {
             await approveEditRequest(row.Request_id, { actorId: row.Approver_id });
             console.log('[whatsapp-webhook] approved', row.Request_id);
+            logAdminAudit(
+              { headers: {}, ip: null },
+              {
+                actor: {
+                  id: approverUser?.user_id || row.Approver_id,
+                  name: approverUser?.name || row.approver?.name || null,
+                  email: approverUser?.email || row.approver?.email || null,
+                  role: approverUser?.role || row.approver?.role || null,
+                },
+                action: 'EDIT_REQUEST_APPROVE',
+                category: 'APPROVAL',
+                entityType: 'attendance_edit_request',
+                entityId: row.Request_id,
+                summary: `Approved attendance edit request ${row.Request_id} via WhatsApp`,
+                details: {
+                  channel: 'whatsapp',
+                  classSectionId: row.Class_Section_id,
+                  teacherId: row.Teacher_id,
+                  fromPhone: from || null,
+                },
+              }
+            );
           } else if (parsed.action === 'deny') {
             await denyEditRequest(row.Request_id, { actorId: row.Approver_id });
             console.log('[whatsapp-webhook] denied', row.Request_id);
+            logAdminAudit(
+              { headers: {}, ip: null },
+              {
+                actor: {
+                  id: approverUser?.user_id || row.Approver_id,
+                  name: approverUser?.name || row.approver?.name || null,
+                  email: approverUser?.email || row.approver?.email || null,
+                  role: approverUser?.role || row.approver?.role || null,
+                },
+                action: 'EDIT_REQUEST_DENY',
+                category: 'APPROVAL',
+                entityType: 'attendance_edit_request',
+                entityId: row.Request_id,
+                summary: `Denied attendance edit request ${row.Request_id} via WhatsApp`,
+                details: {
+                  channel: 'whatsapp',
+                  classSectionId: row.Class_Section_id,
+                  teacherId: row.Teacher_id,
+                  fromPhone: from || null,
+                },
+              }
+            );
           }
         }
       }

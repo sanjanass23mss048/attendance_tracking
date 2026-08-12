@@ -12,6 +12,12 @@ import {
 import { clearClassesCache } from './classService.js';
 
 const MOCK_USERS = {
+  'admin@brightfuture.edu.in': {
+    id: 'mock-admin',
+    email: 'admin@brightfuture.edu.in',
+    name: 'School Admin',
+    role: 'ADMIN',
+  },
   'incharge@brightfuture.edu.in': {
     id: 'mock-incharge',
     email: 'incharge@brightfuture.edu.in',

@@ -2,8 +2,8 @@ function cell(subject, teacher) {
   return { subject, teacher };
 }
 
-/** Default weekly grid: [periodIndex][dayIndex] Mon–Sat. */
-export function buildDefaultWeeklyTimetable() {
+/** Primary (Classes 1–9) weekly grid: [periodIndex][dayIndex] Mon–Sat. */
+export function buildPrimaryWeeklyTimetable() {
   return [
     [
       cell('English', 'Neha Sharma'),
@@ -70,6 +70,97 @@ export function buildDefaultWeeklyTimetable() {
       cell('Social', 'Amit Khanna'),
     ],
   ];
+}
+
+/** Senior secondary (Classes 10–12) weekly grid. */
+export function buildSeniorWeeklyTimetable() {
+  return [
+    [
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Mathematics', 'Rakesh Verma'),
+      cell('Chemistry', 'Dr. Meena Rao'),
+      cell('English', 'Neha Sharma'),
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Computer Sci.', 'Sonal Mehta'),
+    ],
+    [
+      cell('Mathematics', 'Rakesh Verma'),
+      cell('Chemistry', 'Dr. Meena Rao'),
+      cell('Physics Lab', 'Dr. Anil Kapoor'),
+      cell('Mathematics', 'Rakesh Verma'),
+      cell('Biology', 'Deepa Iyer'),
+      cell('Library', 'Kavita Rao'),
+    ],
+    [
+      cell('Chemistry', 'Dr. Meena Rao'),
+      cell('English', 'Neha Sharma'),
+      cell('Mathematics', 'Rakesh Verma'),
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Chemistry', 'Dr. Meena Rao'),
+      cell('Games', 'Vikram Singh'),
+    ],
+    [
+      cell('English', 'Neha Sharma'),
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Biology', 'Deepa Iyer'),
+      cell('Computer Sci.', 'Sonal Mehta'),
+      cell('English', 'Neha Sharma'),
+      cell('Career Guidance', 'Anita Desai'),
+    ],
+    [
+      cell('Computer Sci.', 'Sonal Mehta'),
+      cell('Biology', 'Deepa Iyer'),
+      cell('Chemistry Lab', 'Dr. Meena Rao'),
+      cell('English', 'Neha Sharma'),
+      cell('Mathematics', 'Rakesh Verma'),
+      cell('Library', 'Kavita Rao'),
+    ],
+    [
+      cell('Biology', 'Deepa Iyer'),
+      cell('Computer Sci.', 'Sonal Mehta'),
+      cell('English', 'Neha Sharma'),
+      cell('Chemistry', 'Dr. Meena Rao'),
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Mathematics', 'Rakesh Verma'),
+    ],
+    [
+      cell('Maths Practice', 'Rakesh Verma'),
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Computer Sci.', 'Sonal Mehta'),
+      cell('Biology Lab', 'Deepa Iyer'),
+      cell('Project Work', 'Sonal Mehta'),
+      cell('Games', 'Vikram Singh'),
+    ],
+    [
+      cell('Remedial', 'Anita Desai'),
+      cell('Chemistry', 'Dr. Meena Rao'),
+      cell('Mathematics', 'Rakesh Verma'),
+      cell('Physics', 'Dr. Anil Kapoor'),
+      cell('Assembly / Club', 'Priya Nair'),
+      cell('Self Study', '—'),
+    ],
+  ];
+}
+
+function gradeFromClassName(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toUpperCase();
+  const m = s.match(/(\d{1,2})/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n >= 1 && n <= 12 ? n : null;
+}
+
+/** @param {string | number | null | undefined} classHint class name or section id like CS-11-A */
+export function buildDefaultWeeklyTimetable(classHint) {
+  const hint = String(classHint || '');
+  let grade = gradeFromClassName(hint);
+  if (grade == null && /CS-1[0-2]-/i.test(hint)) {
+    const m = hint.match(/CS-(1[0-2])-/i);
+    grade = m ? Number(m[1]) : null;
+  }
+  if (grade != null && grade >= 10) return buildSeniorWeeklyTimetable();
+  return buildPrimaryWeeklyTimetable();
 }
 
 export const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

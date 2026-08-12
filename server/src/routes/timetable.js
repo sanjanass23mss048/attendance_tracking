@@ -10,24 +10,25 @@ import {
   PERIOD_TIMES,
   TIMETABLE_DAYS,
 } from '../lib/defaultTimetable.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
-
-function serializeTimetable(row, classSectionId) {
-  return {
-    classSectionId,
-    days: TIMETABLE_DAYS,
-    periods: PERIOD_TIMES,
-    grid: row?.Grid_Json || buildDefaultWeeklyTimetable(),
-    updatedOn: row?.Updated_On?.toISOString?.() || null,
-  };
-}
 
 async function getOrDefault(classSectionId) {
   const row = await prisma.tblTimetable.findUnique({
     where: { Class_Section_id: classSectionId },
   });
   return serializeTimetable(row, classSectionId);
+}
+
+function serializeTimetable(row, classSectionId) {
+  return {
+    classSectionId,
+    days: TIMETABLE_DAYS,
+    periods: PERIOD_TIMES,
+    grid: row?.Grid_Json || buildDefaultWeeklyTimetable(classSectionId),
+    updatedOn: row?.Updated_On?.toISOString?.() || null,
+  };
 }
 
 router.get('/', requireAuth, async (req, res) => {
@@ -75,6 +76,14 @@ router.put('/', requireAuth, requireStaff, async (req, res) => {
       Grid_Json: grid,
       Updated_On: new Date(),
     },
+  });
+  logAdminAudit(req, {
+    action: 'TIMETABLE_UPDATE',
+    category: 'TIMETABLE',
+    entityType: 'timetable',
+    entityId: row.Timetable_id,
+    summary: `Updated timetable for ${classSectionId}`,
+    details: { classSectionId, days: Array.isArray(grid) ? grid.length : null },
   });
   return res.json({ timetable: serializeTimetable(row, classSectionId) });
 });
