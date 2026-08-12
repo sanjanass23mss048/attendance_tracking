@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/exam_timetable_data.dart';
 import '../../state/auth_state.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
 import '../widgets/parent_child_dropdown.dart';
+
+enum _TimetableMode { classWeekly, exam }
 
 class ParentTimetableScreen extends StatefulWidget {
   const ParentTimetableScreen({super.key});
@@ -18,6 +21,7 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
   bool loading = true;
   String? error;
   ParentStudentsState? _students;
+  _TimetableMode _mode = _TimetableMode.classWeekly;
 
   @override
   void initState() {
@@ -69,6 +73,8 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
     final child = students.selected;
     final classLabel =
         child != null ? ParentStudentsState.displayClassLabelFor(child) : '';
+    final sectionId = students.selectedSectionId;
+    final examSlots = examTimetableForSection(sectionId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -77,9 +83,9 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: _load,
-            child: loading
+            child: loading && _mode == _TimetableMode.classWeekly
                 ? const Center(child: CircularProgressIndicator())
-                : error != null
+                : error != null && _mode == _TimetableMode.classWeekly
                     ? ListView(
                         children: [
                           Padding(
@@ -88,24 +94,85 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
                           ),
                         ],
                       )
-                    : timetable == null
-                        ? ListView(
-                            children: const [
-                              SizedBox(height: 80),
-                              Center(child: Text('No timetable available.')),
-                            ],
-                          )
-                        : ListView(
-                            padding: const EdgeInsets.all(12),
+                    : ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(
-                                classLabel.isEmpty ? 'Weekly timetable' : '$classLabel timetable',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                              Expanded(
+                                child: Text(
+                                  classLabel.isEmpty
+                                      ? (_mode == _TimetableMode.exam
+                                          ? 'Exam timetable'
+                                          : 'Weekly timetable')
+                                      : (_mode == _TimetableMode.exam
+                                          ? '$classLabel · Exam'
+                                          : '$classLabel timetable'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 12),
-                              _TimetableTable(timetable: timetable!),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 180),
+                                  child: InputDecorator(
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 2,
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: const BorderSide(color: PresenceColors.border),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: const BorderSide(color: PresenceColors.border),
+                                      ),
+                                    ),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<_TimetableMode>(
+                                        isExpanded: true,
+                                        value: _mode,
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: _TimetableMode.classWeekly,
+                                            child: Text('Class timetable', style: TextStyle(fontSize: 13)),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: _TimetableMode.exam,
+                                            child: Text('Exam timetable', style: TextStyle(fontSize: 13)),
+                                          ),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) setState(() => _mode = v);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          if (_mode == _TimetableMode.classWeekly)
+                            timetable == null
+                                ? const Padding(
+                                    padding: EdgeInsets.all(40),
+                                    child: Center(child: Text('No timetable available.')),
+                                  )
+                                : _TimetableTable(timetable: timetable!)
+                          else
+                            _ExamTimetableList(slots: examSlots),
+                        ],
+                      ),
           ),
         ),
       ],
@@ -168,6 +235,60 @@ class _TimetableTable extends StatelessWidget {
             Text(teacher, style: const TextStyle(fontSize: 10, color: PresenceColors.muted)),
         ],
       ),
+    );
+  }
+}
+
+class _ExamTimetableList extends StatelessWidget {
+  const _ExamTimetableList({required this.slots});
+  final List<ExamSlot> slots;
+
+  @override
+  Widget build(BuildContext context) {
+    if (slots.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text('No exam timetable published yet.'),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Upcoming examination schedule',
+          style: TextStyle(color: PresenceColors.muted, fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        for (final slot in slots)
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: PresenceColors.primarySoft,
+                child: Text(
+                  slot.dateLabel.split(' ').first,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: PresenceColors.primaryDark,
+                  ),
+                ),
+              ),
+              title: Text(slot.subject, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                [
+                  slot.dateLabel,
+                  slot.dayLabel,
+                  slot.time,
+                  if (slot.venue != null) slot.venue,
+                ].join(' · '),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

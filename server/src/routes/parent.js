@@ -236,7 +236,7 @@ router.get('/timetable', async (req, res) => {
       classSectionId,
       days: TIMETABLE_DAYS,
       periods: PERIOD_TIMES,
-      grid: row?.Grid_Json || buildDefaultWeeklyTimetable(),
+      grid: row?.Grid_Json || buildDefaultWeeklyTimetable(classSectionId),
       updatedOn: row?.Updated_On?.toISOString?.() || null,
     },
   });

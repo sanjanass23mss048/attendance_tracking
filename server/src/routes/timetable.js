@@ -13,21 +13,21 @@ import {
 
 const router = Router();
 
-function serializeTimetable(row, classSectionId) {
-  return {
-    classSectionId,
-    days: TIMETABLE_DAYS,
-    periods: PERIOD_TIMES,
-    grid: row?.Grid_Json || buildDefaultWeeklyTimetable(),
-    updatedOn: row?.Updated_On?.toISOString?.() || null,
-  };
-}
-
 async function getOrDefault(classSectionId) {
   const row = await prisma.tblTimetable.findUnique({
     where: { Class_Section_id: classSectionId },
   });
   return serializeTimetable(row, classSectionId);
+}
+
+function serializeTimetable(row, classSectionId) {
+  return {
+    classSectionId,
+    days: TIMETABLE_DAYS,
+    periods: PERIOD_TIMES,
+    grid: row?.Grid_Json || buildDefaultWeeklyTimetable(classSectionId),
+    updatedOn: row?.Updated_On?.toISOString?.() || null,
+  };
 }
 
 router.get('/', requireAuth, async (req, res) => {

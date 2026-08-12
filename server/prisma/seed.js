@@ -456,12 +456,12 @@ async function main() {
       `Demo parent linked to ${linkStudent.tblStudents?.First_Name || linkStudent.Student_id} (${linkStudent.class_section_id})`
     );
 
-    // Second sibling (Class 2-A) so parent can switch between different classes
+    // Second sibling (Class 11) so parent can switch between very different grades
     let sibling = await prisma.tblStudent_Class.findFirst({
       where: {
         Int_Status: { not: 0 },
         Student_id: { not: linkStudent.Student_id },
-        class_section_id: 'CS-2-A',
+        class_section_id: { startsWith: 'CS-11' },
       },
       include: { tblStudents: true },
       orderBy: { Roll_No: 'asc' },
@@ -497,17 +497,28 @@ async function main() {
       );
     }
 
-    // Sample timetable for child's section
+    // Sample timetable for child's section (grade-aware default)
     const { buildDefaultWeeklyTimetable } = await import('../src/lib/defaultTimetable.js');
     await prisma.tblTimetable.upsert({
       where: { Class_Section_id: linkStudent.class_section_id },
       create: {
         Timetable_id: `TTB-${linkStudent.class_section_id}`,
         Class_Section_id: linkStudent.class_section_id,
-        Grid_Json: buildDefaultWeeklyTimetable(),
+        Grid_Json: buildDefaultWeeklyTimetable(linkStudent.class_section_id),
       },
       update: {},
     });
+    if (sibling) {
+      await prisma.tblTimetable.upsert({
+        where: { Class_Section_id: sibling.class_section_id },
+        create: {
+          Timetable_id: `TTB-${sibling.class_section_id}`,
+          Class_Section_id: sibling.class_section_id,
+          Grid_Json: buildDefaultWeeklyTimetable(sibling.class_section_id),
+        },
+        update: {},
+      });
+    }
 
     // Sample diary entry
     const diaryCount = await prisma.tblClass_Diary.count({
