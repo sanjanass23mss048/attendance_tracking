@@ -90,7 +90,7 @@ const env = {
   PATH: `${path.join(javaHome, 'bin')}${path.delimiter}${process.env.PATH || ''}`,
 };
 
-console.log('Building Presence release APK (website shell)…');
+console.log('Building Presence release APK (arm64-v8a only, website shell)…');
 console.log(`JAVA_HOME=${javaHome}`);
 console.log(`SDK=${sdkDir}`);
 
@@ -102,8 +102,10 @@ run(gradlew, ['assembleRelease', '--no-daemon'], { cwd: androidDir, env });
 
 const apk = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
 if (exists(apk)) {
+  const sizeMb = (fs.statSync(apk).size / (1024 * 1024)).toFixed(1);
   console.log('\nBUILD SUCCESSFUL');
-  console.log(`APK: ${apk}`);
+  console.log(`APK (arm64-v8a only): ${apk}`);
+  console.log(`Size: ${sizeMb} MB`);
 } else {
   console.error('Build finished but APK not found at expected path.');
   process.exit(1);
