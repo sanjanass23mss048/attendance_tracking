@@ -28,7 +28,39 @@ const PAGE_TITLES = {
   classes: { title: 'Classes', subtitle: 'Class and section management.' },
   teachers: { title: 'Teachers', subtitle: 'Staff directory and management.' },
   calendar: { title: 'Academic Calendar', subtitle: 'Plan, manage and view academic events.' },
-  timetable: { title: 'Timetable', subtitle: 'Weekly periods and class schedule.' },
+  timetable: {
+    title: 'Manage Timetables',
+    subtitle: 'Create, update and publish class, test and examination schedules.',
+  },
+  'timetable-nav': {
+    title: 'Manage Timetables',
+    subtitle: 'Create, update and publish class, test and examination schedules.',
+  },
+  'update-timetable': {
+    title: 'Manage Timetables',
+    subtitle: 'Create, update and publish class, test and examination schedules.',
+  },
+  'regular-timetable': {
+    title: 'Manage Timetables',
+    subtitle: 'Create, update and publish class, test and examination schedules.',
+  },
+  'test-timetable': {
+    title: 'Manage Timetables',
+    subtitle: 'Create, update and publish class, test and examination schedules.',
+  },
+  'exam-timetable': {
+    title: 'Manage Timetables',
+    subtitle: 'Create, update and publish class, test and examination schedules.',
+  },
+  'assign-homework': {
+    title: 'Teacher Panel',
+    subtitle: 'Assign homework and manage class, test and exam timetables.',
+  },
+  'homework-list': {
+    title: 'Homework List',
+    subtitle: 'Review homework assigned to your classes.',
+  },
+  subjects: { title: 'Subjects', subtitle: 'Subjects used across timetable and homework.' },
   daywise: { title: 'Day-wise Attendance', subtitle: 'Mark period-wise attendance for the selected day.' },
   reports: { title: 'Reports', subtitle: 'Analytics and exports.' },
   notifications: { title: 'Notifications', subtitle: 'Alerts and school announcements.' },

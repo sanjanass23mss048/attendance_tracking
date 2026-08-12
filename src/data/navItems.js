@@ -22,9 +22,24 @@ export const navItems = [
   },
   { id: 'students', label: 'Students', icon: 'Users' },
   { id: 'send-notification', label: 'Send Notification', icon: 'Megaphone' },
+  {
+    id: 'homework',
+    label: 'Homework',
+    icon: 'BookMarked',
+    children: [
+      { id: 'assign-homework', label: 'Assign Homework' },
+      { id: 'homework-list', label: 'Homework List' },
+    ],
+  },
+  {
+    id: 'timetable-nav',
+    label: 'Timetable',
+    icon: 'CalendarClock',
+  },
   { id: 'leave-letters', label: 'Leave Letters', icon: 'FileText' },
   { id: 'calendar', label: 'Academic Calendar', icon: 'CalendarDays' },
   { id: 'classes', label: 'Classes', icon: 'BookOpen' },
+  { id: 'subjects', label: 'Subjects', icon: 'Library' },
   {
     id: 'teachers',
     label: 'Teachers',
@@ -65,4 +80,10 @@ export function canBulkImportStudents(user) {
 
 export function navItemsForUser(user) {
   return navItems.filter((item) => canAccessNavItem(item, user));
+}
+
+/** Whether a nav id belongs under a parent group (for active highlighting). */
+export function isNavChildActive(item, activePage) {
+  if (!item?.children?.length) return activePage === item.id;
+  return item.children.some((c) => c.id === activePage) || activePage === item.id;
 }
