@@ -32,6 +32,7 @@ API: **http://localhost:4000**
 
 ### Default login
 
+- Admin (Audit Logs): `admin@brightfuture.edu.in` / `password123`
 - Email: `incharge@brightfuture.edu.in`
 - Password: `password123`
 

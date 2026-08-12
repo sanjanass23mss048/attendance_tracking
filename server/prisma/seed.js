@@ -37,6 +37,29 @@ async function main() {
   await upsertRole('PARENT', 'Parent');
 
   const passwordHash = await bcrypt.hash('password123', 10);
+
+  const adminEmail = 'admin@brightfuture.edu.in';
+  const existingAdmin = await prisma.tblUsers.findUnique({ where: { email: adminEmail } });
+  if (!existingAdmin) {
+    await prisma.tblUsers.create({
+      data: {
+        user_id: 'USR-ADMIN',
+        name: 'School Admin',
+        email: adminEmail,
+        password: passwordHash,
+        role_id: 'ADMIN',
+        int_status: 1,
+      },
+    });
+    console.log('Created admin user');
+  } else {
+    await prisma.tblUsers.update({
+      where: { email: adminEmail },
+      data: { password: passwordHash, role_id: 'ADMIN', int_status: 1, name: 'School Admin' },
+    });
+    console.log('Updated admin user for demo login');
+  }
+
   const inchargeEmail = 'incharge@brightfuture.edu.in';
   const existingUser = await prisma.tblUsers.findUnique({ where: { email: inchargeEmail } });
   if (!existingUser) {
@@ -599,6 +622,7 @@ async function main() {
     notices: await prisma.tblNotices.count(),
   };
   console.log('Done.', counts);
+  console.log('Admin login (Audit Logs): admin@brightfuture.edu.in / password123');
   console.log('Login (full access): incharge@brightfuture.edu.in / password123');
   console.log('Parent login: parent@brightfuture.edu.in / password123');
   console.log('Teachers (all password123):');
