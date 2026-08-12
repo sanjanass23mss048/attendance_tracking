@@ -26,6 +26,9 @@ import EditApprovalsPage from './components/EditApprovalsPage';
 import AttendanceEditRequestModal from './components/AttendanceEditRequestModal';
 import NotificationsPage from './components/NotificationsPage';
 import SendNotificationPage from './components/SendNotificationPage';
+import TeacherPanelPage from './components/TeacherPanelPage';
+import HomeworkListPage from './components/HomeworkListPage';
+import SubjectsPage from './components/SubjectsPage';
 import RightPanel from './components/RightPanel';
 import AppToast from './components/AppToast';
 import MobileBottomNav from './components/MobileBottomNav';
@@ -1329,6 +1332,19 @@ export default function App() {
             />
           ) : activePage === 'send-notification' ? (
             <SendNotificationPage user={user} />
+          ) : activePage === 'assign-homework' ? (
+            <TeacherPanelPage mode="assign-homework" />
+          ) : activePage === 'timetable-nav' ||
+            activePage === 'update-timetable' ||
+            activePage === 'regular-timetable' ||
+            activePage === 'test-timetable' ||
+            activePage === 'exam-timetable' ||
+            activePage === 'timetable' ? (
+            <TeacherPanelPage mode="regular-timetable" />
+          ) : activePage === 'homework-list' ? (
+            <HomeworkListPage onAssign={() => setActivePage('assign-homework')} />
+          ) : activePage === 'subjects' ? (
+            <SubjectsPage />
           ) : activePage === 'reports' ? (
             <ReportsPage user={user} />
           ) : activePage === 'settings' ? (

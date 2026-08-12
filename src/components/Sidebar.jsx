@@ -16,8 +16,12 @@ import {
   PinOff,
   ArrowRight,
   X,
+  BookMarked,
+  CalendarClock,
+  Library,
+  ChevronDown,
 } from 'lucide-react';
-import { navItemsForUser } from '../data/navItems';
+import { isNavChildActive, navItemsForUser } from '../data/navItems';
 import attendanceLogoMark from '../assets/attendance-logo-mark.png';
 
 const iconMap = {
@@ -32,6 +36,9 @@ const iconMap = {
   Shield,
   CalendarDays,
   Megaphone,
+  BookMarked,
+  CalendarClock,
+  Library,
 };
 
 export default function Sidebar({
@@ -46,6 +53,7 @@ export default function Sidebar({
   user = null,
 }) {
   const [isMobile, setIsMobile] = useState(false);
+  const [expanded, setExpanded] = useState({});
   const items = navItemsForUser(user);
 
   useEffect(() => {
@@ -59,6 +67,19 @@ export default function Sidebar({
   useEffect(() => {
     if (!isMobile && isMobileOpen) onMobileOpenChange?.(false);
   }, [isMobile, isMobileOpen, onMobileOpenChange]);
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = { ...prev };
+      for (const item of items) {
+        if (item.children?.length && isNavChildActive(item, activePage)) {
+          next[item.id] = true;
+        }
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expand when route changes
+  }, [activePage]);
 
   const isOpen = isMobile
     ? Boolean(isMobileOpen)
@@ -107,7 +128,7 @@ export default function Sidebar({
               <p className="truncate text-base font-semibold leading-tight tracking-tight text-white">
                 Presence
               </p>
-              <p className="truncate text-[11px] leading-tight text-indigo-300">School attendance</p>
+              <p className="truncate text-[11px] leading-tight text-indigo-300">School Attendance</p>
             </div>
           </button>
 
@@ -140,22 +161,72 @@ export default function Sidebar({
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {items.map((item) => {
-            const Icon = iconMap[item.icon];
-            const isActive = activePage === item.id;
+            const Icon = iconMap[item.icon] || BookOpen;
+            const hasChildren = Boolean(item.children?.length);
+            const groupActive = isNavChildActive(item, activePage);
+            const isExpanded = Boolean(expanded[item.id]);
+
+            if (!hasChildren) {
+              const isActive = activePage === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleNavigate(item.id)}
+                  className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-indigo-600 font-semibold text-white shadow-sm'
+                      : 'text-indigo-200 hover:bg-indigo-900 hover:text-white'
+                  }`}
+                >
+                  <Icon size={18} className="shrink-0" />
+                  <span className="truncate text-left">{item.label}</span>
+                </button>
+              );
+            }
+
             return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleNavigate(item.id)}
-                className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-indigo-600 font-semibold text-white shadow-sm'
-                    : 'text-indigo-200 hover:bg-indigo-900 hover:text-white'
-                }`}
-              >
-                <Icon size={18} className="shrink-0" />
-                <span className="truncate text-left">{item.label}</span>
-              </button>
+              <div key={item.id} className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpanded((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                  }
+                  className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    groupActive
+                      ? 'bg-indigo-600 font-semibold text-white shadow-sm'
+                      : 'text-indigo-200 hover:bg-indigo-900 hover:text-white'
+                  }`}
+                >
+                  <Icon size={18} className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {isExpanded ? (
+                  <div className="ml-3 space-y-0.5 border-l border-indigo-800 pl-2">
+                    {item.children.map((child) => {
+                      const childActive = activePage === child.id;
+                      return (
+                        <button
+                          key={child.id}
+                          type="button"
+                          onClick={() => handleNavigate(child.id)}
+                          className={`flex w-full rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors ${
+                            childActive
+                              ? 'bg-indigo-500/80 text-white'
+                              : 'text-indigo-300 hover:bg-indigo-900 hover:text-white'
+                          }`}
+                        >
+                          {child.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </nav>
@@ -177,7 +248,7 @@ export default function Sidebar({
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
             </span>
-            <span className="text-[11px] font-medium text-green-300">Support Online</span>
+            <span className="text-[11px] font-medium text-green-300">Online</span>
           </div>
           <button
             type="button"
