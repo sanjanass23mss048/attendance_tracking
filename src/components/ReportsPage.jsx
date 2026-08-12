@@ -24,8 +24,17 @@ import {
 } from '../services/reportService.js';
 import { canManageTeachers } from '../data/navItems.js';
 import { getTeachers } from '../services/teacherService.js';
+import AttendanceReportsApp from './reports/AttendanceReportsApp.jsx';
+import { parseAttendancePath } from './reports/attendancePaths.js';
 
 const REPORT_TYPES = [
+  {
+    id: 'attendance',
+    title: 'Attendance Reports',
+    description: 'School → standard → section → status → student drill-down.',
+    icon: BarChart3,
+    accent: 'bg-indigo-100 text-indigo-700',
+  },
   {
     id: 'daily',
     title: 'Daily attendance report',
@@ -1006,21 +1015,31 @@ function ReportsLanding({ onSelect, user }) {
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Reports</h2>
             <p className="mt-1 max-w-2xl text-sm text-violet-100">
-              Generate attendance reports and monthly summaries from live attendance data.
+              Drill down school-wide attendance by standard and section, or export daily and monthly
+              PDF summaries.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {REPORT_TYPES.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => onSelect(item.id)}
-              className="group rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-violet-300 hover:shadow-md"
+              onClick={() => {
+                if (item.id === 'attendance') {
+                  window.history.pushState(null, '', '#/reports/attendance');
+                }
+                onSelect(item.id);
+              }}
+              className={`group rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
+                item.id === 'attendance'
+                  ? 'border-indigo-300 ring-1 ring-indigo-100 hover:border-indigo-400'
+                  : 'border-gray-200 hover:border-violet-300'
+              }`}
             >
               <div
                 className={`mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl ${item.accent}`}
@@ -1324,8 +1343,30 @@ function ReportsLanding({ onSelect, user }) {
 }
 
 export default function ReportsPage({ user }) {
-  const [activeReport, setActiveReport] = useState(null);
+  const [activeReport, setActiveReport] = useState(() => {
+    const parsed = parseAttendancePath(window.location.hash.replace(/^#/, ''));
+    return parsed ? 'attendance' : null;
+  });
 
+  useEffect(() => {
+    const onHash = () => {
+      const parsed = parseAttendancePath(window.location.hash.replace(/^#/, ''));
+      if (parsed) setActiveReport('attendance');
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  if (activeReport === 'attendance') {
+    return (
+      <AttendanceReportsApp
+        onExit={() => {
+          window.history.pushState(null, '', window.location.pathname + window.location.search);
+          setActiveReport(null);
+        }}
+      />
+    );
+  }
   if (activeReport === 'daily') return <DailyReportView onBack={() => setActiveReport(null)} />;
   if (activeReport === 'monthly') return <MonthlyReportView onBack={() => setActiveReport(null)} />;
 

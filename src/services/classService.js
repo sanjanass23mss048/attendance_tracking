@@ -27,16 +27,20 @@ const MOCK_TEACHER_SECTIONS = {
 };
 
 function mockClasses() {
-  const all = SCHOOL_GRADES.map((name) => ({
-    id: `mock-class-${name}`,
-    name,
-    sections: SCHOOL_SECTIONS.map((sec) => ({
-      id: `mock-section-${name}-${sec}`,
-      name: sec,
-      periodCount: 8,
-      studentCount: STUDENTS_PER_SECTION,
-    })),
-  }));
+  const all = SCHOOL_GRADES.map((name) => {
+    // Class 3 gets A–D so Attendance Reports can demo four section cards
+    const sections = name === '3' ? ['A', 'B', 'C', 'D'] : SCHOOL_SECTIONS;
+    return {
+      id: `mock-class-${name}`,
+      name,
+      sections: sections.map((sec) => ({
+        id: `mock-section-${name}-${sec}`,
+        name: sec,
+        periodCount: 8,
+        studentCount: STUDENTS_PER_SECTION,
+      })),
+    };
+  });
 
   const user = getStoredUser();
   const role = String(user?.role || '').toUpperCase();

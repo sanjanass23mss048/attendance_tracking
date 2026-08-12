@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
-  ClipboardList,
   Copy,
   Download,
   Eye,
@@ -24,37 +23,44 @@ import { showToast } from '../services/toast.js';
 
 const SUBJECTS = Object.keys(SUBJECT_STYLES);
 
+/** Matches parent portal: Class timetable + Exam (tests included under Exam). */
 const TYPE_CARDS = [
   {
     id: 'regular',
     title: 'Regular Timetable',
     hint: 'Daily period-wise class timetable.',
     icon: CalendarClock,
-    active: 'border-sky-500 bg-sky-50',
+    active: 'border-sky-500 bg-sky-50 ring-1 ring-sky-200',
     iconBg: 'bg-sky-100 text-sky-700',
-  },
-  {
-    id: 'test',
-    title: 'Test Timetable',
-    hint: 'Unit, Weekly, Monthly and Cycle Tests.',
-    icon: ClipboardList,
-    active: 'border-amber-500 bg-amber-50',
-    iconBg: 'bg-amber-100 text-amber-800',
   },
   {
     id: 'exam',
     title: 'Exam Timetable',
-    hint: 'Mid-Term, Quarterly, Half-Yearly, Annual exams.',
+    hint: 'Unit / Weekly / Monthly tests and Mid-Term, Quarterly, Annual exams.',
     icon: GraduationCap,
-    active: 'border-violet-500 bg-violet-50',
-    iconBg: 'bg-violet-100 text-violet-800',
+    active: 'border-violet-500 bg-violet-50 ring-1 ring-violet-200',
+    iconBg: 'bg-violet-100 text-violet-700',
   },
 ];
 
+const EXAM_OR_TEST_NAMES = [
+  'Unit Test â€“ 1',
+  'Unit Test â€“ 2',
+  'Weekly Test',
+  'Monthly Test',
+  'Cycle Test',
+  'Mid-Term Examination',
+  'Quarterly Examination',
+  'Half-Yearly Examination',
+  'Annual Examination',
+  'Final Examination',
+  'Model Examination',
+];
+
 const CLASS_GROUPS = [
-  { id: '1-5', label: 'Classes 1–5' },
-  { id: '6-8', label: 'Classes 6–8' },
-  { id: '9-12', label: 'Classes 9–12' },
+  { id: '1-5', label: 'Classes 1â€“5' },
+  { id: '6-8', label: 'Classes 6â€“8' },
+  { id: '9-12', label: 'Classes 9â€“12' },
 ];
 
 const EXAM_SESSIONS = [
@@ -112,19 +118,6 @@ function newId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function emptyTestRow() {
-  return {
-    id: newId('TR'),
-    date: todayIso(),
-    subject: 'Maths',
-    startTime: '09:00',
-    endTime: '10:00',
-    marks: '25',
-    room: 'Room 101',
-    instructions: '',
-  };
-}
-
 function emptyExamRow(classLabel = '') {
   return {
     id: newId('ER'),
@@ -143,7 +136,8 @@ function subjectChipClass(subject) {
 }
 
 /**
- * Manage Timetables — Regular / Test / Exam scheduling UI.
+ * Manage Timetables â€” Regular (class) + Exam/Test schedules.
+ * Tests are created under Exam Timetable (same as parent portal).
  */
 export default function ManageTimetablesPanel({
   mode = 'regular',
@@ -151,11 +145,12 @@ export default function ManageTimetablesPanel({
   loadingClasses = false,
 }) {
   const initialType =
-    mode === 'test-timetable' || mode === 'test'
-      ? 'test'
-      : mode === 'exam-timetable' || mode === 'exam'
-        ? 'exam'
-        : 'regular';
+    mode === 'exam-timetable' ||
+    mode === 'exam' ||
+    mode === 'test-timetable' ||
+    mode === 'test'
+      ? 'exam'
+      : 'regular';
 
   const [type, setType] = useState(initialType);
 
@@ -167,21 +162,8 @@ export default function ManageTimetablesPanel({
   const [selectedDay, setSelectedDay] = useState(0);
   const [grid, setGrid] = useState(() => buildDefaultWeeklyTimetable());
 
-  const [testName, setTestName] = useState('Unit Test – 2');
-  const [testYear, setTestYear] = useState('2026–2027');
-  const [testTerm, setTestTerm] = useState('Term 1');
-  const [testClassKeys, setTestClassKeys] = useState([]);
-  const [testStart, setTestStart] = useState(() => todayIso());
-  const [testEnd, setTestEnd] = useState(() => addDaysIso(todayIso(), 4));
-  const [testRows, setTestRows] = useState(() => [
-    { ...emptyTestRow(), date: todayIso(), subject: 'Maths' },
-    { ...emptyTestRow(), date: addDaysIso(todayIso(), 1), subject: 'English' },
-    { ...emptyTestRow(), date: addDaysIso(todayIso(), 2), subject: 'Science' },
-  ]);
-  const [testPreview, setTestPreview] = useState(false);
-
   const [examName, setExamName] = useState('Quarterly Examination');
-  const [examYear, setExamYear] = useState('2026–2027');
+  const [examYear, setExamYear] = useState('2026â€“2027');
   const [examTerm, setExamTerm] = useState('Term 1');
   const [examClassKeys, setExamClassKeys] = useState([]);
   const [examGroup, setExamGroup] = useState('');
@@ -206,7 +188,6 @@ export default function ManageTimetablesPanel({
   useEffect(() => {
     if (!sectionOptions.length) return;
     setClassKey((prev) => prev || sectionOptions[0].key);
-    setTestClassKeys((prev) => (prev.length ? prev : [sectionOptions[0].key]));
     setExamClassKeys((prev) => (prev.length ? prev : [sectionOptions[0].key]));
   }, [sectionOptions]);
 
@@ -219,7 +200,7 @@ export default function ManageTimetablesPanel({
     const roomsBySlot = new Map();
 
     for (const row of examRows) {
-      const classKeyLabel = row.classLabel || '—';
+      const classKeyLabel = row.classLabel || 'â€”';
       const subjKey = `${classKeyLabel}::${row.subject}`;
       if (subjectsByClass.has(subjKey)) {
         warnings.push(`Same subject scheduled twice: ${row.subject} for ${classKeyLabel}`);
@@ -230,7 +211,7 @@ export default function ManageTimetablesPanel({
       const slotKey = `${classKeyLabel}::${row.date}::${row.startTime}`;
       if (byClassDate.has(slotKey)) {
         warnings.push(
-          `Two examinations for ${classKeyLabel} at the same time on ${formatDisplayDate(row.date)}`
+          `Two papers for ${classKeyLabel} at the same time on ${formatDisplayDate(row.date)}`
         );
       } else {
         byClassDate.set(slotKey, true);
@@ -238,24 +219,13 @@ export default function ManageTimetablesPanel({
 
       const roomKey = `${row.room}::${row.date}::${row.startTime}`;
       if (row.room && roomsBySlot.has(roomKey)) {
-        warnings.push(`Exam hall already occupied: ${row.room} on ${formatDisplayDate(row.date)}`);
+        warnings.push(`Hall already occupied: ${row.room} on ${formatDisplayDate(row.date)}`);
       } else if (row.room) {
         roomsBySlot.set(roomKey, true);
       }
     }
     return [...new Set(warnings)];
   }, [examRows]);
-
-  const testConflicts = useMemo(() => {
-    const warnings = [];
-    const seen = new Map();
-    for (const row of testRows) {
-      const key = `${row.date}::${row.subject}`;
-      if (seen.has(key)) warnings.push(`Same subject twice on ${formatDisplayDate(row.date)}: ${row.subject}`);
-      else seen.set(key, true);
-    }
-    return warnings;
-  }, [testRows]);
 
   const toggleKey = (list, key, setter) => {
     setter(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
@@ -271,31 +241,28 @@ export default function ManageTimetablesPanel({
   };
 
   const publish = (kind) => {
-    const conflicts = kind === 'exam' ? examConflicts : kind === 'test' ? testConflicts : [];
-    if (conflicts.length) {
+    if (kind === 'exam' && examConflicts.length) {
       showToast('Resolve conflict warnings before publishing', 'error');
       return;
     }
     showToast(
-      kind === 'exam'
-        ? 'Exam timetable published'
-        : kind === 'test'
-          ? 'Test timetable published'
-          : 'Regular timetable saved',
+      kind === 'exam' ? 'Exam / test timetable published' : 'Regular timetable saved',
       'success'
     );
   };
+
+  const isTestName = /test/i.test(examName);
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="mb-5">
         <h2 className="text-lg font-bold text-gray-900">Manage Timetables</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Create, update and publish class, test and examination schedules.
+          Class timetable and exam / test schedules — same options parents see.
         </p>
       </div>
 
-      <div className="mb-6 grid gap-2 sm:grid-cols-3">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">
         {TYPE_CARDS.map((card) => {
           const Icon = card.icon;
           const active = type === card.id;
@@ -304,18 +271,18 @@ export default function ManageTimetablesPanel({
               key={card.id}
               type="button"
               onClick={() => setType(card.id)}
-              className={`flex items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition ${
+              className={`flex items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
                 active ? card.active : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
             >
               <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${card.iconBg}`}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconBg}`}
               >
-                <Icon size={20} />
+                <Icon size={22} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-900">{card.title}</span>
-                <span className="mt-0.5 block text-[11px] leading-snug text-gray-500">
+                <span className="block text-sm font-bold text-gray-900">{card.title}</span>
+                <span className="mt-0.5 block text-xs leading-snug text-gray-500">
                   {card.hint}
                 </span>
               </span>
@@ -418,7 +385,7 @@ export default function ManageTimetablesPanel({
           </div>
 
           <p className="text-xs text-gray-500">
-            Editing for <strong>{selectedClass?.label || '—'}</strong> ·{' '}
+            Editing for <strong>{selectedClass?.label || 'â€”'}</strong> Â·{' '}
             {TIMETABLE_DAYS[selectedDay]}
           </p>
 
@@ -432,7 +399,7 @@ export default function ManageTimetablesPanel({
             </button>
             <button
               type="button"
-              onClick={() => showToast(`Preview · ${selectedClass?.label || 'class'}`, 'info')}
+              onClick={() => showToast(`Preview Â· ${selectedClass?.label || 'class'}`, 'info')}
               className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-800"
             >
               <Eye size={16} /> Preview
@@ -448,275 +415,33 @@ export default function ManageTimetablesPanel({
         </div>
       ) : null}
 
-      {type === 'test' ? (
-        <div className="space-y-5">
-          <div>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">Test Details</h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Test Name *">
-                <input
-                  value={testName}
-                  onChange={(e) => setTestName(e.target.value)}
-                  className="field-input"
-                  placeholder="Unit Test – 2"
-                />
-              </Field>
-              <Field label="Academic Year *">
-                <input
-                  value={testYear}
-                  onChange={(e) => setTestYear(e.target.value)}
-                  className="field-input"
-                />
-              </Field>
-              <Field label="Term *">
-                <select
-                  value={testTerm}
-                  onChange={(e) => setTestTerm(e.target.value)}
-                  className="field-input"
-                >
-                  <option>Term 1</option>
-                  <option>Term 2</option>
-                  <option>Term 3</option>
-                </select>
-              </Field>
-              <Field label="Test Start Date *">
-                <input
-                  type="date"
-                  value={testStart}
-                  onChange={(e) => setTestStart(e.target.value)}
-                  className="field-input"
-                />
-              </Field>
-              <Field label="Test End Date *">
-                <input
-                  type="date"
-                  value={testEnd}
-                  onChange={(e) => setTestEnd(e.target.value)}
-                  className="field-input"
-                />
-              </Field>
-            </div>
-            <Field label="Class / Section * (select one or more)" className="mt-3">
-              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-gray-200 p-2">
-                {sectionOptions.map((o) => {
-                  const on = testClassKeys.includes(o.key);
-                  return (
-                    <button
-                      key={o.key}
-                      type="button"
-                      onClick={() => toggleKey(testClassKeys, o.key, setTestClassKeys)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                        on
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {o.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-          </div>
-
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-gray-900">Test Schedule</h3>
-              <button
-                type="button"
-                onClick={() => setTestRows((r) => [...r, emptyTestRow()])}
-                className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700"
-              >
-                <Plus size={14} /> Add Test
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {testRows.map((row) => (
-                <div
-                  key={row.id}
-                  className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:p-4"
-                >
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-gray-900">
-                      {formatDisplayDate(row.date)} · {dayName(row.date)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setTestRows((rows) => rows.filter((r) => r.id !== row.id))}
-                      className="text-red-600 hover:text-red-700"
-                      aria-label="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    <input
-                      type="date"
-                      value={row.date}
-                      onChange={(e) =>
-                        setTestRows((rows) =>
-                          rows.map((r) => (r.id === row.id ? { ...r, date: e.target.value } : r))
-                        )
-                      }
-                      className="field-input"
-                    />
-                    <select
-                      value={row.subject}
-                      onChange={(e) =>
-                        setTestRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, subject: e.target.value } : r
-                          )
-                        )
-                      }
-                      className={`field-input font-semibold ${subjectChipClass(row.subject)}`}
-                    >
-                      {SUBJECTS.map((s) => (
-                        <option key={s} value={s}>
-                          {s === 'Maths' ? 'Mathematics' : s}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="time"
-                      value={row.startTime}
-                      onChange={(e) =>
-                        setTestRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, startTime: e.target.value } : r
-                          )
-                        )
-                      }
-                      className="field-input"
-                    />
-                    <input
-                      type="time"
-                      value={row.endTime}
-                      onChange={(e) =>
-                        setTestRows((rows) =>
-                          rows.map((r) =>
-                            r.id === row.id ? { ...r, endTime: e.target.value } : r
-                          )
-                        )
-                      }
-                      className="field-input"
-                    />
-                    <input
-                      value={row.marks}
-                      onChange={(e) =>
-                        setTestRows((rows) =>
-                          rows.map((r) => (r.id === row.id ? { ...r, marks: e.target.value } : r))
-                        )
-                      }
-                      placeholder="Total Marks"
-                      className="field-input"
-                    />
-                    <select
-                      value={row.room}
-                      onChange={(e) =>
-                        setTestRows((rows) =>
-                          rows.map((r) => (r.id === row.id ? { ...r, room: e.target.value } : r))
-                        )
-                      }
-                      className="field-input"
-                    >
-                      {ROOMS.map((room) => (
-                        <option key={room}>{room}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    <span className={`mr-2 rounded-md border px-2 py-0.5 font-semibold ${subjectChipClass(row.subject)}`}>
-                      {row.subject === 'Maths' ? 'Mathematics' : row.subject}
-                    </span>
-                    {row.startTime} – {row.endTime}
-                    {durationMinutes(row.startTime, row.endTime)
-                      ? ` · ${durationMinutes(row.startTime, row.endTime)}`
-                      : ''}
-                    {row.marks ? ` · ${row.marks} Marks` : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {testConflicts.length > 0 ? (
-              <ConflictBox items={testConflicts} />
-            ) : null}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setTestRows((rows) => [
-                  ...rows,
-                  ...rows.map((r) => ({ ...r, id: newId('TR'), date: addDaysIso(r.date, 7) })),
-                ])
-              }
-              className="inline-flex items-center gap-1 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700"
-            >
-              <Copy size={14} /> Duplicate Schedule
-            </button>
-            <button
-              type="button"
-              onClick={() => setTestPreview(true)}
-              className="inline-flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-semibold text-indigo-800"
-            >
-              <Eye size={14} /> Preview
-            </button>
-            <button
-              type="button"
-              onClick={() => showToast('Test timetable draft saved', 'info')}
-              className="rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700"
-            >
-              Save Draft
-            </button>
-            <button
-              type="button"
-              onClick={() => publish('test')}
-              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
-            >
-              Publish Test Timetable
-            </button>
-          </div>
-
-          {testPreview ? (
-            <PreviewCard
-              title={testName}
-              subtitle={sectionOptions
-                .filter((o) => testClassKeys.includes(o.key))
-                .map((o) => o.label)
-                .join(', ')}
-              rows={testRows.map((r) => ({
-                date: r.date,
-                subject: r.subject,
-                start: r.startTime,
-                end: r.endTime,
-              }))}
-              onClose={() => setTestPreview(false)}
-            />
-          ) : null}
-        </div>
-      ) : null}
-
       {type === 'exam' ? (
         <div className="space-y-5">
           <div>
-            <h3 className="mb-3 text-sm font-bold text-gray-900">Examination Details</h3>
+            <h3 className="mb-3 text-sm font-bold text-gray-900">
+              {isTestName ? 'Test Details' : 'Examination Details'}
+            </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Exam Name *">
+              <Field label="Name *">
                 <select
                   value={examName}
                   onChange={(e) => setExamName(e.target.value)}
                   className="field-input"
                 >
-                  <option>Quarterly Examination</option>
-                  <option>Half-Yearly Examination</option>
-                  <option>Annual Examination</option>
-                  <option>Final Examination</option>
-                  <option>Model Examination</option>
-                  <option>Mid-Term Examination</option>
+                  <optgroup label="Tests">
+                    {EXAM_OR_TEST_NAMES.filter((n) => /test/i.test(n)).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Examinations">
+                    {EXAM_OR_TEST_NAMES.filter((n) => !/test/i.test(n)).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </Field>
               <Field label="Academic Year *">
@@ -744,7 +469,7 @@ export default function ManageTimetablesPanel({
                   onChange={(e) => setExamGroup(e.target.value)}
                   className="field-input"
                 >
-                  <option value="">— Individual / multi select below —</option>
+                  <option value="">â€” Individual / multi select below â€”</option>
                   {CLASS_GROUPS.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.label}
@@ -794,7 +519,9 @@ export default function ManageTimetablesPanel({
           </div>
 
           <div>
-            <h3 className="mb-2 text-sm font-bold text-gray-900">Exam Session</h3>
+            <h3 className="mb-2 text-sm font-bold text-gray-900">
+              {isTestName ? 'Test Session' : 'Exam Session'}
+            </h3>
             <div className="mb-3 grid gap-2 sm:grid-cols-3">
               {EXAM_SESSIONS.map((s) => (
                 <button
@@ -810,7 +537,7 @@ export default function ManageTimetablesPanel({
                   <span className="font-semibold text-gray-900">{s.label}</span>
                   {s.start ? (
                     <span className="mt-0.5 block text-xs text-gray-500">
-                      {s.start} – {s.end}
+                      {s.start} â€“ {s.end}
                     </span>
                   ) : null}
                 </button>
@@ -831,7 +558,9 @@ export default function ManageTimetablesPanel({
 
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-900">Examination Schedule</h3>
+              <h3 className="text-sm font-bold text-gray-900">
+                {isTestName ? 'Test Schedule' : 'Examination Schedule'}
+              </h3>
               <button
                 type="button"
                 onClick={() => {
@@ -842,7 +571,7 @@ export default function ManageTimetablesPanel({
                 }}
                 className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700"
               >
-                <Plus size={14} /> Add Exam
+                <Plus size={14} /> {isTestName ? 'Add Test' : 'Add Exam'}
               </button>
             </div>
 
@@ -942,7 +671,7 @@ export default function ManageTimetablesPanel({
                         />
                       </td>
                       <td className="px-2 py-2 text-gray-600">
-                        {durationMinutes(row.startTime, row.endTime) || '—'}
+                        {durationMinutes(row.startTime, row.endTime) || 'â€”'}
                       </td>
                       <td className="px-2 py-2">
                         <input
@@ -1024,7 +753,7 @@ export default function ManageTimetablesPanel({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => showToast('Exam timetable draft saved', 'info')}
+              onClick={() => showToast('Exam / test timetable draft saved', 'info')}
               className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700"
             >
               Save Draft
@@ -1041,7 +770,7 @@ export default function ManageTimetablesPanel({
               onClick={() => publish('exam')}
               className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
             >
-              Publish
+              Publish {isTestName ? 'Test' : 'Exam'} Timetable
             </button>
           </div>
 
@@ -1148,14 +877,14 @@ function PreviewCard({ title, subtitle, rows, onClose }) {
             className="rounded-xl border border-white bg-white px-3 py-2.5 shadow-sm"
           >
             <p className="text-xs font-bold uppercase text-gray-500">
-              {formatDisplayDate(r.date)} · {dayName(r.date).slice(0, 3)}
-              {r.extra ? ` · ${r.extra}` : ''}
+              {formatDisplayDate(r.date)} Â· {dayName(r.date).slice(0, 3)}
+              {r.extra ? ` Â· ${r.extra}` : ''}
             </p>
             <p className="font-bold text-gray-900">
               {r.subject === 'Maths' ? 'Mathematics' : r.subject}
             </p>
             <p className="text-sm text-gray-600">
-              {r.start} – {r.end}
+              {r.start} â€“ {r.end}
             </p>
           </div>
         ))}

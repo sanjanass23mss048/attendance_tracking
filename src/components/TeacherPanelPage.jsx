@@ -49,8 +49,8 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
   const showHomework = mode === 'assign-homework';
   const timetableOnly =
     mode === 'regular-timetable' ||
-    mode === 'test-timetable' ||
     mode === 'exam-timetable' ||
+    mode === 'test-timetable' ||
     mode === 'update-timetable';
 
   const [classes, setClasses] = useState([]);
@@ -195,11 +195,7 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
   };
 
   const timetableMode =
-    mode === 'test-timetable'
-      ? 'test'
-      : mode === 'exam-timetable'
-        ? 'exam'
-        : 'regular';
+    mode === 'exam-timetable' || mode === 'test-timetable' ? 'exam' : 'regular';
 
   return (
     <div className="space-y-4">

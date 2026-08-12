@@ -1338,9 +1338,14 @@ export default function App() {
             activePage === 'update-timetable' ||
             activePage === 'regular-timetable' ||
             activePage === 'test-timetable' ||
-            activePage === 'exam-timetable' ||
-            activePage === 'timetable' ? (
-            <TeacherPanelPage mode="regular-timetable" />
+            activePage === 'exam-timetable' ? (
+            <TeacherPanelPage
+              mode={
+                activePage === 'exam-timetable' || activePage === 'test-timetable'
+                  ? 'exam-timetable'
+                  : 'regular-timetable'
+              }
+            />
           ) : activePage === 'homework-list' ? (
             <HomeworkListPage onAssign={() => setActivePage('assign-homework')} />
           ) : activePage === 'subjects' ? (

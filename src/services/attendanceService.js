@@ -109,8 +109,8 @@ export async function getAttendanceSummary(query) {
     return {
       date: query.date,
       totalClasses: schoolStats.totalClasses,
-      totalSections: 15,
-      totalStudents: schoolStats.presentToday + schoolStats.absentToday,
+      totalSections: 42,
+      totalStudents: schoolStats.totalStudents ?? schoolStats.presentToday + schoolStats.absentToday,
       marked: schoolStats.presentToday + schoolStats.absentToday,
       present: schoolStats.presentToday,
       absent: schoolStats.absentToday,

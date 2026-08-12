@@ -46,15 +46,15 @@ const PAGE_TITLES = {
   },
   'test-timetable': {
     title: 'Manage Timetables',
-    subtitle: 'Create, update and publish class, test and examination schedules.',
+    subtitle: 'Class timetable and exam / test schedules.',
   },
   'exam-timetable': {
     title: 'Manage Timetables',
-    subtitle: 'Create, update and publish class, test and examination schedules.',
+    subtitle: 'Class timetable and exam / test schedules.',
   },
   'assign-homework': {
     title: 'Teacher Panel',
-    subtitle: 'Assign homework and manage class, test and exam timetables.',
+    subtitle: 'Assign homework and manage class and exam timetables.',
   },
   'homework-list': {
     title: 'Homework List',
@@ -62,7 +62,10 @@ const PAGE_TITLES = {
   },
   subjects: { title: 'Subjects', subtitle: 'Subjects used across timetable and homework.' },
   daywise: { title: 'Day-wise Attendance', subtitle: 'Mark period-wise attendance for the selected day.' },
-  reports: { title: 'Reports', subtitle: 'Analytics and exports.' },
+  reports: {
+    title: 'Reports',
+    subtitle: 'School-wide attendance drill-down and PDF exports.',
+  },
   notifications: { title: 'Notifications', subtitle: 'Alerts and school announcements.' },
   'send-notification': {
     title: 'Send Notification',
