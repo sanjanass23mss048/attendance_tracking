@@ -10,6 +10,7 @@ import {
   PERIOD_TIMES,
   TIMETABLE_DAYS,
 } from '../lib/defaultTimetable.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -75,6 +76,14 @@ router.put('/', requireAuth, requireStaff, async (req, res) => {
       Grid_Json: grid,
       Updated_On: new Date(),
     },
+  });
+  logAdminAudit(req, {
+    action: 'TIMETABLE_UPDATE',
+    category: 'TIMETABLE',
+    entityType: 'timetable',
+    entityId: row.Timetable_id,
+    summary: `Updated timetable for ${classSectionId}`,
+    details: { classSectionId, days: Array.isArray(grid) ? grid.length : null },
   });
   return res.json({ timetable: serializeTimetable(row, classSectionId) });
 });

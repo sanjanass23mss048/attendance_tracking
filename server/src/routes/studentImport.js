@@ -14,6 +14,7 @@ import {
   getErrorReportPath,
 } from '../services/studentImportService.js';
 import { extractStudentsFromChits } from '../services/studentChitService.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -196,6 +197,19 @@ router.post('/', requireAuth, importManagers, async (req, res) => {
       return res.status(400).json({ error: 'importId is required' });
     }
     const result = await processImport(importId, req.user.sub);
+    logAdminAudit(req, {
+      action: 'STUDENT_IMPORT',
+      category: 'IMPORT',
+      entityType: 'student_import',
+      entityId: importId,
+      summary: `Processed student import ${importId}`,
+      details: {
+        created: result?.created ?? result?.summary?.created,
+        updated: result?.updated ?? result?.summary?.updated,
+        failed: result?.failed ?? result?.summary?.failed,
+        status: result?.status,
+      },
+    });
     return res.json(result);
   } catch (err) {
     const status = err.status || 500;

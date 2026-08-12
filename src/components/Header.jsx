@@ -70,6 +70,10 @@ const PAGE_TITLES = {
   },
   settings: { title: 'Settings', subtitle: 'System configuration.' },
   support: { title: 'Support Center', subtitle: 'Get help from Rio Biz Solutions.' },
+  'audit-logs': {
+    title: 'Audit Logs',
+    subtitle: 'Detailed activity history — who did what, with filters.',
+  },
 };
 
 const ROLE_LABELS = {

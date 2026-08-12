@@ -23,6 +23,7 @@ import LoginPage from './components/LoginPage';
 import WeeklyTimetablePage from './components/WeeklyTimetablePage';
 import TeachersPage from './components/TeachersPage';
 import EditApprovalsPage from './components/EditApprovalsPage';
+import AuditLogsPage from './components/AuditLogsPage';
 import AttendanceEditRequestModal from './components/AttendanceEditRequestModal';
 import NotificationsPage from './components/NotificationsPage';
 import SendNotificationPage from './components/SendNotificationPage';
@@ -56,7 +57,12 @@ import {
 import { isHolidayDate } from './services/calendarService';
 import { getNotificationsFeed, markNotificationsSeen } from './services/notificationService.js';
 import { exportAttendanceReportPdf } from './services/reportService.js';
-import { canApproveEditRequests, canBulkImportStudents, canManageTeachers } from './data/navItems.js';
+import {
+  canApproveEditRequests,
+  canBulkImportStudents,
+  canManageTeachers,
+  canViewAuditLogs,
+} from './data/navItems.js';
 import { getToken, useMock } from './services/api.js';
 import { getMe, logout as authLogout } from './services/authService.js';
 import { getClasses, resolveSectionId } from './services/classService.js';
@@ -533,6 +539,10 @@ export default function App() {
       setActivePage('students');
       return;
     }
+    if (pageId === 'audit-logs' && !canViewAuditLogs(user)) {
+      setActivePage('dashboard');
+      return;
+    }
     setActivePage(pageId);
     if (pageId === 'attendance') {
       setActiveView(view || 'grid');
@@ -553,6 +563,10 @@ export default function App() {
     setActivePage('students');
   }, []);
 
+  const denyAuditLogsAccess = useCallback(() => {
+    setActivePage('dashboard');
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     if (activePage === 'edit-approvals' && !canApproveEditRequests(user)) {
@@ -564,7 +578,17 @@ export default function App() {
     if (activePage === 'student-import' && !canBulkImportStudents(user)) {
       denyStudentImportAccess();
     }
-  }, [activePage, user, denyEditApprovalsAccess, denyTeachersAccess, denyStudentImportAccess]);
+    if (activePage === 'audit-logs' && !canViewAuditLogs(user)) {
+      denyAuditLogsAccess();
+    }
+  }, [
+    activePage,
+    user,
+    denyEditApprovalsAccess,
+    denyTeachersAccess,
+    denyStudentImportAccess,
+    denyAuditLogsAccess,
+  ]);
 
   const loadClass = async (classNum, section, date = selectedDate, { silent = false } = {}) => {
     if (!silent) setLoadingStudents(true);
@@ -1321,6 +1345,10 @@ export default function App() {
           ) : activePage === 'teachers' ? (
             canManageTeachers(user) ? (
               <TeachersPage user={user} onAccessDenied={denyTeachersAccess} />
+            ) : null
+          ) : activePage === 'audit-logs' ? (
+            canViewAuditLogs(user) ? (
+              <AuditLogsPage user={user} onAccessDenied={denyAuditLogsAccess} />
             ) : null
           ) : activePage === 'timetable' ? (
             <WeeklyTimetablePage />

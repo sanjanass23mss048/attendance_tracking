@@ -6,6 +6,7 @@ import { canAccessSection } from '../services/schoolRepo.js';
 import { createNotice, listNotices } from '../services/noticeRepo.js';
 import { notifyParentsOfNotice } from '../services/parentNotify.js';
 import { prisma } from '../lib/prisma.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -82,6 +83,19 @@ router.post('/', async (req, res) => {
     classSectionIds: data.classSectionIds,
     studentClassIds: data.studentClassIds,
   }).catch((err) => console.warn('Parent notice notify failed', err?.message || err));
+
+  logAdminAudit(req, {
+    action: 'NOTICE_CREATE',
+    category: 'NOTICE',
+    entityType: 'notice',
+    entityId: notice.id,
+    summary: `Created notice “${notice.title || 'Untitled'}” (${type})`,
+    details: {
+      audienceType: type,
+      classSectionIds: data.classSectionIds,
+      studentClassIds: data.studentClassIds,
+    },
+  });
 
   return res.status(201).json({ notice });
 });

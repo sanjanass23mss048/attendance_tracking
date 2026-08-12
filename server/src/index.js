@@ -25,12 +25,14 @@ import noticeRoutes from './routes/notices.js';
 import diaryRoutes from './routes/diary.js';
 import timetableRoutes from './routes/timetable.js';
 import parentRoutes from './routes/parent.js';
+import adminAuditRoutes from './routes/adminAudit.js';
 import { requireStaff } from './middleware/roles.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
 import { ensureUploadDir } from './lib/storage.js';
 import { logFcmStartupStatus } from './lib/fcm.js';
 import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
+import { ensureAdminAuditTables } from './lib/ensureAdminAuditTables.js';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'];
 for (const key of required) {
@@ -143,6 +145,7 @@ app.use('/api/notices', noticeRoutes);
 app.use('/api/diary', diaryRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/parent', parentRoutes);
+app.use('/api/admin/audit-logs', adminAuditRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
@@ -164,10 +167,12 @@ ensureUploadDir()
   .then(() => ensureAttendanceStatuses())
   .then(() => ensureStudentImportTables())
   .then(() => ensureTeacherNotificationTables())
+  .then(() => ensureAdminAuditTables())
   .then(() => {
     console.log('Attendance statuses ensured (P/A/L/H/OH/OF)');
     console.log('Student import tables ensured');
     console.log('Teacher notification tables ensured');
+    console.log('Admin audit tables ensured');
   })
   .catch((err) => {
     console.error('Startup init failed', err);

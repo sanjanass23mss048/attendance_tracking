@@ -12,6 +12,7 @@ import {
 import { sendAttendanceEditApprovalMessage, isWhatsAppConfigured } from '../lib/whatsapp.js';
 import { prisma } from '../lib/prisma.js';
 import { findClassSectionById } from '../services/schoolRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 import {
   createEditRequest,
   findApproverForSection,
@@ -122,6 +123,20 @@ router.post('/', requireAuth, async (req, res) => {
       error: 'WhatsApp approval message was not delivered. Request was not created.',
     });
   }
+
+  logAdminAudit(req, {
+    action: 'EDIT_REQUEST_CREATE',
+    category: 'APPROVAL',
+    entityType: 'attendance_edit_request',
+    entityId: request.id,
+    summary: `Requested attendance edit for ${section.Class_Section_id} on ${attendanceDate}`,
+    details: {
+      sectionId: section.Class_Section_id,
+      attendanceDate,
+      approverId: approver.userId,
+      reason: reason.trim().slice(0, 200),
+    },
+  });
 
   return res.status(201).json({
     request,

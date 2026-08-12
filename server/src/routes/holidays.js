@@ -8,6 +8,7 @@ import {
   holidayTypeFromDescription,
 } from '../services/schoolRepo.js';
 import { serializeCalendarEvent, upsertCalendarEvent } from './calendar.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -143,14 +144,25 @@ router.post('/', requireAuth, async (req, res) => {
     source: calType === 'sudden' ? 'sudden' : 'govt',
   });
 
-  return res.status(201).json({
+  const payload = {
     holiday: {
       id: holiday.Holiday_id,
       date: toDateString(holiday.Date),
       name: holiday.Text,
       type: holidayTypeFromDescription(holiday.Description),
     },
+  };
+
+  logAdminAudit(req, {
+    action: existing ? 'HOLIDAY_UPDATE' : 'HOLIDAY_CREATE',
+    category: 'HOLIDAY',
+    entityType: 'holiday',
+    entityId: holiday.Holiday_id,
+    summary: `${existing ? 'Updated' : 'Created'} holiday “${holiday.Text}” on ${parsed.data.date}`,
+    details: { type: parsed.data.type, date: parsed.data.date },
   });
+
+  return res.status(201).json(payload);
 });
 
 export default router;

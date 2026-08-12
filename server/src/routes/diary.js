@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireStaff } from '../middleware/roles.js';
 import { newId, parseDateOnly, toDateString } from '../lib/ids.js';
 import { canAccessSection, serializeClassSection, findClassSectionById } from '../services/schoolRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
 
@@ -81,7 +82,16 @@ router.post('/', async (req, res) => {
       classSection: { include: { tblClass: true, tblSection: true } },
     },
   });
-  return res.status(201).json({ entry: serializeDiary(row) });
+  const entry = serializeDiary(row);
+  logAdminAudit(req, {
+    action: 'DIARY_CREATE',
+    category: 'DIARY',
+    entityType: 'diary',
+    entityId: row.Diary_id,
+    summary: `Created class diary “${title}” for ${classSectionId} on ${date}`,
+    details: { classSectionId, date, title },
+  });
+  return res.status(201).json({ entry });
 });
 
 export default router;

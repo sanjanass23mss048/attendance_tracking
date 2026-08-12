@@ -20,6 +20,7 @@ import {
   CalendarClock,
   Library,
   ChevronDown,
+  ScrollText,
 } from 'lucide-react';
 import { isNavChildActive, navItemsForUser } from '../data/navItems';
 import attendanceLogoMark from '../assets/attendance-logo-mark.png';
@@ -39,6 +40,7 @@ const iconMap = {
   BookMarked,
   CalendarClock,
   Library,
+  ScrollText,
 };
 
 export default function Sidebar({
