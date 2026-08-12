@@ -93,13 +93,7 @@ class ParentShell extends StatelessWidget {
           ),
         ),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (students.children.isNotEmpty) _MyChildrenStrip(students: students),
-          Expanded(child: child),
-        ],
-      ),
+      body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected.clamp(0, destinations.length - 1),
         onDestinationSelected: (i) => context.go(destinations[i].path),
@@ -182,123 +176,6 @@ class _DrawerHeader extends StatelessWidget {
               ],
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Identification-only strip — not a switcher.
-class _MyChildrenStrip extends StatelessWidget {
-  const _MyChildrenStrip({required this.students});
-  final ParentStudentsState students;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: PresenceColors.bg,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'My Children',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: PresenceColors.muted,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var i = 0; i < students.children.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    _ChildIdCard(students: students, child: students.children[i]),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChildIdCard extends StatelessWidget {
-  const _ChildIdCard({required this.students, required this.child});
-  final ParentStudentsState students;
-  final Map<String, dynamic> child;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = child['name']?.toString() ?? 'Student';
-    final classLabel = ParentStudentsState.shortClassLabelFor(child);
-    final color = siblingChipColorForChild(students, child);
-
-    return Container(
-      constraints: const BoxConstraints(minWidth: 120, maxWidth: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: color.withValues(alpha: 0.15),
-            child: Text(
-              ParentStudentsState.initialsFor(name),
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: color,
-                  ),
-                ),
-                if (classLabel.isNotEmpty)
-                  Text(
-                    classLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: PresenceColors.muted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
         ],
       ),
     );

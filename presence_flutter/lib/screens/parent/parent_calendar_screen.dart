@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config.dart';
 import '../../state/auth_state.dart';
 import '../../theme.dart';
+import '../widgets/parent_child_dropdown.dart';
 
 class ParentCalendarScreen extends StatefulWidget {
   const ParentCalendarScreen({super.key});
@@ -71,64 +72,72 @@ class _ParentCalendarScreenState extends State<ParentCalendarScreen> {
       }),
     ]..sort((a, b) => (a['date']?.toString() ?? '').compareTo(b['date']?.toString() ?? ''));
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Academic calendar · ${todayYmd().substring(0, 7)}',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-          const SizedBox(height: 8),
-          const Text('Holidays and school events for this month.',
-              style: TextStyle(color: PresenceColors.muted)),
-          if (error != null) ...[
-            const SizedBox(height: 8),
-            Text(error!, style: const TextStyle(color: PresenceColors.danger, fontSize: 12)),
-          ],
-          const SizedBox(height: 12),
-          if (loading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (items.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('No events for this month.'),
-              ),
-            )
-          else
-            for (final item in items)
-              Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: PresenceColors.primarySoft,
-                    child: Text(
-                      _day(item['date']?.toString()),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: PresenceColors.primaryDark,
-                        fontSize: 12,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ParentChildDropdown(),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text('Academic calendar · ${todayYmd().substring(0, 7)}',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                const SizedBox(height: 8),
+                const Text('School holidays and events (same for all children).',
+                    style: TextStyle(color: PresenceColors.muted)),
+                if (error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(error!, style: const TextStyle(color: PresenceColors.danger, fontSize: 12)),
+                ],
+                const SizedBox(height: 12),
+                if (loading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (items.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text('No events for this month.'),
+                    ),
+                  )
+                else
+                  for (final item in items)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: PresenceColors.primarySoft,
+                          child: Text(
+                            _day(item['date']?.toString()),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: PresenceColors.primaryDark,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(item['title']?.toString() ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(
+                          [
+                            item['date'],
+                            item['type'],
+                            if (item['subtitle'] != null) item['subtitle'],
+                          ].whereType<Object?>().join(' · '),
+                        ),
                       ),
                     ),
-                  ),
-                  title: Text(item['title']?.toString() ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    [
-                      item['date'],
-                      item['type'],
-                      if (item['subtitle'] != null) item['subtitle'],
-                    ].whereType<Object?>().join(' · '),
-                  ),
-                ),
-              ),
-        ],
-      ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

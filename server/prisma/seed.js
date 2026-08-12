@@ -456,12 +456,12 @@ async function main() {
       `Demo parent linked to ${linkStudent.tblStudents?.First_Name || linkStudent.Student_id} (${linkStudent.class_section_id})`
     );
 
-    // Second sibling (another class) so Switch Student is demoable
+    // Second sibling (Class 2-A) so parent can switch between different classes
     let sibling = await prisma.tblStudent_Class.findFirst({
       where: {
         Int_Status: { not: 0 },
         Student_id: { not: linkStudent.Student_id },
-        class_section_id: { startsWith: 'CS-3' },
+        class_section_id: 'CS-2-A',
       },
       include: { tblStudents: true },
       orderBy: { Roll_No: 'asc' },

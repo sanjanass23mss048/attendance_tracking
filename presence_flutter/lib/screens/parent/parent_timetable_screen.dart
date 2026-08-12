@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../state/auth_state.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
-import '../widgets/student_identity_chip.dart';
+import '../widgets/parent_child_dropdown.dart';
 
 class ParentTimetableScreen extends StatefulWidget {
   const ParentTimetableScreen({super.key});
@@ -14,8 +14,7 @@ class ParentTimetableScreen extends StatefulWidget {
 }
 
 class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
-  /// sectionId → timetable payload
-  final Map<String, Map<String, dynamic>> _bySection = {};
+  Map<String, dynamic>? timetable;
   bool loading = true;
   String? error;
   ParentStudentsState? _students;
@@ -25,28 +24,24 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _students = context.read<ParentStudentsState>();
-      _students!.addListener(_onStudentsChanged);
+      _students!.addListener(_onChildChanged);
       _load();
     });
   }
 
   @override
   void dispose() {
-    _students?.removeListener(_onStudentsChanged);
+    _students?.removeListener(_onChildChanged);
     super.dispose();
   }
 
-  void _onStudentsChanged() {
+  void _onChildChanged() {
     _load();
   }
 
   Future<void> _load() async {
     final students = context.read<ParentStudentsState>();
-    final sectionIds = <String>{};
-    for (final child in students.children) {
-      final id = child['sectionId']?.toString();
-      if (id != null && id.isNotEmpty) sectionIds.add(id);
-    }
+    final sectionId = students.selectedSectionId;
 
     setState(() {
       loading = true;
@@ -55,22 +50,11 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
 
     try {
       final api = context.read<AuthState>().api;
-      final next = <String, Map<String, dynamic>>{};
-      if (sectionIds.isEmpty) {
-        final data = await api.parentTimetable();
-        next['_default'] = data;
-      } else {
-        for (final sectionId in sectionIds) {
-          final data = await api.parentTimetable(classSectionId: sectionId);
-          next[sectionId] = data;
-        }
-      }
+      final data = sectionId != null && sectionId.isNotEmpty
+          ? await api.parentTimetable(classSectionId: sectionId)
+          : await api.parentTimetable();
       if (!mounted) return;
-      setState(() {
-        _bySection
-          ..clear()
-          ..addAll(next);
-      });
+      setState(() => timetable = data);
     } catch (e) {
       if (!mounted) return;
       setState(() => error = e.toString());
@@ -82,123 +66,89 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
   @override
   Widget build(BuildContext context) {
     final students = context.watch<ParentStudentsState>();
+    final child = students.selected;
+    final classLabel =
+        child != null ? ParentStudentsState.displayClassLabelFor(child) : '';
 
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) {
-      return Center(child: Text(error!, style: const TextStyle(color: PresenceColors.danger)));
-    }
-    if (_bySection.isEmpty) {
-      return const Center(child: Text('No timetable available.'));
-    }
-
-    // Unique sections in child order.
-    final sections = <String>[];
-    final seen = <String>{};
-    for (final child in students.children) {
-      final id = child['sectionId']?.toString();
-      if (id == null || id.isEmpty || seen.contains(id)) continue;
-      if (_bySection.containsKey(id)) {
-        seen.add(id);
-        sections.add(id);
-      }
-    }
-    if (sections.isEmpty) {
-      sections.addAll(_bySection.keys);
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          const Text(
-            'Weekly timetable',
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ParentChildDropdown(),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: loading
+                ? const Center(child: CircularProgressIndicator())
+                : error != null
+                    ? ListView(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(error!, style: const TextStyle(color: PresenceColors.danger)),
+                          ),
+                        ],
+                      )
+                    : timetable == null
+                        ? ListView(
+                            children: const [
+                              SizedBox(height: 80),
+                              Center(child: Text('No timetable available.')),
+                            ],
+                          )
+                        : ListView(
+                            padding: const EdgeInsets.all(12),
+                            children: [
+                              Text(
+                                classLabel.isEmpty ? 'Weekly timetable' : '$classLabel timetable',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                              ),
+                              const SizedBox(height: 12),
+                              _TimetableTable(timetable: timetable!),
+                            ],
+                          ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Combined view for all your children — each timetable is tagged.',
-            style: TextStyle(color: PresenceColors.muted, fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          for (final sectionId in sections) ...[
-            _TimetableBlock(
-              students: students,
-              sectionId: sectionId,
-              timetable: _bySection[sectionId]!,
-            ),
-            const SizedBox(height: 20),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _TimetableBlock extends StatelessWidget {
-  const _TimetableBlock({
-    required this.students,
-    required this.sectionId,
-    required this.timetable,
-  });
-
-  final ParentStudentsState students;
-  final String sectionId;
+class _TimetableTable extends StatelessWidget {
+  const _TimetableTable({required this.timetable});
   final Map<String, dynamic> timetable;
 
   @override
   Widget build(BuildContext context) {
-    final matched = students.childrenForSection(sectionId);
     final days = (timetable['days'] as List?)?.map((e) => e.toString()).toList() ?? [];
     final periods = (timetable['periods'] as List?) ?? [];
     final grid = (timetable['grid'] as List?) ?? [];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (matched.isNotEmpty)
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final child in matched) StudentIdentityChip.fromChild(students, child),
-            ],
-          )
-        else
-          Text(
-            sectionId == '_default' ? 'Class timetable' : 'Section $sectionId',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        const SizedBox(height: 10),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(const Color(0xFFEEF2FF)),
-            columns: [
-              const DataColumn(label: Text('Period')),
-              for (final d in days)
-                DataColumn(label: Text(d.length >= 3 ? d.substring(0, 3) : d)),
-            ],
-            rows: [
-              for (var p = 0; p < grid.length; p++)
-                DataRow(
-                  cells: [
-                    DataCell(
-                      Text(
-                        periods.length > p
-                            ? 'P${(periods[p] as Map)['period'] ?? (p + 1)}'
-                            : 'P${p + 1}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    for (var d = 0; d < days.length; d++)
-                      DataCell(_cell(grid[p], d)),
-                  ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all(const Color(0xFFEEF2FF)),
+        columns: [
+          const DataColumn(label: Text('Period')),
+          for (final d in days)
+            DataColumn(label: Text(d.length >= 3 ? d.substring(0, 3) : d)),
+        ],
+        rows: [
+          for (var p = 0; p < grid.length; p++)
+            DataRow(
+              cells: [
+                DataCell(
+                  Text(
+                    periods.length > p
+                        ? 'P${(periods[p] as Map)['period'] ?? (p + 1)}'
+                        : 'P${p + 1}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
-            ],
-          ),
-        ),
-      ],
+                for (var d = 0; d < days.length; d++) DataCell(_cell(grid[p], d)),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
