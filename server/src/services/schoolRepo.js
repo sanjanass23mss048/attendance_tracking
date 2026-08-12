@@ -52,8 +52,8 @@ function addressOf(student) {
 }
 
 /** Enrollment row for roster — studentId in API = student_class_id. */
-export function serializeEnrollment(sc, classSection) {
-  const st = sc.tblStudents;
+export function serializeEnrollment(sc, classSection, studentOverride = null) {
+  const st = studentOverride || sc.tblStudents;
   const roll = Number.parseInt(sc.Roll_No || st?.Roll_No || '0', 10) || 0;
   const status = sc.Int_Status === 0 || st?.Int_Status === 0 ? 'Inactive' : 'Active';
   return {
@@ -216,8 +216,9 @@ export async function listChildrenForParent(userId) {
     const st = link.tblStudents;
     if (!st || st.Int_Status === 0) continue;
     for (const sc of st.tblStudent_Class || []) {
+      // Nested include does not attach sc.tblStudents — pass `st` explicitly.
       children.push({
-        ...serializeEnrollment(sc, sc.tblClass_Section),
+        ...serializeEnrollment(sc, sc.tblClass_Section, st),
         fatherName: st.Father_Name ?? null,
         motherName: st.Mother_Name ?? null,
         fatherPhone: st.Father_Number ?? null,
