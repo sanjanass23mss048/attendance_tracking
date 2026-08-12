@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,6 +33,22 @@ class ParentPushService {
   String? _deviceToken;
   String? _pendingRoute;
   void Function(String route)? onOpenRoute;
+  final _noticeListeners = <VoidCallback>{};
+
+  /// Called when a notice arrives via Socket.IO or foreground FCM.
+  void addNoticeListener(VoidCallback listener) => _noticeListeners.add(listener);
+
+  void removeNoticeListener(VoidCallback listener) => _noticeListeners.remove(listener);
+
+  void _emitNoticeReceived() {
+    for (final listener in List<VoidCallback>.from(_noticeListeners)) {
+      try {
+        listener();
+      } catch (e) {
+        debugPrint('notice listener error: $e');
+      }
+    }
+  }
 
   Future<void> init() async {
     if (_ready) return;
@@ -88,6 +105,10 @@ class ParentPushService {
           body.toString(),
           route: _routeFromMessage(msg),
         );
+        final type = msg.data['type']?.toString();
+        if (type == null || type == 'notice') {
+          _emitNoticeReceived();
+        }
       });
       FirebaseMessaging.onMessageOpenedApp.listen((msg) {
         _openRoute(_routeFromMessage(msg));
@@ -219,6 +240,7 @@ class ParentPushService {
         final title = map['title']?.toString() ?? 'Notice Board';
         final body = map['body']?.toString() ?? 'New notice available';
         _showLocal(title, body, route: _defaultRoute);
+        _emitNoticeReceived();
       } catch (e) {
         debugPrint('notice:new parse error: $e');
       }

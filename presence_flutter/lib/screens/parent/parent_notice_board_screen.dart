@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
+import '../../services/parent_push_service.dart';
 import '../../state/auth_state.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
@@ -19,30 +21,81 @@ class ParentNoticeBoardScreen extends StatefulWidget {
   State<ParentNoticeBoardScreen> createState() => _ParentNoticeBoardScreenState();
 }
 
-class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
+class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
+    with WidgetsBindingObserver {
   List<dynamic> notices = [];
   bool loading = true;
   String? error;
   String query = '';
+  Timer? _refreshDebounce;
+  bool _refreshQueued = false;
+  ParentPushService? _push;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _push = context.read<AuthState>().push;
+      _push?.addNoticeListener(_onNoticeReceived);
+    });
   }
 
-  Future<void> _load() async {
-    setState(() {
-      loading = true;
-      error = null;
+  @override
+  void dispose() {
+    _refreshDebounce?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _push?.removeNoticeListener(_onNoticeReceived);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _scheduleRefresh();
+    }
+  }
+
+  void _onNoticeReceived() {
+    // Brief delay so the API has committed the notice before we refetch.
+    _scheduleRefresh(delayMs: 400);
+  }
+
+  void _scheduleRefresh({int delayMs = 0}) {
+    if (!mounted) return;
+    _refreshQueued = true;
+    _refreshDebounce?.cancel();
+    _refreshDebounce = Timer(Duration(milliseconds: delayMs), () {
+      if (!mounted || !_refreshQueued) return;
+      _refreshQueued = false;
+      _load(silent: true);
     });
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
     try {
       final list = await context.read<AuthState>().api.parentNotices();
-      setState(() => notices = list);
+      if (!mounted) return;
+      setState(() {
+        notices = list;
+        error = null;
+      });
     } catch (e) {
-      setState(() => error = e.toString());
+      if (!mounted) return;
+      if (!silent) {
+        setState(() => error = e.toString());
+      }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted && !silent) setState(() => loading = false);
+      if (mounted && silent && loading) setState(() => loading = false);
     }
   }
 
@@ -106,7 +159,7 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
         ),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: _load,
+            onRefresh: () => _load(),
             child: loading
                 ? const Center(child: CircularProgressIndicator())
                 : error != null
