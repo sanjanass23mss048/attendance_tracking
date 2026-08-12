@@ -30,6 +30,8 @@ class AuthState extends ChangeNotifier {
     _push = push;
   }
 
+  ParentPushService? get push => _push;
+
   void attachStudents(ParentStudentsState state) {
     students = state;
   }
