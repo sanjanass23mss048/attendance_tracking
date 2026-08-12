@@ -60,6 +60,85 @@ class ParentStudentsState extends ChangeNotifier {
     return className ?? sectionName ?? '';
   }
 
+  /// Compact chip label e.g. "Class 3-A"
+  static String shortClassLabelFor(Map<String, dynamic> child) {
+    final section = child['section'] is Map
+        ? Map<String, dynamic>.from(child['section'] as Map)
+        : null;
+    final className = section?['class'] is Map
+        ? (section!['class'] as Map)['name']?.toString()
+        : null;
+    final sectionName = section?['name']?.toString();
+    if (className != null && sectionName != null) {
+      return 'Class $className-$sectionName';
+    }
+    return className ?? sectionName ?? '';
+  }
+
+  /// Display block label e.g. "Class 3 – A"
+  static String displayClassLabelFor(Map<String, dynamic> child) {
+    final section = child['section'] is Map
+        ? Map<String, dynamic>.from(child['section'] as Map)
+        : null;
+    final className = section?['class'] is Map
+        ? (section!['class'] as Map)['name']?.toString()
+        : null;
+    final sectionName = section?['name']?.toString();
+    if (className != null && sectionName != null) {
+      return 'Class $className – $sectionName';
+    }
+    return className ?? sectionName ?? '';
+  }
+
+  /// Children whose enrollment matches a class-section id.
+  List<Map<String, dynamic>> childrenForSection(String? sectionId) {
+    if (sectionId == null || sectionId.isEmpty) return const [];
+    return children
+        .where((c) => c['sectionId']?.toString() == sectionId)
+        .toList();
+  }
+
+  /// Children matching notice targets (studentClassId or classSectionId).
+  List<Map<String, dynamic>> childrenForNotice(Map<String, dynamic> notice) {
+    final type = (notice['audienceType']?.toString() ?? '').toUpperCase();
+    if (type == 'ALL' || type.isEmpty) {
+      return List<Map<String, dynamic>>.from(children);
+    }
+
+    final targets = (notice['targets'] as List?) ?? const [];
+    if (targets.isEmpty) {
+      // Broad class audience without targets — all children in matching labels if any
+      return List<Map<String, dynamic>>.from(children);
+    }
+
+    final matched = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    for (final t in targets) {
+      if (t is! Map) continue;
+      final scId = t['studentClassId']?.toString();
+      final csId = t['classSectionId']?.toString();
+      for (final child in children) {
+        final id = child['id']?.toString() ?? '';
+        if (id.isEmpty || seen.contains(id)) continue;
+        final childSection = child['sectionId']?.toString();
+        if ((scId != null && scId == id) ||
+            (csId != null && csId == childSection)) {
+          seen.add(id);
+          matched.add(child);
+        }
+      }
+    }
+    return matched;
+  }
+
+  /// Whether a notice applies to any linked child (for combined board).
+  bool noticeVisibleForAnyChild(Map<String, dynamic> notice) {
+    final type = (notice['audienceType']?.toString() ?? '').toUpperCase();
+    if (type == 'ALL' || type.isEmpty) return true;
+    if (children.isEmpty) return true;
+    return childrenForNotice(notice).isNotEmpty;
+  }
+
   static String initialsFor(String? name) {
     final parts = (name ?? '').trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';

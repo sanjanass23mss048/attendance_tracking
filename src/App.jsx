@@ -29,6 +29,7 @@ import SendNotificationPage from './components/SendNotificationPage';
 import RightPanel from './components/RightPanel';
 import AppToast from './components/AppToast';
 import MobileBottomNav from './components/MobileBottomNav';
+import { getAlertDeliveryPrefs } from './services/alertDeliveryPrefs';
 import {
   cloneGrid,
   countTodaySummary,
@@ -885,10 +886,13 @@ export default function App() {
     }
 
     try {
+      const { channel, recipient } = getAlertDeliveryPrefs();
       const result = await submitParentMessages({
         sectionId: sid,
         date: selectedDate,
         initiatedAt,
+        channel,
+        recipient,
         messages: pending.map((n) => ({
           studentId: String(n.student.id),
           status: n.status,
@@ -1247,7 +1251,7 @@ export default function App() {
                   {renderAttendanceContent()}
 
                   {showConfirmed && activeView === 'summary' && (
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
                       <button
                         type="button"
                         onClick={handleBackToClasses}
@@ -1261,7 +1265,7 @@ export default function App() {
                         disabled={messagesSent}
                         className="rounded-lg bg-amber-400 px-5 py-2 text-sm font-bold text-gray-900 hover:bg-amber-500 disabled:bg-green-500 disabled:text-white"
                       >
-                        {messagesSent ? 'Messages Sent' : 'Submit'}
+                        {messagesSent ? 'Messages Sent' : 'Send to Parents'}
                       </button>
                     </div>
                   )}

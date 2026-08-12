@@ -211,3 +211,88 @@ export async function sendAttendanceEditApprovalMessage({
     raw: { template: templateData, interactive: interactiveData },
   };
 }
+
+/**
+ * Send an absence / attendance alert to a parent via WhatsApp.
+ * Uses WHATSAPP_ABSENCE_TEMPLATE when set; otherwise sends a free-form text body.
+ */
+export async function sendAbsenceAlertWhatsApp({
+  toPhone,
+  body,
+  studentName,
+  rollNo,
+  date,
+}) {
+  if (!configured()) {
+    console.warn('[whatsapp] Skipping absence alert — WHATSAPP_* env not configured');
+    return { ok: true, skipped: true, provider: 'whatsapp', to: null, reason: 'not_configured' };
+  }
+
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return { ok: false, skipped: false, provider: 'whatsapp', error: 'Missing phone number', to: '' };
+  }
+
+  const templateName = process.env.WHATSAPP_ABSENCE_TEMPLATE || '';
+  const languageCode = process.env.WHATSAPP_ABSENCE_TEMPLATE_LANG || process.env.WHATSAPP_TEMPLATE_LANG || 'en';
+
+  try {
+    if (templateName) {
+      const data = await postMessage({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [
+            {
+              type: 'body',
+              parameters: textParams([
+                studentName || 'Student',
+                rollNo || '-',
+                date || '—',
+              ]),
+            },
+          ],
+        },
+      });
+      return {
+        ok: true,
+        skipped: false,
+        provider: 'whatsapp',
+        to,
+        id: data?.messages?.[0]?.id || null,
+      };
+    }
+
+    const text = String(body || '').trim();
+    if (!text) {
+      return { ok: false, skipped: false, provider: 'whatsapp', error: 'Empty message body', to };
+    }
+
+    const data = await postMessage({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { preview_url: false, body: text.slice(0, 4096) },
+    });
+
+    return {
+      ok: true,
+      skipped: false,
+      provider: 'whatsapp',
+      to,
+      id: data?.messages?.[0]?.id || null,
+    };
+  } catch (err) {
+    console.error('[whatsapp] absence alert failed', err);
+    return {
+      ok: false,
+      skipped: false,
+      provider: 'whatsapp',
+      to,
+      error: err.message || 'WhatsApp send failed',
+    };
+  }
+}

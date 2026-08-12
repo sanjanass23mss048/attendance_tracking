@@ -11,6 +11,7 @@ import '../../state/auth_state.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
 import '../widgets/notice_card.dart';
+import '../widgets/student_identity_chip.dart';
 
 class ParentNoticeBoardScreen extends StatefulWidget {
   const ParentNoticeBoardScreen({super.key});
@@ -67,22 +68,27 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
   @override
   Widget build(BuildContext context) {
     final students = context.watch<ParentStudentsState>();
-    final selectedClassId = students.selectedStudentClassId;
-    final selectedSectionId = students.selectedSectionId;
 
-    final filtered = notices.where((n) {
+    // Combined board: all siblings, school-wide notices once (by id).
+    final seenIds = <String>{};
+    final filtered = <Map<String, dynamic>>[];
+    for (final n in notices) {
       final m = Map<String, dynamic>.from(n as Map);
-      if (!_noticeVisibleForStudent(m, selectedClassId, selectedSectionId)) {
-        return false;
+      final id = m['id']?.toString() ?? '';
+      if (id.isNotEmpty && seenIds.contains(id)) continue;
+      if (!students.noticeVisibleForAnyChild(m)) continue;
+      if (query.trim().isNotEmpty) {
+        final hay = [
+          m['audienceLabel'],
+          m['title'],
+          m['body'],
+          ...students.childrenForNotice(m).map((c) => c['name']),
+        ].whereType<Object?>().join(' ').toLowerCase();
+        if (!hay.contains(query.trim().toLowerCase())) continue;
       }
-      if (query.trim().isEmpty) return true;
-      final hay = [
-        m['audienceLabel'],
-        m['title'],
-        m['body'],
-      ].whereType<Object?>().join(' ').toLowerCase();
-      return hay.contains(query.trim().toLowerCase());
-    }).toList();
+      if (id.isNotEmpty) seenIds.add(id);
+      filtered.add(m);
+    }
 
     return Column(
       children: [
@@ -92,7 +98,7 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
           child: TextField(
             onChanged: (v) => setState(() => query = v),
             decoration: InputDecoration(
-              hintText: 'Search',
+              hintText: 'Search all children',
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.white,
@@ -128,12 +134,35 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
                         : ListView.separated(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             itemCount: filtered.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            separatorBuilder: (_, _) => const Divider(height: 1),
                             itemBuilder: (context, i) {
-                              final m = Map<String, dynamic>.from(filtered[i] as Map);
+                              final m = filtered[i];
+                              final type = (m['audienceType']?.toString() ?? '').toUpperCase();
+                              final isSchool = type == 'ALL' || type.isEmpty;
+                              final matched = students.childrenForNotice(m);
                               final hasFile = (m['attachmentUrl']?.toString().isNotEmpty ?? false) ||
                                   (m['attachmentName']?.toString().isNotEmpty ?? false);
                               final canOpen = m['attachmentUrl']?.toString().isNotEmpty ?? false;
+
+                              final chips = <Widget>[];
+                              Widget? applicable;
+                              if (isSchool) {
+                                if (matched.length > 1) {
+                                  applicable = ApplicableChildrenChips(
+                                    students: students,
+                                    children: matched,
+                                  );
+                                } else if (matched.length == 1) {
+                                  chips.add(
+                                    StudentIdentityChip.fromChild(students, matched.first),
+                                  );
+                                }
+                              } else {
+                                for (final child in matched) {
+                                  chips.add(StudentIdentityChip.fromChild(students, child));
+                                }
+                              }
+
                               return NoticeCard(
                                 audienceLabel: m['audienceLabel']?.toString() ?? 'Notice',
                                 dateLabel: _fmtDate(m['date']?.toString() ?? m['createdOn']?.toString()),
@@ -142,6 +171,9 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
                                 attachmentName: m['attachmentName']?.toString(),
                                 hasAttachment: hasFile,
                                 onOpenAttachment: canOpen ? () => _openAttachment(m) : null,
+                                studentChips: chips,
+                                applicableChildrenChips: applicable,
+                                isSchoolAnnouncement: isSchool,
                               );
                             },
                           ),
@@ -149,30 +181,6 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen> {
         ),
       ],
     );
-  }
-
-  bool _noticeVisibleForStudent(
-    Map<String, dynamic> notice,
-    String? studentClassId,
-    String? sectionId,
-  ) {
-    final type = (notice['audienceType']?.toString() ?? '').toUpperCase();
-    if (type == 'ALL' || type.isEmpty) return true;
-
-    final targets = (notice['targets'] as List?) ?? const [];
-    if (targets.isEmpty) {
-      // CLASS / CLASSES without detailed targets — keep visible
-      return type != 'STUDENTS';
-    }
-
-    for (final t in targets) {
-      if (t is! Map) continue;
-      final scId = t['studentClassId']?.toString();
-      final csId = t['classSectionId']?.toString();
-      if (studentClassId != null && scId == studentClassId) return true;
-      if (sectionId != null && csId == sectionId) return true;
-    }
-    return false;
   }
 
   String _fmtDate(String? raw) {

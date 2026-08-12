@@ -32,7 +32,8 @@ import {
 } from '../services/editRequestRepo.js';
 import { writeAttendanceAuditLogs } from '../services/attendanceAuditRepo.js';
 import { attendanceHeaderId } from '../lib/ids.js';
-import { isSmsConfigured, parentContactsForEnrollments, sendSms } from '../lib/sms.js';
+import { isSmsConfigured, parentContactsForEnrollments, resolveRecipientPhones, sendSms } from '../lib/sms.js';
+import { isWhatsAppConfigured, sendAbsenceAlertWhatsApp } from '../lib/whatsapp.js';
 
 const router = Router();
 
@@ -86,6 +87,8 @@ const parentMessagesPutSchema = z.object({
   sectionId: z.string().min(1),
   date: z.string(),
   initiatedAt: z.string().datetime().optional(),
+  channel: z.enum(['whatsapp', 'sms', 'whatsapp_sms']).optional().default('sms'),
+  recipient: z.enum(['father', 'mother', 'both']).optional().default('father'),
   messages: z
     .array(
       z.object({
@@ -435,7 +438,12 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     initiatedAt,
   });
 
-  // Deliver SMS to parents via MSG91 / Twilio / console.
+  // Deliver alerts to parents via SMS and/or WhatsApp.
+  const channel = parsed.data.channel || 'sms';
+  const recipient = parsed.data.recipient || 'father';
+  const sendSmsChannel = channel === 'sms' || channel === 'whatsapp_sms';
+  const sendWhatsAppChannel = channel === 'whatsapp' || channel === 'whatsapp_sms';
+
   const contacts = await parentContactsForEnrollments(
     messages.map((m) => m.studentId),
     prisma
@@ -451,36 +459,95 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
   const delivery = [];
   for (const m of messages) {
     const contact = contacts.get(m.studentId) || {};
-    const phone = contact.phone;
+    const phones = resolveRecipientPhones(contact, recipient);
     const studentName = contact.name || 'Student';
     const rollNo = contact.rollNo || '-';
     const body =
       m.message ||
       `Name : ${studentName}\nRoll Number : ${rollNo}\nYour ward is absent on ${dateLabel}\nRegards,\nRIOBizSols`;
 
-    const result = await sendSms({
-      to: phone,
-      body,
-      vars: {
-        studentName,
-        rollNo,
-        date: dateLabel,
-      },
-    });
-    delivery.push({
-      studentId: m.studentId,
-      status: m.status,
-      phone: result.to || phone || null,
-      ok: result.ok,
-      skipped: Boolean(result.skipped),
-      provider: result.provider || null,
-      error: result.error || null,
-    });
+    if (!phones.length) {
+      delivery.push({
+        studentId: m.studentId,
+        status: m.status,
+        phone: null,
+        channel,
+        recipient,
+        ok: false,
+        skipped: true,
+        provider: null,
+        error: `No registered phone for recipient=${recipient}`,
+        channels: [],
+      });
+      continue;
+    }
+
+    for (const phone of phones) {
+      const channelResults = [];
+
+      if (sendSmsChannel) {
+        const result = await sendSms({
+          to: phone,
+          body,
+          vars: {
+            studentName,
+            rollNo,
+            date: dateLabel,
+          },
+        });
+        channelResults.push({
+          channel: 'sms',
+          ok: result.ok,
+          skipped: Boolean(result.skipped),
+          provider: result.provider || null,
+          error: result.error || null,
+          to: result.to || phone || null,
+        });
+      }
+
+      if (sendWhatsAppChannel) {
+        const result = await sendAbsenceAlertWhatsApp({
+          toPhone: phone,
+          body,
+          studentName,
+          rollNo,
+          date: dateLabel,
+        });
+        channelResults.push({
+          channel: 'whatsapp',
+          ok: result.ok,
+          skipped: Boolean(result.skipped),
+          provider: result.provider || 'whatsapp',
+          error: result.error || result.reason || null,
+          to: result.to || phone || null,
+        });
+      }
+
+      const anyOk = channelResults.some((r) => r.ok);
+      const allSkipped = channelResults.length > 0 && channelResults.every((r) => r.skipped);
+      const firstError = channelResults.find((r) => !r.ok && !r.skipped)?.error || null;
+
+      delivery.push({
+        studentId: m.studentId,
+        status: m.status,
+        phone: channelResults[0]?.to || phone || null,
+        channel,
+        recipient,
+        ok: anyOk,
+        skipped: allSkipped && !anyOk,
+        provider: channelResults.map((r) => r.provider).filter(Boolean).join('+') || null,
+        error: anyOk ? null : firstError,
+        channels: channelResults,
+      });
+    }
   }
 
   const sentOk = delivery.filter((d) => d.ok && !d.skipped).length;
   const sentSkipped = delivery.filter((d) => d.skipped).length;
-  const sentFailed = delivery.filter((d) => !d.ok).length;
+  const sentFailed = delivery.filter((d) => !d.ok && !d.skipped).length;
+
+  const countChannel = (name, pred) =>
+    delivery.filter((d) => d.channels?.some((c) => c.channel === name && pred(c))).length;
 
   const sentMessages = await listParentMessages(section.Class_Section_id, date);
 
@@ -489,14 +556,27 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     date: parsed.data.date,
     sectionId: section.Class_Section_id,
     recorded: saved.length,
+    channel,
+    recipient,
     sentMessages,
-    sms: {
-      configured: isSmsConfigured(),
-      provider: String(process.env.SMS_PROVIDER || 'console').toLowerCase(),
+    delivery,
+    summary: {
       sent: sentOk,
       skipped: sentSkipped,
       failed: sentFailed,
-      delivery,
+    },
+    sms: {
+      configured: isSmsConfigured(),
+      provider: String(process.env.SMS_PROVIDER || 'console').toLowerCase(),
+      sent: sendSmsChannel ? countChannel('sms', (c) => c.ok && !c.skipped) : 0,
+      skipped: sendSmsChannel ? countChannel('sms', (c) => c.skipped) : 0,
+      failed: sendSmsChannel ? countChannel('sms', (c) => !c.ok && !c.skipped) : 0,
+    },
+    whatsapp: {
+      configured: isWhatsAppConfigured(),
+      sent: sendWhatsAppChannel ? countChannel('whatsapp', (c) => c.ok && !c.skipped) : 0,
+      skipped: sendWhatsAppChannel ? countChannel('whatsapp', (c) => c.skipped) : 0,
+      failed: sendWhatsAppChannel ? countChannel('whatsapp', (c) => !c.ok && !c.skipped) : 0,
     },
   });
 });

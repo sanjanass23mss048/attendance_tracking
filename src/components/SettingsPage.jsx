@@ -1,4 +1,11 @@
+import { useState } from 'react';
 import { LogOut, Settings as SettingsIcon } from 'lucide-react';
+import AlertDeliveryOptions from './AlertDeliveryOptions';
+import {
+  getAlertDeliveryPrefs,
+  setAlertDeliveryPrefs,
+} from '../services/alertDeliveryPrefs';
+import { showToast } from '../services/toast';
 
 const ROLE_LABELS = {
   INCHARGE: 'Attendance In-charge',
@@ -14,8 +21,16 @@ export default function SettingsPage({ user, onLogout }) {
     .slice(0, 2)
     .toUpperCase();
 
+  const [prefs, setPrefs] = useState(() => getAlertDeliveryPrefs());
+
+  const updatePrefs = (partial) => {
+    const next = setAlertDeliveryPrefs({ ...prefs, ...partial });
+    setPrefs(next);
+    showToast('Alert preferences saved', 'success');
+  };
+
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100">
@@ -23,7 +38,7 @@ export default function SettingsPage({ user, onLogout }) {
           </div>
           <div>
             <h2 className="text-lg font-bold text-gray-900">Settings</h2>
-            <p className="text-sm text-gray-500">Account and session</p>
+            <p className="text-sm text-gray-500">Account and notification preferences</p>
           </div>
         </div>
 
@@ -48,6 +63,19 @@ export default function SettingsPage({ user, onLogout }) {
           <LogOut size={16} />
           Log out
         </button>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <h3 className="text-base font-bold text-gray-900">Absence alert delivery</h3>
+        <p className="mb-5 mt-1 text-sm text-gray-500">
+          These defaults are used when sending parent absence alerts from Attendance.
+        </p>
+        <AlertDeliveryOptions
+          channel={prefs.channel}
+          recipient={prefs.recipient}
+          onChannelChange={(channel) => updatePrefs({ channel })}
+          onRecipientChange={(recipient) => updatePrefs({ recipient })}
+        />
       </div>
     </div>
   );

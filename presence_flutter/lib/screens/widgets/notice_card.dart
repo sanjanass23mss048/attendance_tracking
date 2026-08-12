@@ -12,6 +12,9 @@ class NoticeCard extends StatefulWidget {
     this.attachmentName,
     this.hasAttachment = false,
     this.onOpenAttachment,
+    this.studentChips = const [],
+    this.applicableChildrenChips,
+    this.isSchoolAnnouncement = false,
   });
 
   final String audienceLabel;
@@ -21,6 +24,14 @@ class NoticeCard extends StatefulWidget {
   final String? attachmentName;
   final bool hasAttachment;
   final Future<void> Function()? onOpenAttachment;
+
+  /// Per-sibling identity chips shown at the top of the notice.
+  final List<Widget> studentChips;
+
+  /// For school-wide notices: "Applicable to" chip row.
+  final Widget? applicableChildrenChips;
+
+  final bool isSchoolAnnouncement;
 
   @override
   State<NoticeCard> createState() => _NoticeCardState();
@@ -64,6 +75,10 @@ class _NoticeCardState extends State<NoticeCard> {
     final showAttach = widget.hasAttachment ||
         (widget.attachmentName != null && widget.attachmentName!.trim().isNotEmpty);
 
+    final headerLabel = widget.isSchoolAnnouncement
+        ? 'School Announcement'
+        : widget.audienceLabel;
+
     return Material(
       color: Colors.white,
       child: Padding(
@@ -71,13 +86,27 @@ class _NoticeCardState extends State<NoticeCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.studentChips.isNotEmpty) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: widget.studentChips,
+              ),
+              const SizedBox(height: 10),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 22,
-                  backgroundColor: PresenceColors.primaryDark,
-                  child: Icon(Icons.apartment, color: Colors.white, size: 22),
+                  backgroundColor: widget.isSchoolAnnouncement
+                      ? const Color(0xFF7C3AED)
+                      : PresenceColors.primaryDark,
+                  child: Icon(
+                    widget.isSchoolAnnouncement ? Icons.campaign : Icons.apartment,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -85,7 +114,7 @@ class _NoticeCardState extends State<NoticeCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.audienceLabel,
+                        headerLabel,
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
@@ -129,6 +158,10 @@ class _NoticeCardState extends State<NoticeCard> {
                 ),
                 child: Text(expanded ? 'Less' : 'More...'),
               ),
+            if (widget.applicableChildrenChips != null) ...[
+              const SizedBox(height: 10),
+              widget.applicableChildrenChips!,
+            ],
             if (showAttach) ...[
               const SizedBox(height: 8),
               InkWell(

@@ -162,6 +162,8 @@ export async function getDailyAttendance(query) {
  *   sectionId: string,
  *   date: string,
  *   initiatedAt?: string,
+ *   channel?: 'whatsapp' | 'sms' | 'whatsapp_sms',
+ *   recipient?: 'father' | 'mother' | 'both',
  *   messages: { studentId: string, status: string, message?: string }[],
  * }} body
  */
@@ -172,6 +174,8 @@ export async function submitParentMessages(body) {
       date: body.date,
       sectionId: body.sectionId,
       recorded: body.messages?.length || 0,
+      channel: body.channel || 'sms',
+      recipient: body.recipient || 'father',
       sentMessages: (body.messages || []).map((m) => ({
         studentId: m.studentId,
         status: m.status,

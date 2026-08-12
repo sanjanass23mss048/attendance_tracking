@@ -198,7 +198,14 @@ export async function sendSms({ to, body, vars = {} }) {
 
 /**
  * Load parent phones + student names + roll for student_class ids.
- * @returns {Promise<Map<string, { phone: string|null, name: string, rollNo: string }>>}
+ * @returns {Promise<Map<string, {
+ *   phone: string|null,
+ *   fatherPhone: string|null,
+ *   motherPhone: string|null,
+ *   guardianPhone: string|null,
+ *   name: string,
+ *   rollNo: string
+ * }>>}
  */
 export async function parentContactsForEnrollments(studentClassIds, prisma) {
   const map = new Map();
@@ -211,12 +218,56 @@ export async function parentContactsForEnrollments(studentClassIds, prisma) {
 
   for (const row of rows) {
     const st = row.tblStudents;
-    const phone = st?.Father_Number || st?.Mother_Number || st?.Guardian_Number || null;
+    const fatherPhone = st?.Father_Number || null;
+    const motherPhone = st?.Mother_Number || null;
+    const guardianPhone = st?.Guardian_Number || null;
+    const phone = fatherPhone || motherPhone || guardianPhone || null;
     const name = [st?.First_Name, st?.Last_Name].filter(Boolean).join(' ').trim() || 'Student';
     const rollNo = String(row.Roll_No || st?.Roll_No || '').trim() || '-';
-    map.set(row.student_class_id, { phone, name, rollNo });
+    map.set(row.student_class_id, {
+      phone,
+      fatherPhone,
+      motherPhone,
+      guardianPhone,
+      name,
+      rollNo,
+    });
   }
   return map;
+}
+
+/**
+ * Resolve destination phone numbers from a contact based on recipient preference.
+ * @param {{ fatherPhone?: string|null, motherPhone?: string|null, guardianPhone?: string|null, phone?: string|null }} contact
+ * @param {'father'|'mother'|'both'} recipient
+ * @returns {string[]}
+ */
+export function resolveRecipientPhones(contact = {}, recipient = 'father') {
+  const father = contact.fatherPhone || null;
+  const mother = contact.motherPhone || null;
+  const guardian = contact.guardianPhone || null;
+
+  if (recipient === 'father') {
+    return father ? [father] : [];
+  }
+  if (recipient === 'mother') {
+    return mother ? [mother] : [];
+  }
+
+  // both parents — send separately to each available registered number
+  const phones = [];
+  const seen = new Set();
+  for (const raw of [father, mother]) {
+    if (!raw) continue;
+    const key = String(raw).replace(/\D/g, '');
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    phones.push(raw);
+  }
+  if (!phones.length && guardian) {
+    phones.push(guardian);
+  }
+  return phones;
 }
 
 /** @deprecated use parentContactsForEnrollments */

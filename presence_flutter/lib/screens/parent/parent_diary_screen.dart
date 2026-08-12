@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../state/auth_state.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
+import '../widgets/student_identity_chip.dart';
 
 class ParentDiaryScreen extends StatefulWidget {
   const ParentDiaryScreen({super.key});
@@ -41,14 +42,22 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedSectionId = context.watch<ParentStudentsState>().selectedSectionId;
+    final students = context.watch<ParentStudentsState>();
+
+    // Combined diary for all siblings' sections (no filter to one child).
+    final sectionIds = students.children
+        .map((c) => c['sectionId']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
     final visible = entries.where((e) {
-      if (selectedSectionId == null || selectedSectionId.isEmpty) return true;
+      if (sectionIds.isEmpty) return true;
       final m = Map<String, dynamic>.from(e as Map);
       final section = m['section'] is Map ? Map<String, dynamic>.from(m['section'] as Map) : null;
       final id = section?['id']?.toString() ?? m['classSectionId']?.toString();
       if (id == null || id.isEmpty) return true;
-      return id == selectedSectionId;
+      return sectionIds.contains(id);
     }).toList();
 
     return RefreshIndicator(
@@ -79,10 +88,14 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
                         final section = m['section'] is Map
                             ? Map<String, dynamic>.from(m['section'] as Map)
                             : null;
+                        final sectionId =
+                            section?['id']?.toString() ?? m['classSectionId']?.toString();
+                        final matched = students.childrenForSection(sectionId);
                         final className = section?['class'] is Map
                             ? (section!['class'] as Map)['name']
                             : null;
                         final sectionName = section?['name'];
+
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
                           child: Padding(
@@ -90,6 +103,17 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                if (matched.isNotEmpty) ...[
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      for (final child in matched)
+                                        StudentIdentityChip.fromChild(students, child),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
                                 Row(
                                   children: [
                                     const Icon(Icons.menu_book_outlined, color: PresenceColors.primaryDark),

@@ -2,6 +2,13 @@
 
 Presence sends attendance SMS through **MSG91 Flow (DLT)**.
 
+When teachers send parent alerts from the web app, they can choose:
+
+- **Channel:** WhatsApp, SMS, or WhatsApp + SMS
+- **Recipient:** Father only, Mother only, or Both parents
+
+SMS still uses the MSG91 / Twilio path below. WhatsApp uses Meta Cloud API (`WHATSAPP_*` env) and optional `WHATSAPP_ABSENCE_TEMPLATE`.
+
 ## 1. In MSG91 dashboard
 
 1. Create / log in at https://msg91.com  

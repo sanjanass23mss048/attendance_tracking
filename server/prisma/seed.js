@@ -456,6 +456,47 @@ async function main() {
       `Demo parent linked to ${linkStudent.tblStudents?.First_Name || linkStudent.Student_id} (${linkStudent.class_section_id})`
     );
 
+    // Second sibling (another class) so Switch Student is demoable
+    let sibling = await prisma.tblStudent_Class.findFirst({
+      where: {
+        Int_Status: { not: 0 },
+        Student_id: { not: linkStudent.Student_id },
+        class_section_id: { startsWith: 'CS-3' },
+      },
+      include: { tblStudents: true },
+      orderBy: { Roll_No: 'asc' },
+    });
+    if (!sibling) {
+      sibling = await prisma.tblStudent_Class.findFirst({
+        where: {
+          Int_Status: { not: 0 },
+          Student_id: { not: linkStudent.Student_id },
+        },
+        include: { tblStudents: true },
+        orderBy: { Roll_No: 'asc' },
+      });
+    }
+    if (sibling) {
+      await prisma.tblParent_Student.upsert({
+        where: {
+          user_id_Student_id: {
+            user_id: 'USR-PARENT-001',
+            Student_id: sibling.Student_id,
+          },
+        },
+        create: {
+          Link_id: 'PS-PARENT-002',
+          user_id: 'USR-PARENT-001',
+          Student_id: sibling.Student_id,
+          Int_Status: 1,
+        },
+        update: { Int_Status: 1 },
+      });
+      console.log(
+        `Demo parent also linked to ${sibling.tblStudents?.First_Name || sibling.Student_id} (${sibling.class_section_id})`
+      );
+    }
+
     // Sample timetable for child's section
     const { buildDefaultWeeklyTimetable } = await import('../src/lib/defaultTimetable.js');
     await prisma.tblTimetable.upsert({
