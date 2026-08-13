@@ -6,6 +6,7 @@ class ExamSlot {
     required this.dayLabel,
     required this.subject,
     required this.time,
+    this.kind = 'Theory',
     this.venue,
   });
 
@@ -13,6 +14,8 @@ class ExamSlot {
   final String dayLabel;
   final String subject;
   final String time;
+  /// Theory | Practical
+  final String kind;
   final String? venue;
 }
 
@@ -23,42 +26,42 @@ const List<ExamSlot> examTimetableClass1A = [
     dayLabel: 'Monday',
     subject: 'English',
     time: '09:00 AM – 11:00 AM',
-    venue: 'Room 1-A',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '17 Feb 2026',
     dayLabel: 'Tuesday',
     subject: 'Mathematics',
     time: '09:00 AM – 11:00 AM',
-    venue: 'Room 1-A',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '18 Feb 2026',
     dayLabel: 'Wednesday',
     subject: 'EVS / Science',
     time: '09:00 AM – 11:00 AM',
-    venue: 'Room 1-A',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '19 Feb 2026',
     dayLabel: 'Thursday',
     subject: 'Hindi',
     time: '09:00 AM – 11:00 AM',
-    venue: 'Room 1-A',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '20 Feb 2026',
     dayLabel: 'Friday',
     subject: 'Computer',
     time: '09:00 AM – 10:30 AM',
-    venue: 'Computer Lab',
+    kind: 'Practical',
   ),
   ExamSlot(
     dateLabel: '23 Feb 2026',
     dayLabel: 'Monday',
     subject: 'Drawing / Activity',
     time: '09:00 AM – 10:30 AM',
-    venue: 'Art Room',
+    kind: 'Practical',
   ),
 ];
 
@@ -67,51 +70,51 @@ const List<ExamSlot> examTimetableClass11A = [
   ExamSlot(
     dateLabel: '9 Feb 2026',
     dayLabel: 'Monday',
-    subject: 'Physics (Theory)',
+    subject: 'Physics',
     time: '09:30 AM – 12:30 PM',
-    venue: 'Hall B',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '10 Feb 2026',
     dayLabel: 'Tuesday',
-    subject: 'Chemistry (Theory)',
+    subject: 'Chemistry',
     time: '09:30 AM – 12:30 PM',
-    venue: 'Hall B',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '11 Feb 2026',
     dayLabel: 'Wednesday',
     subject: 'Mathematics',
     time: '09:30 AM – 12:30 PM',
-    venue: 'Hall B',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '12 Feb 2026',
     dayLabel: 'Thursday',
     subject: 'English Core',
     time: '09:30 AM – 12:30 PM',
-    venue: 'Hall A',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '13 Feb 2026',
     dayLabel: 'Friday',
     subject: 'Biology / Computer Science',
     time: '09:30 AM – 12:30 PM',
-    venue: 'Hall B',
+    kind: 'Theory',
   ),
   ExamSlot(
     dateLabel: '16 Feb 2026',
     dayLabel: 'Monday',
-    subject: 'Physics Practical',
+    subject: 'Physics',
     time: '10:00 AM – 01:00 PM',
-    venue: 'Physics Lab',
+    kind: 'Practical',
   ),
   ExamSlot(
     dateLabel: '17 Feb 2026',
     dayLabel: 'Tuesday',
-    subject: 'Chemistry Practical',
+    subject: 'Chemistry',
     time: '10:00 AM – 01:00 PM',
-    venue: 'Chemistry Lab',
+    kind: 'Practical',
   ),
 ];
 

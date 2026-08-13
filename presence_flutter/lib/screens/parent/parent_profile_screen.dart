@@ -30,11 +30,11 @@ class ParentProfileScreen extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: () => students.load(force: true),
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.only(bottom: 28),
         children: [
           const ParentChildDropdown(),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: _ChildDetailSection(child: child),
           ),
         ],
@@ -51,7 +51,7 @@ class _ChildDetailSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final classLabel = ParentStudentsState.displayClassLabelFor(child);
     final name = child['name']?.toString() ?? 'Student';
-    final status = child['status']?.toString() ?? 'Active';
+    final initials = ParentStudentsState.initialsFor(name);
 
     final rows = <_InfoItem>[
       _InfoItem(Icons.tag_rounded, 'Roll No', child['rollNo']?.toString()),
@@ -70,50 +70,78 @@ class _ChildDetailSection extends StatelessWidget {
         'Address',
         child['address']?.toString() ?? child['addressLine1']?.toString(),
       ),
-      _InfoItem(Icons.verified_outlined, 'Status', status, isStatus: true),
     ].where((r) => r.value != null && r.value!.trim().isNotEmpty).toList();
 
     return Column(
       children: [
         const SizedBox(height: 8),
-        CircleAvatar(
-          radius: 40,
-          backgroundColor: PresenceColors.primaryDark,
+        // Keep avatar fully below the app bar — no overlap / clip
+        Container(
+          width: 88,
+          height: 88,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: PresenceColors.primaryDark,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: PresenceColors.primaryDark.withValues(alpha: 0.22),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           child: Text(
-            ParentStudentsState.initialsFor(name),
+            initials,
             style: const TextStyle(
-              fontSize: 26,
+              fontSize: 28,
               fontWeight: FontWeight.w800,
               color: Colors.white,
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Text(
           name,
+          textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
         ),
-        if (classLabel.isNotEmpty)
+        if (classLabel.isNotEmpty) ...[
+          const SizedBox(height: 4),
           Text(
             classLabel,
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: PresenceColors.muted,
               fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
           ),
+        ],
         const SizedBox(height: 18),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Column(
-              children: [
-                for (var i = 0; i < rows.length; i++) ...[
-                  _InfoRow(item: rows[i]),
-                  if (i < rows.length - 1)
-                    const Divider(height: 1, indent: 56, endIndent: 12),
-                ],
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: PresenceColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                _InfoRow(item: rows[i]),
+                if (i < rows.length - 1)
+                  const Divider(height: 1, indent: 60, endIndent: 16),
               ],
-            ),
+            ],
           ),
         ),
       ],
@@ -131,11 +159,10 @@ class _ChildDetailSection extends StatelessWidget {
 }
 
 class _InfoItem {
-  const _InfoItem(this.icon, this.label, this.value, {this.isStatus = false});
+  const _InfoItem(this.icon, this.label, this.value);
   final IconData icon;
   final String label;
   final String? value;
-  final bool isStatus;
 }
 
 class _InfoRow extends StatelessWidget {
@@ -145,7 +172,7 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -172,26 +199,10 @@ class _InfoRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                if (item.isStatus)
-                  Row(
-                    children: [
-                      Text(
-                        item.value!,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: PresenceColors.success,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.check_circle, size: 16, color: PresenceColors.success),
-                    ],
-                  )
-                else
-                  Text(
-                    item.value!,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
+                Text(
+                  item.value!,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                ),
               ],
             ),
           ),

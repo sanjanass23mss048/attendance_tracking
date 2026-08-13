@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
@@ -44,8 +44,8 @@ const TYPE_CARDS = [
 ];
 
 const EXAM_OR_TEST_NAMES = [
-  'Unit Test â€“ 1',
-  'Unit Test â€“ 2',
+  'Unit Test - 1',
+  'Unit Test - 2',
   'Weekly Test',
   'Monthly Test',
   'Cycle Test',
@@ -58,9 +58,9 @@ const EXAM_OR_TEST_NAMES = [
 ];
 
 const CLASS_GROUPS = [
-  { id: '1-5', label: 'Classes 1â€“5' },
-  { id: '6-8', label: 'Classes 6â€“8' },
-  { id: '9-12', label: 'Classes 9â€“12' },
+  { id: '1-5', label: 'Classes 1-5' },
+  { id: '6-8', label: 'Classes 6-8' },
+  { id: '9-12', label: 'Classes 9-12' },
 ];
 
 const EXAM_SESSIONS = [
@@ -136,7 +136,7 @@ function subjectChipClass(subject) {
 }
 
 /**
- * Manage Timetables â€” Regular (class) + Exam/Test schedules.
+ * Manage Timetables - Regular (class) + Exam/Test schedules.
  * Tests are created under Exam Timetable (same as parent portal).
  */
 export default function ManageTimetablesPanel({
@@ -163,7 +163,7 @@ export default function ManageTimetablesPanel({
   const [grid, setGrid] = useState(() => buildDefaultWeeklyTimetable());
 
   const [examName, setExamName] = useState('Quarterly Examination');
-  const [examYear, setExamYear] = useState('2026â€“2027');
+  const [examYear, setExamYear] = useState('2026-2027');
   const [examTerm, setExamTerm] = useState('Term 1');
   const [examClassKeys, setExamClassKeys] = useState([]);
   const [examGroup, setExamGroup] = useState('');
@@ -200,7 +200,7 @@ export default function ManageTimetablesPanel({
     const roomsBySlot = new Map();
 
     for (const row of examRows) {
-      const classKeyLabel = row.classLabel || 'â€”';
+      const classKeyLabel = row.classLabel || '-';
       const subjKey = `${classKeyLabel}::${row.subject}`;
       if (subjectsByClass.has(subjKey)) {
         warnings.push(`Same subject scheduled twice: ${row.subject} for ${classKeyLabel}`);
@@ -258,7 +258,7 @@ export default function ManageTimetablesPanel({
       <div className="mb-5">
         <h2 className="text-lg font-bold text-gray-900">Manage Timetables</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Class timetable and exam / test schedules — same options parents see.
+          Class timetable and exam / test schedules - same options parents see.
         </p>
       </div>
 
@@ -385,7 +385,7 @@ export default function ManageTimetablesPanel({
           </div>
 
           <p className="text-xs text-gray-500">
-            Editing for <strong>{selectedClass?.label || 'â€”'}</strong> Â·{' '}
+            Editing for <strong>{selectedClass?.label || '-'}</strong> ·{' '}
             {TIMETABLE_DAYS[selectedDay]}
           </p>
 
@@ -399,7 +399,7 @@ export default function ManageTimetablesPanel({
             </button>
             <button
               type="button"
-              onClick={() => showToast(`Preview Â· ${selectedClass?.label || 'class'}`, 'info')}
+              onClick={() => showToast(`Preview · ${selectedClass?.label || 'class'}`, 'info')}
               className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-800"
             >
               <Eye size={16} /> Preview
@@ -451,7 +451,7 @@ export default function ManageTimetablesPanel({
                   className="field-input"
                 />
               </Field>
-              <Field label="Term / Semester">
+              <Field label="Term">
                 <select
                   value={examTerm}
                   onChange={(e) => setExamTerm(e.target.value)}
@@ -459,8 +459,7 @@ export default function ManageTimetablesPanel({
                 >
                   <option>Term 1</option>
                   <option>Term 2</option>
-                  <option>Semester 1</option>
-                  <option>Semester 2</option>
+                  <option>Term 3</option>
                 </select>
               </Field>
               <Field label="Class Group (optional)">
@@ -469,7 +468,7 @@ export default function ManageTimetablesPanel({
                   onChange={(e) => setExamGroup(e.target.value)}
                   className="field-input"
                 >
-                  <option value="">â€” Individual / multi select below â€”</option>
+                  <option value="">- Individual / multi select below -</option>
                   {CLASS_GROUPS.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.label}
@@ -537,7 +536,7 @@ export default function ManageTimetablesPanel({
                   <span className="font-semibold text-gray-900">{s.label}</span>
                   {s.start ? (
                     <span className="mt-0.5 block text-xs text-gray-500">
-                      {s.start} â€“ {s.end}
+                      {s.start} - {s.end}
                     </span>
                   ) : null}
                 </button>
@@ -671,7 +670,7 @@ export default function ManageTimetablesPanel({
                         />
                       </td>
                       <td className="px-2 py-2 text-gray-600">
-                        {durationMinutes(row.startTime, row.endTime) || 'â€”'}
+                        {durationMinutes(row.startTime, row.endTime) || '-'}
                       </td>
                       <td className="px-2 py-2">
                         <input
@@ -877,14 +876,14 @@ function PreviewCard({ title, subtitle, rows, onClose }) {
             className="rounded-xl border border-white bg-white px-3 py-2.5 shadow-sm"
           >
             <p className="text-xs font-bold uppercase text-gray-500">
-              {formatDisplayDate(r.date)} Â· {dayName(r.date).slice(0, 3)}
-              {r.extra ? ` Â· ${r.extra}` : ''}
+              {formatDisplayDate(r.date)} · {dayName(r.date).slice(0, 3)}
+              {r.extra ? ` · ${r.extra}` : ''}
             </p>
             <p className="font-bold text-gray-900">
               {r.subject === 'Maths' ? 'Mathematics' : r.subject}
             </p>
             <p className="text-sm text-gray-600">
-              {r.start} â€“ {r.end}
+              {r.start} - {r.end}
             </p>
           </div>
         ))}
