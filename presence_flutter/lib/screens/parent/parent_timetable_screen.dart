@@ -190,31 +190,53 @@ class _TimetableTable extends StatelessWidget {
     final periods = (timetable['periods'] as List?) ?? [];
     final grid = (timetable['grid'] as List?) ?? [];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(const Color(0xFFEEF2FF)),
-        columns: [
-          const DataColumn(label: Text('Period')),
-          for (final d in days)
-            DataColumn(label: Text(d.length >= 3 ? d.substring(0, 3) : d)),
-        ],
-        rows: [
-          for (var p = 0; p < grid.length; p++)
-            DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    periods.length > p
-                        ? 'P${(periods[p] as Map)['period'] ?? (p + 1)}'
-                        : 'P${p + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: PresenceColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(PresenceColors.primaryDark),
+          headingTextStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+          dataRowMinHeight: 52,
+          dataRowMaxHeight: 72,
+          columnSpacing: 18,
+          columns: [
+            const DataColumn(label: Text('Period')),
+            for (final d in days)
+              DataColumn(label: Text(d.length >= 3 ? d.substring(0, 3) : d)),
+          ],
+          rows: [
+            for (var p = 0; p < grid.length; p++)
+              DataRow(
+                color: WidgetStateProperty.all(
+                  p.isOdd ? const Color(0xFFF8FAFC) : Colors.white,
                 ),
-                for (var d = 0; d < days.length; d++) DataCell(_cell(grid[p], d)),
-              ],
-            ),
-        ],
+                cells: [
+                  DataCell(
+                    Text(
+                      periods.length > p
+                          ? 'P${(periods[p] as Map)['period'] ?? (p + 1)}'
+                          : 'P${p + 1}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: PresenceColors.primaryDark,
+                      ),
+                    ),
+                  ),
+                  for (var d = 0; d < days.length; d++) DataCell(_cell(grid[p], d)),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

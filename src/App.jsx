@@ -1395,7 +1395,6 @@ export default function App() {
       <MobileBottomNav
         activePage={activePage}
         onNavigate={handleNavigate}
-        onOpenMore={() => setIsMobileOpen(true)}
       />
 
       <AttendanceEditRequestModal

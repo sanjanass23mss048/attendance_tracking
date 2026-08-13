@@ -15,6 +15,8 @@ import '../../theme.dart';
 import '../widgets/notice_card.dart';
 import '../widgets/student_identity_chip.dart';
 
+const _categories = ['All', 'General', 'Academic', 'Homework', 'Event'];
+
 class ParentNoticeBoardScreen extends StatefulWidget {
   const ParentNoticeBoardScreen({super.key});
 
@@ -28,6 +30,7 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
   bool loading = true;
   String? error;
   String query = '';
+  String category = 'All';
   Timer? _refreshDebounce;
   bool _refreshQueued = false;
   ParentPushService? _push;
@@ -60,7 +63,6 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
   }
 
   void _onNoticeReceived() {
-    // Brief delay so the API has committed the notice before we refetch.
     _scheduleRefresh(delayMs: 400);
   }
 
@@ -118,11 +120,35 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
     }
   }
 
+  String _inferCategory(Map<String, dynamic> m) {
+    final hay = [
+      m['title'],
+      m['body'],
+      m['audienceLabel'],
+    ].whereType<Object?>().join(' ').toLowerCase();
+    if (hay.contains('homework') || hay.contains('classwork') || hay.contains('diary')) {
+      return 'Homework';
+    }
+    if (hay.contains('event') ||
+        hay.contains('pta') ||
+        hay.contains('celebration') ||
+        hay.contains('meeting')) {
+      return 'Event';
+    }
+    if (hay.contains('academic') ||
+        hay.contains('exam') ||
+        hay.contains('portion') ||
+        hay.contains('test') ||
+        hay.contains('syllabus')) {
+      return 'Academic';
+    }
+    return 'General';
+  }
+
   @override
   Widget build(BuildContext context) {
     final students = context.watch<ParentStudentsState>();
 
-    // Combined board: all siblings, school-wide notices once (by id).
     final seenIds = <String>{};
     final filtered = <Map<String, dynamic>>[];
     for (final n in notices) {
@@ -130,6 +156,7 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
       final id = m['id']?.toString() ?? '';
       if (id.isNotEmpty && seenIds.contains(id)) continue;
       if (!students.noticeVisibleForAnyChild(m)) continue;
+      if (category != 'All' && _inferCategory(m) != category) continue;
       if (query.trim().isNotEmpty) {
         final hay = [
           m['audienceLabel'],
@@ -146,21 +173,70 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
     return Column(
       children: [
         Container(
+          width: double.infinity,
           color: PresenceColors.primaryDark,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
           child: TextField(
             onChanged: (v) => setState(() => query = v),
+            style: const TextStyle(fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Search all children',
-              prefixIcon: const Icon(Icons.search),
+              hintStyle: TextStyle(color: PresenceColors.muted.withValues(alpha: 0.9)),
+              prefixIcon: const Icon(Icons.search_rounded, color: PresenceColors.muted),
               filled: true,
               fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(28),
                 borderSide: BorderSide.none,
               ),
             ),
+          ),
+        ),
+        SizedBox(
+          height: 52,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            itemCount: _categories.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final label = _categories[i];
+              final active = category == label;
+              return GestureDetector(
+                onTap: () => setState(() => category = label),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: active ? PresenceColors.primaryDark : Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: active ? PresenceColors.primaryDark : PresenceColors.border,
+                    ),
+                    boxShadow: active
+                        ? [
+                            const BoxShadow(
+                              color: PresenceColors.accent,
+                              offset: Offset(0, 2),
+                              blurRadius: 0,
+                              spreadRadius: 0,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: active ? Colors.white : PresenceColors.text,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         Expanded(
@@ -184,18 +260,19 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
                               Center(child: Text('No notices yet.')),
                             ],
                           )
-                        : ListView.separated(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(0, 4, 0, 20),
                             itemCount: filtered.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1),
                             itemBuilder: (context, i) {
                               final m = filtered[i];
                               final type = (m['audienceType']?.toString() ?? '').toUpperCase();
                               final isSchool = type == 'ALL' || type.isEmpty;
                               final matched = students.childrenForNotice(m);
-                              final hasFile = (m['attachmentUrl']?.toString().isNotEmpty ?? false) ||
-                                  (m['attachmentName']?.toString().isNotEmpty ?? false);
-                              final canOpen = m['attachmentUrl']?.toString().isNotEmpty ?? false;
+                              final hasFile =
+                                  (m['attachmentUrl']?.toString().isNotEmpty ?? false) ||
+                                      (m['attachmentName']?.toString().isNotEmpty ?? false);
+                              final canOpen =
+                                  m['attachmentUrl']?.toString().isNotEmpty ?? false;
 
                               final chips = <Widget>[];
                               Widget? applicable;
@@ -216,17 +293,39 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
                                 }
                               }
 
+                              final primary = matched.isNotEmpty
+                                  ? matched.first
+                                  : students.selected;
+                              final cat = _inferCategory(m);
+                              final tag = isSchool
+                                  ? null
+                                  : (type == 'STUDENTS'
+                                      ? 'Specific Students'
+                                      : (m['audienceLabel']?.toString() ?? cat));
+
                               return NoticeCard(
                                 audienceLabel: m['audienceLabel']?.toString() ?? 'Notice',
-                                dateLabel: _fmtDate(m['date']?.toString() ?? m['createdOn']?.toString()),
+                                dateLabel: _fmtDate(
+                                  m['date']?.toString() ?? m['createdOn']?.toString(),
+                                ),
                                 body: m['body']?.toString() ?? '',
-                                title: m['title']?.toString(),
+                                title: m['title']?.toString() ?? '$cat · Notice',
                                 attachmentName: m['attachmentName']?.toString(),
                                 hasAttachment: hasFile,
                                 onOpenAttachment: canOpen ? () => _openAttachment(m) : null,
                                 studentChips: chips,
                                 applicableChildrenChips: applicable,
                                 isSchoolAnnouncement: isSchool,
+                                categoryTag: tag,
+                                primaryChildName: primary?['name']?.toString(),
+                                primaryChildClass: primary != null
+                                    ? ParentStudentsState.displayClassLabelFor(primary)
+                                    : null,
+                                primaryChildInitials: primary != null
+                                    ? ParentStudentsState.initialsFor(
+                                        primary['name']?.toString(),
+                                      )
+                                    : null,
                               );
                             },
                           ),
@@ -240,7 +339,7 @@ class _ParentNoticeBoardScreenState extends State<ParentNoticeBoardScreen>
     if (raw == null || raw.isEmpty) return '';
     try {
       final d = DateTime.parse(raw);
-      return DateFormat('dd-MM-yyyy').format(d);
+      return DateFormat('dd MMM yyyy').format(d);
     } catch (_) {
       return raw.length >= 10 ? raw.substring(0, 10) : raw;
     }

@@ -111,7 +111,7 @@ export default function StudentCardGrid({
             type="button"
             onClick={onLoadStudents}
             disabled={loading}
-            className="col-span-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 sm:col-span-1 sm:w-auto sm:rounded-lg sm:py-2.5 sm:font-medium"
+            className="col-span-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#f5c542] px-5 py-3 text-sm font-bold text-gray-900 shadow-sm hover:bg-amber-400 disabled:opacity-60 sm:col-span-1 sm:w-auto sm:rounded-lg sm:bg-indigo-600 sm:py-2.5 sm:font-medium sm:text-white sm:hover:bg-indigo-700"
           >
             <Users size={16} className="sm:hidden" />
             {loading ? 'Loading…' : 'Load Students'}
@@ -168,18 +168,18 @@ export default function StudentCardGrid({
         }`}
       >
         {students.length > 0 ? (
-          <div className="attendance-student-grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+          <div className="attendance-student-grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4">
             {students.map((student, rowIdx) => {
               const status = grid[rowIdx]?.[todayIdx] || '';
               return (
                 <div
                   key={student.id}
-                  className="attendance-student-card flex min-h-0 flex-col rounded-xl border border-gray-200 bg-gray-50/50 p-3 transition-shadow hover:shadow-sm lg:rounded-lg"
+                  className="attendance-student-card flex min-h-0 flex-col rounded-2xl border border-gray-200 bg-white p-2.5 shadow-sm transition-shadow hover:shadow-md sm:p-3 lg:rounded-lg"
                 >
-                  <p className="attendance-student-roll mb-0.5 text-xs font-medium text-gray-400">
+                  <div className="attendance-student-roll mb-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-500 lg:mb-0.5 lg:block lg:h-auto lg:w-auto lg:rounded-none lg:bg-transparent lg:text-xs lg:font-medium lg:text-gray-400">
                     {student.roll}
-                  </p>
-                  <p className="attendance-student-name mb-3 truncate text-sm font-semibold text-gray-900 lg:mb-0">
+                  </div>
+                  <p className="attendance-student-name mb-2 truncate text-center text-xs font-semibold text-gray-900 sm:text-sm lg:mb-0 lg:text-left">
                     {student.name}
                   </p>
                   <div className="mt-auto">
@@ -189,6 +189,8 @@ export default function StudentCardGrid({
                         showConfirmed || Boolean(editContext?.locked && !editContext?.canEdit)
                       }
                       compact
+                      studentName={student.name}
+                      studentRoll={student.roll}
                       onChange={(newStatus) => onStatusChange(rowIdx, newStatus)}
                     />
                   </div>

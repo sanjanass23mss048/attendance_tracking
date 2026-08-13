@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { ATTENDANCE_STATUS } from '../data/mockData';
 import { normalizeStatus } from '../utils/attendance';
 
@@ -31,6 +31,12 @@ const EXTRA_OPTIONS = [
   { value: 'OF', label: 'OD - Full Day' },
 ];
 
+const ALL_STATUS_OPTIONS = Object.entries(ATTENDANCE_STATUS).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+  color: meta.color,
+}));
+
 const SHORT_LABELS = new Set(['Present', 'Absent', 'Late', 'Half Day', 'Select status']);
 
 const MENU_GAP = 4;
@@ -44,7 +50,6 @@ function getMenuPortalContainer(anchorEl) {
       fullscreenEl.querySelector('[data-attendance-menu-portal]') || fullscreenEl
     );
   }
-  // Always mount to body in normal mode so overflow/scroll parents cannot clip or shift the menu.
   return document.body;
 }
 
@@ -70,18 +75,45 @@ function computeMenuPlacement(anchor, menuHeight = MENU_EST_HEIGHT) {
   };
 }
 
+function useIsMobileSheet() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  return isMobile;
+}
+
 /**
  * Unified split button for attendance status.
- * - Main (label) click: Half/Late/OD → Present; Present ↔ Absent
- * - Chevron opens menu with Half Day / Late / OD Half / OD Full
+ * Mobile: opens a status bottom sheet (mock).
+ * Desktop: main click toggles P/A; chevron opens extra statuses.
  */
-export default function AttendanceMarkControls({ status, onChange, disabled = false, compact = false }) {
+export default function AttendanceMarkControls({
+  status,
+  onChange,
+  disabled = false,
+  compact = false,
+  studentName = '',
+  studentRoll = '',
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [draftStatus, setDraftStatus] = useState(null);
   const [menuStyle, setMenuStyle] = useState(null);
   const [openUpward, setOpenUpward] = useState(false);
   const [portalTick, setPortalTick] = useState(0);
   const rootRef = useRef(null);
   const menuRef = useRef(null);
+  const isMobile = useIsMobileSheet();
+
   const normalized = normalizeStatus(status);
   const isMarked = Boolean(ATTENDANCE_STATUS[normalized]);
   const current = isMarked
@@ -112,7 +144,7 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
   }, [menuOpen, updateMenuPosition]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen) return undefined;
 
     const handleOutsideClick = (e) => {
       if (rootRef.current?.contains(e.target)) return;
@@ -130,7 +162,6 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
       updateMenuPosition();
     };
 
-    // Defer so the same click that opened the menu does not immediately close it.
     const outsideClickTimer = window.setTimeout(() => {
       document.addEventListener('click', handleOutsideClick, true);
     }, 0);
@@ -150,8 +181,32 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
     };
   }, [menuOpen, updateMenuPosition]);
 
+  useEffect(() => {
+    if (!sheetOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setSheetOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [sheetOpen]);
+
+  const openSheet = () => {
+    if (disabled) return;
+    setDraftStatus(isMarked ? normalized : 'P');
+    setSheetOpen(true);
+  };
+
   const handleMainClick = () => {
     if (disabled) return;
+    if (isMobile) {
+      openSheet();
+      return;
+    }
     setMenuOpen(false);
     if (!isMarked) {
       onChange('P');
@@ -167,6 +222,11 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
   const handleChevronClick = (e) => {
     e.stopPropagation();
     if (disabled) return;
+
+    if (isMobile) {
+      openSheet();
+      return;
+    }
 
     if (menuOpen) {
       setMenuOpen(false);
@@ -188,6 +248,11 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
     setMenuOpen(false);
   };
 
+  const saveSheet = () => {
+    if (draftStatus) onChange(draftStatus);
+    setSheetOpen(false);
+  };
+
   const portalContainer = menuOpen ? getMenuPortalContainer(rootRef.current) : document.body;
   void portalTick;
 
@@ -195,7 +260,7 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
     <div className="relative" ref={rootRef}>
       <div
         className={`flex w-full overflow-hidden shadow-sm disabled:opacity-60 ${statusStyles[styleKey]} ${
-          compact ? 'rounded-md' : 'rounded-lg'
+          compact ? 'rounded-xl' : 'rounded-lg'
         } ${disabled ? 'opacity-60' : ''}`}
       >
         <button
@@ -203,9 +268,9 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
           disabled={disabled}
           onClick={handleMainClick}
           className={`min-w-0 flex-1 text-left font-bold transition-colors disabled:cursor-not-allowed ${
-            compact ? 'px-2 py-1.5 text-xs leading-tight' : 'px-2 py-2 text-xs'
+            compact ? 'px-2 py-2 text-xs leading-tight' : 'px-2 py-2 text-xs'
           }`}
-          title="Click to toggle Present / Absent"
+          title={isMobile ? 'Choose status' : 'Click to toggle Present / Absent'}
         >
           <span className={showFullLabel ? 'block whitespace-nowrap' : 'block truncate'}>
             {current.label}
@@ -218,11 +283,11 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
           type="button"
           disabled={disabled}
           onClick={handleChevronClick}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
+          aria-haspopup={isMobile ? 'dialog' : 'menu'}
+          aria-expanded={isMobile ? sheetOpen : menuOpen}
           aria-label="More status options"
           className={`flex shrink-0 items-center justify-center transition-colors disabled:cursor-not-allowed ${
-            compact ? 'px-1.5 py-1.5' : 'px-2 py-2'
+            compact ? 'px-1.5 py-2' : 'px-2 py-2'
           }`}
           title="Half Day, Late, OD Half Day, or OD Full Day"
         >
@@ -266,6 +331,90 @@ export default function AttendanceMarkControls({ status, onChange, disabled = fa
             })}
           </div>,
           portalContainer
+        )}
+
+      {sheetOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[11000] flex flex-col justify-end lg:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/45"
+              aria-label="Close status picker"
+              onClick={() => setSheetOpen(false)}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Select attendance status"
+              className="relative z-10 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl"
+            >
+              <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-gray-300" />
+              <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-700">
+                    {studentRoll || '—'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-bold text-gray-900">
+                      {studentName || 'Student'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Roll No. {studentRoll || '—'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSheetOpen(false)}
+                  className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-2 px-4 pb-4">
+                {ALL_STATUS_OPTIONS.map((opt) => {
+                  const selected = draftStatus === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setDraftStatus(opt.value)}
+                      className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
+                        selected
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-gray-100 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <span
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold text-white ${opt.color}`}
+                      >
+                        {opt.value}
+                      </span>
+                      <span className="flex-1 text-sm font-semibold text-gray-900">{opt.label}</span>
+                      {selected ? (
+                        <Check size={18} className="text-green-600" strokeWidth={2.5} />
+                      ) : (
+                        <ChevronRight size={16} className="text-gray-300" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="px-4">
+                <button
+                  type="button"
+                  onClick={saveSheet}
+                  className="w-full rounded-2xl bg-[#1e3a8a] py-3.5 text-sm font-bold text-white shadow-sm"
+                >
+                  Save Status
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
     </div>
   );

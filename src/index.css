@@ -44,6 +44,17 @@ body {
     --attendance-panel-offset: 11rem;
     min-height: min(70vh, 36rem);
   }
+
+  .attendance-student-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .attendance-student-card .attendance-student-name {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+  }
 }
 
 .attendance-student-grid {

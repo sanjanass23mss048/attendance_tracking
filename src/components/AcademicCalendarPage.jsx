@@ -15,6 +15,9 @@ import {
   Download,
   FileDown,
   X,
+  CloudRain,
+  Flag,
+  MoonStar,
 } from 'lucide-react';
 import {
   EVENT_TYPES,
@@ -193,6 +196,7 @@ export default function AcademicCalendarPage() {
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [previewMeta, setPreviewMeta] = useState(null);
+  const [mobileListTab, setMobileListTab] = useState('upcoming');
 
   const calendarificReady = isCalendarificConfigured();
   const holidayStates = getHolidayStates();
@@ -287,6 +291,17 @@ export default function AcademicCalendarPage() {
         .slice(0, 6),
     [events]
   );
+
+  const mobileEvents = useMemo(() => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const list = events
+      .filter((e) => e.source !== 'sunday')
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    if (mobileListTab === 'upcoming') {
+      return list.filter((e) => !e.date || e.date >= todayIso).slice(0, 12);
+    }
+    return list;
+  }, [events, mobileListTab]);
 
   const changeMonth = (delta) => {
     const next = new Date(year, month + delta, 1);
@@ -465,7 +480,153 @@ export default function AcademicCalendarPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_280px]">
+      {/* —— Mobile calendar (mockup) —— */}
+      <div className="space-y-4 lg:hidden">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#f5c542] px-4 py-4 shadow-sm">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Academic Calendar</h2>
+            <p className="mt-0.5 text-sm font-semibold text-gray-800">
+              {year} – {String(month + 1).padStart(2, '0')}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => changeMonth(-1)}
+              className="rounded-full p-2 text-[#1e3a8a] hover:bg-black/5"
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => changeMonth(1)}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1e3a8a] text-white shadow-sm"
+              aria-label="Next month"
+            >
+              <Calendar size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setMobileListTab('upcoming')}
+            className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition-colors ${
+              mobileListTab === 'upcoming'
+                ? 'bg-[#1e3a8a] text-white'
+                : 'text-[#1e3a8a]'
+            }`}
+          >
+            Upcoming
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileListTab('all')}
+            className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition-colors ${
+              mobileListTab === 'all' ? 'bg-[#1e3a8a] text-white' : 'text-[#1e3a8a]'
+            }`}
+          >
+            All Events
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <LoaderCircle className="animate-spin text-[#1e3a8a]" size={28} />
+          </div>
+        ) : mobileEvents.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">
+            No events for this month.
+          </p>
+        ) : (
+          <ul className="space-y-2.5">
+            {mobileEvents.map((event) => {
+              const style = EVENT_TYPES[event.type] || EVENT_TYPES.other;
+              const isSudden = event.type === 'sudden' || event.source === 'sudden';
+              const isHoliday = event.type === 'holiday' || event.source === 'sunday';
+              const Icon = isSudden ? CloudRain : isHoliday ? Flag : MoonStar;
+              const tagLabel = isSudden
+                ? 'Sudden'
+                : isHoliday
+                  ? 'Holiday'
+                  : style.label;
+              const tagClass = isSudden
+                ? 'bg-violet-100 text-violet-800'
+                : isHoliday
+                  ? 'bg-amber-100 text-amber-900'
+                  : style.chip;
+              const dateLabel = event.date
+                ? new Date(`${event.date}T12:00:00`).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : `${String(event.day).padStart(2, '0')} ${MONTH_SHORT[month]} ${year}`;
+
+              return (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (event.day) setSelectedDay(event.day);
+                      setViewMode('list');
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm"
+                  >
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${style.cardIcon}`}
+                    >
+                      <Icon size={20} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-gray-900">
+                        {event.source === 'sunday' ? 'Weekly Holiday' : event.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500">{dateLabel}</p>
+                      <span
+                        className={`mt-1.5 inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ${tagClass}`}
+                      >
+                        {tagLabel}
+                      </span>
+                    </div>
+                    <ChevronRight size={18} className="shrink-0 text-gray-300" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="flex items-start gap-3 rounded-2xl bg-violet-50 px-4 py-3.5">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e3a8a] text-white">
+            <Calendar size={16} />
+          </span>
+          <p className="text-sm font-medium leading-snug text-gray-800">
+            Stay informed about holidays, events and important school updates.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={openEventForm}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-semibold text-gray-700"
+          >
+            <Plus size={14} /> Add Event
+          </button>
+          <button
+            type="button"
+            onClick={openSuddenForm}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-xs font-semibold text-violet-800"
+          >
+            <Zap size={14} /> Sudden Holiday
+          </button>
+        </div>
+      </div>
+
+      <div className="hidden grid-cols-1 gap-5 lg:grid xl:grid-cols-[1fr_280px]">
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">

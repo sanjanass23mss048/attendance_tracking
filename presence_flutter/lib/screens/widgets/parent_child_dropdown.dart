@@ -3,13 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
-import 'student_identity_chip.dart';
 
-/// Dropdown to pick which linked child to view (profile, diary, timetable, calendar).
+/// Yellow child selector card used across parent portal screens.
 class ParentChildDropdown extends StatelessWidget {
   const ParentChildDropdown({
     super.key,
-    this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 4),
+    this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 8),
   });
 
   final EdgeInsetsGeometry padding;
@@ -19,92 +18,134 @@ class ParentChildDropdown extends StatelessWidget {
     final students = context.watch<ParentStudentsState>();
     if (students.children.isEmpty) return const SizedBox.shrink();
 
-    if (students.children.length == 1) {
-      final child = students.children.first;
-      return Padding(
-        padding: padding,
-        child: StudentIdentityChip.fromChild(students, child),
-      );
-    }
-
-    final selected = students.selected;
-    final selectedId = selected?['id']?.toString() ?? '';
+    final child = students.selected ?? students.children.first;
+    final name = child['name']?.toString() ?? 'Student';
+    final classLabel = ParentStudentsState.displayClassLabelFor(child);
+    final initials = ParentStudentsState.initialsFor(name);
+    final multi = students.children.length > 1;
 
     return Padding(
       padding: padding,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: 'Select child',
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: PresenceColors.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: PresenceColors.border),
-          ),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            isExpanded: true,
-            value: students.children.any((c) => c['id']?.toString() == selectedId)
-                ? selectedId
-                : students.children.first['id']?.toString(),
-            items: [
-              for (final child in students.children)
-                DropdownMenuItem<String>(
-                  value: child['id']?.toString(),
-                  child: Row(
+      child: Material(
+        color: PresenceColors.accent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: multi ? () => _openPicker(context, students) : null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: PresenceColors.primaryDark,
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundColor:
-                            siblingChipColorForChild(students, child).withValues(alpha: 0.15),
-                        child: Text(
-                          ParentStudentsState.initialsFor(child['name']?.toString()),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: PresenceColors.text,
+                        ),
+                      ),
+                      if (classLabel.isNotEmpty)
+                        Text(
+                          classLabel,
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: siblingChipColorForChild(students, child),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: PresenceColors.text.withValues(alpha: 0.75),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              child['name']?.toString() ?? 'Student',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                            Text(
-                              ParentStudentsState.shortClassLabelFor(child),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: PresenceColors.muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),
-            ],
-            onChanged: (id) {
-              if (id != null) students.select(id);
-            },
+                if (multi)
+                  const Icon(Icons.keyboard_arrow_down_rounded, color: PresenceColors.primaryDark),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openPicker(BuildContext context, ParentStudentsState students) async {
+    final selectedId = students.selected?['id']?.toString();
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: PresenceColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Select child',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
+                ),
+              ),
+              for (final child in students.children)
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: PresenceColors.primaryDark,
+                    child: Text(
+                      ParentStudentsState.initialsFor(child['name']?.toString()),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    child['name']?.toString() ?? 'Student',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(ParentStudentsState.displayClassLabelFor(child)),
+                  trailing: child['id']?.toString() == selectedId
+                      ? const Icon(Icons.check_circle, color: PresenceColors.primaryDark)
+                      : null,
+                  onTap: () {
+                    final id = child['id']?.toString();
+                    if (id != null) students.select(id);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 }

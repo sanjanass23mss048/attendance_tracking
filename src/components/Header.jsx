@@ -124,7 +124,6 @@ export default function Header({
   notifications = DEFAULT_NOTIFICATIONS,
 }) {
   const page = PAGE_TITLES[activePage] || PAGE_TITLES.attendance;
-  const hideTitleOnMobile = activePage === 'dashboard';
   const initials = (user?.name || 'AP')
     .split(/\s+/)
     .map((p) => p[0])
@@ -158,27 +157,28 @@ export default function Header({
   const badgeCount = Number(notificationCount) || 0;
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur-md sm:px-6 sm:py-4">
-      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-[#16306f] bg-[#1e3a8a] px-3 py-3 text-white lg:border-gray-200 lg:bg-white/95 lg:px-6 lg:py-4 lg:text-gray-900 lg:backdrop-blur-md">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
         <button
           type="button"
           onClick={onMenuClick}
           onMouseEnter={onMenuHoverEnter}
           onMouseLeave={onMenuHoverLeave}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white hover:bg-white/10 lg:bg-indigo-600 lg:shadow-sm lg:hover:bg-indigo-700"
           title="Open menu"
           aria-label="Open menu"
         >
-          <Menu size={20} />
+          <Menu size={22} />
         </button>
-        <div className={`min-w-0 ${hideTitleOnMobile ? 'hidden lg:block' : ''}`}>
-          <h1 className="truncate text-lg font-bold text-gray-900 sm:text-xl">{page.title}</h1>
-          <p className="hidden truncate text-sm text-gray-500 sm:block">{page.subtitle}</p>
-          <p className="truncate text-[11px] text-gray-500 sm:hidden">{page.subtitle}</p>
+        <div className="min-w-0 flex-1 text-center lg:text-left">
+          <h1 className="truncate text-base font-bold text-white lg:text-xl lg:text-gray-900">
+            {page.title}
+          </h1>
+          <p className="hidden truncate text-sm text-gray-500 lg:block">{page.subtitle}</p>
         </div>
       </div>
 
-      <div ref={menusRef} className="relative flex shrink-0 items-center gap-2 sm:gap-4">
+      <div ref={menusRef} className="relative flex shrink-0 items-center gap-1.5 sm:gap-4">
         {useMock() && (
           <span className="hidden rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 sm:inline-flex">
             Demo mode
@@ -202,14 +202,14 @@ export default function Header({
                 return next;
               });
             }}
-            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            className="relative flex h-10 w-10 items-center justify-center rounded-full text-white hover:bg-white/10 lg:border lg:border-gray-200 lg:bg-white lg:text-gray-600 lg:hover:bg-gray-50"
             aria-label="Notifications"
             aria-expanded={openMenu === 'notifications'}
           >
-            <Bell size={18} />
+            <Bell size={20} />
             {badgeCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                {badgeCount > 9 ? '9+' : badgeCount}
+              <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#f5c542] ring-2 ring-[#1e3a8a] lg:right-0.5 lg:top-0.5 lg:flex lg:h-4 lg:min-w-4 lg:items-center lg:justify-center lg:rounded-full lg:bg-red-500 lg:px-1 lg:text-[10px] lg:font-bold lg:text-white lg:ring-0">
+                <span className="hidden lg:inline">{badgeCount > 9 ? '9+' : badgeCount}</span>
               </span>
             )}
           </button>
@@ -264,7 +264,7 @@ export default function Header({
           ) : null}
         </div>
 
-        <div className="relative">
+        <div className="relative hidden lg:block">
           <button
             type="button"
             onClick={() => setOpenMenu((m) => (m === 'account' ? null : 'account'))}

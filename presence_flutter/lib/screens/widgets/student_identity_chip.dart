@@ -170,26 +170,12 @@ class ApplicableChildrenChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (children.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
       children: [
-        const Text(
-          'Applicable to:',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final child in children)
-              StudentIdentityChip.fromChild(students, child, compact: true),
-          ],
-        ),
+        for (final child in children)
+          StudentIdentityChip.fromChild(students, child, compact: true),
       ],
     );
   }

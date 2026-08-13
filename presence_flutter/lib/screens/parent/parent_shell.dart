@@ -12,12 +12,20 @@ class ParentShell extends StatelessWidget {
   final Widget child;
 
   static const destinations = [
-    _Dest('/parent/notices', 'Notice Board', Icons.campaign_outlined, Color(0xFFF97316)),
-    _Dest('/parent/profile', 'Student Profile', Icons.person_outline, Color(0xFF6366F1)),
-    _Dest('/parent/diary', 'Class Diary', Icons.menu_book_outlined, Color(0xFF92400E)),
-    _Dest('/parent/timetable', 'Timetable', Icons.grid_on_outlined, Color(0xFF0EA5E9)),
-    _Dest('/parent/calendar', 'Calendar', Icons.calendar_month_outlined, Color(0xFFEF4444)),
+    _Dest('/parent/notices', 'Notice', Icons.campaign_outlined, Icons.campaign),
+    _Dest('/parent/profile', 'Student', Icons.person_outline, Icons.person),
+    _Dest('/parent/diary', 'Class', Icons.menu_book_outlined, Icons.menu_book),
+    _Dest('/parent/timetable', 'Timetable', Icons.grid_view_outlined, Icons.grid_view),
+    _Dest('/parent/calendar', 'Calendar', Icons.calendar_month_outlined, Icons.calendar_month),
   ];
+
+  static const _titles = {
+    '/parent/notices': 'Notice Board',
+    '/parent/profile': 'Student Profile',
+    '/parent/diary': 'Class Diary',
+    '/parent/timetable': 'Timetable',
+    '/parent/calendar': 'Calendar',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +34,7 @@ class ParentShell extends StatelessWidget {
     final students = context.watch<ParentStudentsState>();
     final selectedRaw = destinations.indexWhere((d) => loc.startsWith(d.path));
     final selected = selectedRaw < 0 ? 0 : selectedRaw;
+    final title = _titles[destinations[selected].path] ?? destinations[selected].label;
 
     if (auth.isParent && !students.loaded && !students.loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -34,15 +43,25 @@ class ParentShell extends StatelessWidget {
     }
 
     return Scaffold(
+      backgroundColor: PresenceColors.bg,
       appBar: AppBar(
-        title: Text(destinations[selected].label),
+        title: Text(title),
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu_rounded),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
         actions: [
           IconButton(
-            tooltip: 'Log out',
-            onPressed: () async {
-              await auth.logout();
-            },
-            icon: const Icon(Icons.logout),
+            tooltip: 'Notifications',
+            onPressed: () => context.go('/parent/notices'),
+            icon: Badge(
+              isLabelVisible: true,
+              smallSize: 8,
+              backgroundColor: PresenceColors.accent,
+              child: const Icon(Icons.notifications_none_rounded),
+            ),
           ),
         ],
       ),
@@ -58,15 +77,17 @@ class ParentShell extends StatelessWidget {
                   children: [
                     for (final d in destinations) ...[
                       ListTile(
-                        leading: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: d.iconColor.withValues(alpha: 0.12),
-                          child: Icon(d.icon, color: d.iconColor, size: 20),
+                        leading: Icon(
+                          loc.startsWith(d.path) ? d.activeIcon : d.icon,
+                          color: loc.startsWith(d.path)
+                              ? PresenceColors.primaryDark
+                              : PresenceColors.muted,
                         ),
                         title: Text(
-                          d.label,
+                          _titles[d.path] ?? d.label,
                           style: TextStyle(
-                            fontWeight: loc.startsWith(d.path) ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight:
+                                loc.startsWith(d.path) ? FontWeight.w700 : FontWeight.w500,
                             color: PresenceColors.text,
                           ),
                         ),
@@ -76,7 +97,6 @@ class ParentShell extends StatelessWidget {
                           context.go(d.path);
                         },
                       ),
-                      const Divider(height: 1),
                     ],
                   ],
                 ),
@@ -94,16 +114,86 @@ class ParentShell extends StatelessWidget {
         ),
       ),
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selected.clamp(0, destinations.length - 1),
-        onDestinationSelected: (i) => context.go(destinations[i].path),
-        destinations: [
-          for (final d in destinations)
-            NavigationDestination(
-              icon: Icon(d.icon),
-              label: d.label.split(' ').first,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
             ),
-        ],
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+            child: Row(
+              children: [
+                for (var i = 0; i < destinations.length; i++)
+                  Expanded(
+                    child: _NavItem(
+                      dest: destinations[i],
+                      selected: selected == i,
+                      onTap: () => context.go(destinations[i].path),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.dest,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _Dest dest;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? PresenceColors.primaryDark : PresenceColors.muted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(selected ? dest.activeIcon : dest.icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              dest.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 3,
+              width: selected ? 22 : 0,
+              decoration: BoxDecoration(
+                color: PresenceColors.accent,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -186,6 +276,6 @@ class _Dest {
   final String path;
   final String label;
   final IconData icon;
-  final Color iconColor;
-  const _Dest(this.path, this.label, this.icon, this.iconColor);
+  final IconData activeIcon;
+  const _Dest(this.path, this.label, this.icon, this.activeIcon);
 }

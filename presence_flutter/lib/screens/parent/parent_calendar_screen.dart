@@ -169,12 +169,26 @@ class _ParentCalendarScreenState extends State<ParentCalendarScreen> {
               ),
               const SizedBox(height: 8),
               if ((_selectedDay == null ? monthEvents : selectedEvents).isEmpty)
-                const Card(
+                Card(
                   child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'No scheduled events.',
-                      style: TextStyle(color: PresenceColors.muted),
+                    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.event_available_outlined,
+                          size: 48,
+                          color: PresenceColors.muted.withValues(alpha: 0.45),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No scheduled events. Enjoy your day!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: PresenceColors.muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 )
@@ -310,11 +324,7 @@ class _MonthGrid extends StatelessWidget {
     final hasEvent = dayEvents.isNotEmpty;
 
     return Material(
-      color: selected
-          ? const Color(0xFFDBEAFE)
-          : isWeekend
-              ? const Color(0xFFEFF6FF)
-              : Colors.white,
+      color: isWeekend && !selected ? const Color(0xFFEFF6FF) : Colors.white,
       child: InkWell(
         onTap: () => onSelect(day),
         child: Container(
@@ -322,23 +332,32 @@ class _MonthGrid extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
           decoration: BoxDecoration(
             border: Border.all(
-              color: selected
-                  ? PresenceColors.primaryDark
-                  : PresenceColors.border.withValues(alpha: 0.6),
-              width: selected ? 1.5 : 0.5,
+              color: PresenceColors.border.withValues(alpha: 0.6),
+              width: 0.5,
             ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '$dayNum',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  color: hasHoliday
-                      ? PresenceColors.danger
-                      : PresenceColors.primaryDark,
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? PresenceColors.accent : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$dayNum',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: selected
+                        ? PresenceColors.text
+                        : hasHoliday
+                            ? PresenceColors.danger
+                            : PresenceColors.primaryDark,
+                  ),
                 ),
               ),
               if (hasEvent) ...[

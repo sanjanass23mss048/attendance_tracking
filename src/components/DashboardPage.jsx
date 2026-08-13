@@ -16,11 +16,8 @@ import {
   BarChart3,
   BookOpen,
   CalendarDays,
-  LayoutGrid,
-  Hash,
-  List,
-  PieChart as PieIcon,
-  ChevronRight,
+  Megaphone,
+  Bell,
 } from 'lucide-react';
 import { DashboardStats } from './Header.jsx';
 import { formatClassRoman } from '../utils/classFormat.js';
@@ -44,6 +41,15 @@ const FULL_ACCESS_ROLES = new Set([
   'HOD',
 ]);
 
+const ROLE_LABELS = {
+  INCHARGE: 'Attendance In-charge',
+  TEACHER: 'Teacher',
+  ADMIN: 'Administrator',
+  HOD: 'HOD',
+  VICE_PRINCIPAL: 'Vice Principal',
+  PRINCIPAL: 'Principal',
+};
+
 const QUICK_LINKS = [
   { id: 'attendance', label: 'Mark Attendance', icon: ClipboardCheck, color: 'bg-indigo-50 text-indigo-600' },
   { id: 'edit-approvals', label: 'Edit Approvals', icon: Shield, color: 'bg-amber-50 text-amber-700' },
@@ -51,14 +57,6 @@ const QUICK_LINKS = [
   { id: 'reports', label: 'Reports', icon: BarChart3, color: 'bg-violet-50 text-violet-600' },
   { id: 'students', label: 'Students', icon: Users, color: 'bg-emerald-50 text-emerald-600' },
   { id: 'classes', label: 'Classes', icon: BookOpen, color: 'bg-rose-50 text-rose-600' },
-];
-
-const MOBILE_QUICK_ACTIONS = [
-  { view: 'grid', label: 'Grid View', icon: LayoutGrid, color: 'bg-indigo-50 text-indigo-600' },
-  { view: 'roll', label: 'Roll Quick Entry', icon: Hash, color: 'bg-violet-50 text-violet-600' },
-  { view: 'list', label: 'List View', icon: List, color: 'bg-sky-50 text-sky-600' },
-  { view: 'summary', label: 'Summary', icon: PieIcon, color: 'bg-amber-50 text-amber-600' },
-  { page: 'reports', label: 'Reports', icon: BarChart3, color: 'bg-emerald-50 text-emerald-600' },
 ];
 
 /** Sample rows — className/sectionName are canonical (e.g. 1 / A). */
@@ -157,13 +155,6 @@ function allowedSectionKeys(user, classesData) {
   return keys;
 }
 
-function greetingForNow() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 17) return 'Good Afternoon';
-  return 'Good Evening';
-}
-
 /**
  * Dashboard overview — class teachers only see their assigned sections.
  */
@@ -243,59 +234,87 @@ export default function DashboardPage({
   const chartData = pieData.length ? pieData : pieFallback;
 
   const firstName = (user?.name || 'Admin').split(/\s+/)[0];
-  const absentPct =
-    marked > 0 ? Math.round(((stats.absentToday || 0) / marked) * 1000) / 10 : 0;
+  const roleLabel = (ROLE_LABELS[user?.role] || user?.role || 'Teacher').toUpperCase();
+  const initials = firstName.slice(0, 1).toUpperCase();
   const quickLinks = QUICK_LINKS.filter(
     (link) => link.id !== 'edit-approvals' || canApproveEditRequests(user)
   );
 
+  const openAttendance = (view) => onNavigate?.('attendance', view);
+  const openPage = (id) => onNavigate?.(id);
+
+  const todayChip =
+    dateLabel ||
+    new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+
   const mobileStatCards = [
     {
-      label: 'Total Classes',
-      value: stats.totalClasses ?? 0,
-      icon: Users,
-      iconBg: 'bg-indigo-100',
-      iconColor: 'text-indigo-600',
+      label: 'Marked',
+      value: marked,
+      icon: ClipboardCheck,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      cardBg: 'bg-amber-50/80',
     },
     {
-      label: 'Present Today',
+      label: 'Present',
       value: stats.presentToday ?? 0,
-      sub: `${stats.attendancePercent ?? 0}%`,
       icon: UserCheck,
-      iconBg: 'bg-green-100',
-      iconColor: 'text-green-600',
+      iconBg: 'bg-sky-50',
+      iconColor: 'text-sky-600',
+      cardBg: 'bg-sky-50/80',
     },
     {
-      label: 'Absent Today',
+      label: 'Absent',
       value: stats.absentToday ?? 0,
-      sub: marked ? `${absentPct}%` : undefined,
       icon: UserX,
-      iconBg: 'bg-red-100',
-      iconColor: 'text-red-500',
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-500',
+      cardBg: 'bg-rose-50/80',
     },
     {
-      label: 'Attendance %',
-      value: `${stats.attendancePercent ?? 0}%`,
-      sub: 'Today',
-      icon: BarChart2,
-      iconBg: 'bg-amber-100',
-      iconColor: 'text-amber-500',
+      label: 'Classes',
+      value: stats.totalClasses ?? classRows.length ?? 0,
+      icon: BookOpen,
+      iconBg: 'bg-indigo-50',
+      iconColor: 'text-indigo-600',
+      cardBg: 'bg-indigo-50/70',
     },
   ];
 
-  const openAttendance = (view) => onNavigate?.('attendance', view);
-  const openPage = (id) => onNavigate?.(id);
+  const mobileQuickActions = [
+    { page: 'calendar', label: 'Calendar', icon: CalendarDays, color: 'bg-amber-50 text-amber-600' },
+    { page: 'notifications', label: 'Notice', icon: Megaphone, color: 'bg-violet-50 text-violet-600' },
+    { page: 'notifications', label: 'Notifications', icon: Bell, color: 'bg-sky-50 text-sky-600' },
+    { page: 'reports', label: 'Reports', icon: BarChart3, color: 'bg-emerald-50 text-emerald-600' },
+  ];
 
   return (
     <div className="space-y-5">
       {/* —— Mobile home (mockup) —— */}
-      <div className="space-y-5 lg:hidden">
-        <div>
-          <p className="text-sm text-gray-500">
-            {greetingForNow()}, {firstName}
-          </p>
-          <h2 className="mt-0.5 text-2xl font-bold tracking-tight text-gray-900">Attendance</h2>
-          <p className="mt-1 text-sm text-gray-500">Mark and manage daily attendance.</p>
+      <div className="space-y-4 lg:hidden">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+              Hello, {firstName}{' '}
+              <span aria-hidden="true">👋</span>
+            </h2>
+            <p className="mt-0.5 text-xs font-semibold tracking-wider text-gray-500">
+              {roleLabel}
+            </p>
+          </div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1e3a8a] text-lg font-bold text-white shadow-sm">
+            {initials}
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
+          <CalendarDays size={14} className="text-[#1e3a8a]" />
+          Today · {todayChip.replace(/^Today\s*[•·]\s*/i, '')}
         </div>
 
         {error && (
@@ -308,38 +327,54 @@ export default function DashboardPage({
           {mobileStatCards.map((card) => (
             <div
               key={card.label}
-              className="rounded-2xl border border-gray-200 bg-white p-3.5 shadow-sm"
+              className={`rounded-2xl border border-white/80 ${card.cardBg} p-3.5 shadow-sm`}
             >
               <div
                 className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${card.iconBg}`}
               >
                 <card.icon size={18} className={card.iconColor} />
               </div>
-              <p className="text-[11px] font-medium text-gray-500">{card.label}</p>
-              <p className="mt-0.5 text-xl font-bold text-gray-900">{card.value}</p>
-              {card.sub && <p className="text-[11px] text-gray-400">{card.sub}</p>}
+              <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+              <p className="mt-0.5 text-xs font-medium text-gray-500">{card.label}</p>
             </div>
           ))}
         </div>
 
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => openAttendance('grid')}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1e3a8a] px-4 py-3.5 text-sm font-bold text-white shadow-sm active:scale-[0.99]"
+          >
+            <ClipboardCheck size={18} />
+            Mark Attendance
+          </button>
+          <button
+            type="button"
+            onClick={() => openPage('reports')}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#1e3a8a] bg-white px-4 py-3.5 text-sm font-bold text-[#1e3a8a] active:scale-[0.99]"
+          >
+            <BarChart3 size={18} />
+            View Reports
+          </button>
+        </div>
+
         <div>
           <h3 className="mb-3 text-sm font-bold text-gray-900">Quick Actions</h3>
-          <div className="grid grid-cols-3 gap-2.5">
-            {MOBILE_QUICK_ACTIONS.map((action) => (
+          <div className="grid grid-cols-4 gap-2">
+            {mobileQuickActions.map((action) => (
               <button
                 key={action.label}
                 type="button"
-                onClick={() =>
-                  action.view ? openAttendance(action.view) : openPage(action.page)
-                }
-                className="flex flex-col items-center gap-2 rounded-2xl border border-gray-200 bg-white px-2 py-3.5 text-center shadow-sm active:scale-[0.98]"
+                onClick={() => openPage(action.page)}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-white px-1.5 py-3 text-center shadow-sm active:scale-[0.98]"
               >
                 <span
                   className={`flex h-11 w-11 items-center justify-center rounded-xl ${action.color}`}
                 >
                   <action.icon size={20} />
                 </span>
-                <span className="text-[11px] font-semibold leading-tight text-gray-800">
+                <span className="text-[10px] font-semibold leading-tight text-gray-800">
                   {action.label}
                 </span>
               </button>
@@ -347,44 +382,18 @@ export default function DashboardPage({
           </div>
         </div>
 
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-900">Today&apos;s Classes</h3>
-            <button
-              type="button"
-              onClick={() => openPage('classes')}
-              className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600"
-            >
-              View All <ChevronRight size={14} />
-            </button>
-          </div>
-          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-            {(classRows.length ? classRows : []).slice(0, 6).map((row) => (
-              <button
-                key={row.name}
-                type="button"
-                onClick={() => openAttendance('grid')}
-                className="w-56 shrink-0 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm"
-              >
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-bold text-gray-900">{row.name}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">Attendance class</p>
-                  </div>
-                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-                    {row.percent}%
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {row.present}P · {row.absent}A
-                </p>
-              </button>
-            ))}
-            {!classRows.length && (
-              <p className="px-1 text-sm text-gray-500">No classes assigned.</p>
-            )}
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => openPage('notifications')}
+          className="flex w-full items-center gap-3 rounded-2xl bg-[#f5c542] px-4 py-3.5 text-left shadow-sm active:scale-[0.99]"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1e3a8a] text-white">
+            <Megaphone size={18} />
+          </span>
+          <span className="text-sm font-semibold leading-snug text-gray-900">
+            Stay Updated: Check notices and upcoming events regularly.
+          </span>
+        </button>
       </div>
 
       {/* —— Desktop / tablet dashboard —— */}

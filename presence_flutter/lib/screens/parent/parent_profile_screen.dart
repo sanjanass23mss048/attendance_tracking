@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
 import '../widgets/parent_child_dropdown.dart';
-import '../widgets/student_identity_chip.dart';
 
 class ParentProfileScreen extends StatelessWidget {
   const ParentProfileScreen({super.key});
@@ -36,7 +35,7 @@ class ParentProfileScreen extends StatelessWidget {
           const ParentChildDropdown(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _ChildDetailSection(students: students, child: child),
+            child: _ChildDetailSection(child: child),
           ),
         ],
       ),
@@ -45,77 +44,79 @@ class ParentProfileScreen extends StatelessWidget {
 }
 
 class _ChildDetailSection extends StatelessWidget {
-  const _ChildDetailSection({required this.students, required this.child});
-  final ParentStudentsState students;
+  const _ChildDetailSection({required this.child});
   final Map<String, dynamic> child;
 
   @override
   Widget build(BuildContext context) {
-    final color = siblingChipColorForChild(students, child);
     final classLabel = ParentStudentsState.displayClassLabelFor(child);
     final name = child['name']?.toString() ?? 'Student';
+    final status = child['status']?.toString() ?? 'Active';
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 36,
-                    backgroundColor: color.withValues(alpha: 0.15),
-                    child: Text(
-                      ParentStudentsState.initialsFor(name),
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    name,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                  ),
-                  if (classLabel.isNotEmpty)
-                    Text(classLabel, style: const TextStyle(color: PresenceColors.muted)),
-                ],
-              ),
+    final rows = <_InfoItem>[
+      _InfoItem(Icons.tag_rounded, 'Roll No', child['rollNo']?.toString()),
+      _InfoItem(Icons.badge_outlined, 'Admission No', child['admissionNo']?.toString()),
+      _InfoItem(Icons.cake_outlined, 'Date of Birth', _fmtDob(child['dob']?.toString())),
+      _InfoItem(Icons.wc_outlined, 'Gender', child['gender']?.toString()),
+      _InfoItem(Icons.man_outlined, "Father's Name", child['fatherName']?.toString()),
+      _InfoItem(Icons.woman_outlined, "Mother's Name", child['motherName']?.toString()),
+      _InfoItem(
+        Icons.phone_outlined,
+        'Parent Phone',
+        child['parentPhone']?.toString() ?? child['fatherPhone']?.toString(),
+      ),
+      _InfoItem(
+        Icons.home_outlined,
+        'Address',
+        child['address']?.toString() ?? child['addressLine1']?.toString(),
+      ),
+      _InfoItem(Icons.verified_outlined, 'Status', status, isStatus: true),
+    ].where((r) => r.value != null && r.value!.trim().isNotEmpty).toList();
+
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        CircleAvatar(
+          radius: 40,
+          backgroundColor: PresenceColors.primaryDark,
+          child: Text(
+            ParentStudentsState.initialsFor(name),
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
             ),
-            const SizedBox(height: 16),
-            if (child['rollNo'] != null) _infoRow('Roll No', child['rollNo']?.toString()),
-            _infoRow('Admission No', child['admissionNo']?.toString()),
-            _infoRow('Date of birth', _fmtDob(child['dob']?.toString())),
-            _infoRow('Gender', child['gender']?.toString()),
-            _infoRow('Father', child['fatherName']?.toString()),
-            _infoRow('Mother', child['motherName']?.toString()),
-            _infoRow(
-              'Parent phone',
-              child['parentPhone']?.toString() ?? child['fatherPhone']?.toString(),
-            ),
-            _infoRow('Address', child['address']?.toString() ?? child['addressLine1']?.toString()),
-            _infoRow('Status', child['status']?.toString()),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String? value) {
-    if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: PresenceColors.muted)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-        ],
-      ),
+        const SizedBox(height: 12),
+        Text(
+          name,
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+        ),
+        if (classLabel.isNotEmpty)
+          Text(
+            classLabel,
+            style: const TextStyle(
+              color: PresenceColors.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        const SizedBox(height: 18),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Column(
+              children: [
+                for (var i = 0; i < rows.length; i++) ...[
+                  _InfoRow(item: rows[i]),
+                  if (i < rows.length - 1)
+                    const Divider(height: 1, indent: 56, endIndent: 12),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -126,5 +127,76 @@ class _ChildDetailSection extends StatelessWidget {
     } catch (_) {
       return raw;
     }
+  }
+}
+
+class _InfoItem {
+  const _InfoItem(this.icon, this.label, this.value, {this.isStatus = false});
+  final IconData icon;
+  final String label;
+  final String? value;
+  final bool isStatus;
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.item});
+  final _InfoItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: PresenceColors.primarySoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(item.icon, size: 18, color: PresenceColors.primaryDark),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: PresenceColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (item.isStatus)
+                  Row(
+                    children: [
+                      Text(
+                        item.value!,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: PresenceColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.check_circle, size: 16, color: PresenceColors.success),
+                    ],
+                  )
+                else
+                  Text(
+                    item.value!,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

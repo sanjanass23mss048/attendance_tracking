@@ -89,13 +89,21 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
                       )
                     : visible.isEmpty
                         ? ListView(
-                            children: const [
-                              SizedBox(height: 80),
-                              Center(child: Text('No class diary entries yet.')),
+                            children: [
+                              const SizedBox(height: 60),
+                              Icon(Icons.menu_book_outlined,
+                                  size: 56, color: PresenceColors.muted.withValues(alpha: 0.5)),
+                              const SizedBox(height: 12),
+                              const Center(
+                                child: Text(
+                                  'No class diary entries yet.',
+                                  style: TextStyle(color: PresenceColors.muted),
+                                ),
+                              ),
                             ],
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
                             itemCount: visible.length,
                             itemBuilder: (context, i) {
                               final m = Map<String, dynamic>.from(visible[i] as Map);
@@ -106,42 +114,87 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
                                   ? (section!['class'] as Map)['name']
                                   : null;
                               final sectionName = section?['name'];
+                              final classLabel = (className != null && sectionName != null)
+                                  ? '$className-$sectionName'
+                                  : null;
 
-                              return Card(
+                              return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(color: PresenceColors.border),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.04),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Icon(Icons.menu_book_outlined,
-                                              color: PresenceColors.primaryDark),
-                                          const SizedBox(width: 8),
+                                          Container(
+                                            width: 42,
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              color: PresenceColors.primarySoft,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: const Icon(
+                                              Icons.menu_book_rounded,
+                                              color: PresenceColors.primaryDark,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
                                           Expanded(
                                             child: Text(
-                                              m['title']?.toString() ?? 'Diary',
+                                              m['title']?.toString() ?? 'Homework',
                                               style: const TextStyle(
-                                                  fontWeight: FontWeight.w700, fontSize: 16),
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 16,
+                                                color: PresenceColors.primaryDark,
+                                              ),
                                             ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        [
-                                          _fmt(m['date']?.toString()),
-                                          if (className != null && sectionName != null)
-                                            '$className - $sectionName',
-                                          if (m['authorName'] != null) m['authorName'],
-                                        ].whereType<Object?>().join(' · '),
-                                        style:
-                                            const TextStyle(color: PresenceColors.muted, fontSize: 12),
-                                      ),
                                       const SizedBox(height: 10),
-                                      Text(m['body']?.toString() ?? '',
-                                          style: const TextStyle(height: 1.4)),
+                                      Wrap(
+                                        spacing: 10,
+                                        runSpacing: 4,
+                                        children: [
+                                          _MetaChip(
+                                            icon: Icons.calendar_today_outlined,
+                                            label: _fmt(m['date']?.toString()),
+                                          ),
+                                          if (classLabel != null)
+                                            _MetaChip(
+                                              icon: Icons.class_outlined,
+                                              label: classLabel,
+                                            ),
+                                          if (m['authorName'] != null)
+                                            _MetaChip(
+                                              icon: Icons.person_outline,
+                                              label: m['authorName'].toString(),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        m['body']?.toString() ?? '',
+                                        style: const TextStyle(
+                                          height: 1.45,
+                                          fontSize: 14,
+                                          color: PresenceColors.text,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -161,5 +214,31 @@ class _ParentDiaryScreenState extends State<ParentDiaryScreen> {
     } catch (_) {
       return raw;
     }
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: PresenceColors.muted),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: PresenceColors.muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 }
