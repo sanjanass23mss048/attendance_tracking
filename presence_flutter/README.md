@@ -38,5 +38,6 @@ Output:
 
 ## Demo logins
 
+- Admin (Audit Logs): `admin@brightfuture.edu.in` / `password123`
 - `neha.sharma@brightfuture.edu.in` / `password123`
 - `incharge@brightfuture.edu.in` / `password123`

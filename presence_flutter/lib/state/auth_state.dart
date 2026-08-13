@@ -24,6 +24,8 @@ class AuthState extends ChangeNotifier {
 
   bool get isParent => role == 'PARENT';
 
+  bool get isAdmin => role == 'ADMIN';
+
   bool get isStaffManager => AppConfig.staffManagerRoles.contains(role);
 
   void attachPush(ParentPushService push) {

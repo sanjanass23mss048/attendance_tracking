@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'api/api_client.dart';
 import 'screens/app_shell.dart';
 import 'screens/approvals_screen.dart';
+import 'screens/audit_logs_screen.dart';
 import 'screens/attendance_classes_screen.dart';
 import 'screens/attendance_mark_screen.dart';
 import 'screens/calendar_screen.dart';
@@ -102,6 +103,9 @@ class _PresenceAppState extends State<PresenceApp> {
         if (!auth.isParent && isParentPath) {
           return '/dashboard';
         }
+        if (loc.startsWith('/audit-logs') && !auth.isAdmin) {
+          return '/dashboard';
+        }
         return null;
       },
       routes: [
@@ -126,6 +130,7 @@ class _PresenceAppState extends State<PresenceApp> {
             GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
             GoRoute(path: '/teachers', builder: (_, __) => const TeachersScreen()),
             GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
+            GoRoute(path: '/audit-logs', builder: (_, __) => const AuditLogsScreen()),
           ],
         ),
         ShellRoute(

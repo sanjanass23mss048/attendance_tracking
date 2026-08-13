@@ -31,6 +31,8 @@ class AppShell extends StatelessWidget {
         const _Dest('/teachers', 'Teachers', Icons.school_outlined),
       if (auth.isStaffManager)
         const _Dest('/approvals', 'Approvals', Icons.verified_user_outlined),
+      if (auth.isAdmin)
+        const _Dest('/audit-logs', 'Audit Logs', Icons.history_edu_outlined),
     ];
 
     final selectedRaw = items.indexWhere((d) => loc.startsWith(d.path));

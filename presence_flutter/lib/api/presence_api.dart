@@ -133,6 +133,32 @@ class PresenceApi {
     return (data['teachers'] as List?) ?? [];
   }
 
+  Future<Map<String, dynamic>> auditLogs({
+    String? category,
+    String? action,
+    String? actor,
+    String? q,
+    String? from,
+    String? to,
+    String? success,
+    int limit = 40,
+    int offset = 0,
+  }) async {
+    final params = <String, String>{
+      'limit': '$limit',
+      'offset': '$offset',
+      if (category != null && category.isNotEmpty) 'category': category,
+      if (action != null && action.isNotEmpty) 'action': action,
+      if (actor != null && actor.isNotEmpty) 'actor': actor,
+      if (q != null && q.isNotEmpty) 'q': q,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+      if (success != null && success.isNotEmpty) 'success': success,
+    };
+    final query = Uri(queryParameters: params).query;
+    return await client.fetch('/api/admin/audit-logs?$query') as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> dayWiseReport({
     required String date,
     String className = 'all',

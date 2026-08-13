@@ -45,6 +45,83 @@ function actorLabel(log) {
   return `${name}${role}`;
 }
 
+const STATUS_LABELS = {
+  P: 'Present',
+  A: 'Absent',
+  L: 'Late',
+  H: 'Half Day',
+  OH: 'OD Half',
+  OF: 'OD Full',
+};
+
+function studentLine(s) {
+  if (!s) return '';
+  const roll = s.rollNo != null && s.rollNo !== '' ? `#${s.rollNo} ` : '';
+  return `${roll}${s.name || s.studentId || 'Student'}`;
+}
+
+function StudentList({ title, students, emptyText = 'None' }) {
+  const list = Array.isArray(students) ? students : [];
+  return (
+    <div>
+      <div className="font-semibold text-gray-500">
+        {title} ({list.length})
+      </div>
+      <div className="mt-0.5">
+        {list.length ? list.map(studentLine).join(', ') : emptyText}
+      </div>
+    </div>
+  );
+}
+
+function AttendanceAuditDetails({ details }) {
+  if (!details || typeof details !== 'object') return null;
+  const snapshot = details.currentAttendance || details;
+  const present = snapshot.present || details.present;
+  const absent = snapshot.absent || details.absent;
+  const late = snapshot.late || details.late;
+  const halfDay = snapshot.halfDay || details.halfDay;
+  const odHalf = snapshot.odHalf || details.odHalf;
+  const odFull = snapshot.odFull || details.odFull;
+  const changes = Array.isArray(details.changes) ? details.changes : [];
+  const hasRoster = [present, absent, late, halfDay, odHalf, odFull].some((arr) => Array.isArray(arr));
+  if (!hasRoster && !changes.length && !details.reason) return null;
+
+  return (
+    <div className="mt-3 space-y-3 text-xs text-gray-700">
+      {details.reason ? (
+        <div>
+          <div className="font-semibold text-gray-500">Reason</div>
+          <div className="mt-0.5">{details.reason}</div>
+        </div>
+      ) : null}
+      {changes.length ? (
+        <div>
+          <div className="font-semibold text-gray-500">Status changes ({changes.length})</div>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            {changes.map((c, i) => (
+              <li key={`${c.studentId || c.name || i}`}>
+                {studentLine(c)}:{' '}
+                {STATUS_LABELS[c.from] || c.from || '?'} → {STATUS_LABELS[c.to] || c.to || '?'}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {hasRoster ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StudentList title="Present" students={present} />
+          <StudentList title="Absent" students={absent} />
+          {late?.length ? <StudentList title="Late" students={late} /> : null}
+          {halfDay?.length ? <StudentList title="Half day" students={halfDay} /> : null}
+          {odHalf?.length ? <StudentList title="OD half" students={odHalf} /> : null}
+          {odFull?.length ? <StudentList title="OD full" students={odFull} /> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AuditLogsPage({ user, onAccessDenied }) {
   const allowed = canViewAuditLogs(user);
   const [draft, setDraft] = useState(EMPTY_FILTERS);
@@ -366,7 +443,8 @@ export default function AuditLogsPage({ user, onAccessDenied }) {
                             </div>
                             {log.details != null ? (
                               <div className="mt-3">
-                                <div className="text-xs font-semibold text-gray-500">Details</div>
+                                <AttendanceAuditDetails details={log.details} />
+                                <div className="mt-3 text-xs font-semibold text-gray-500">Raw details</div>
                                 <pre className="mt-1 max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white p-3 text-[11px] leading-relaxed text-gray-800">
                                   {typeof log.details === 'string'
                                     ? log.details

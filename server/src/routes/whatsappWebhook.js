@@ -8,6 +8,9 @@ import {
 } from '../services/editRequestRepo.js';
 import { verifyMetaSignature, normalizePhone } from '../lib/attendanceEditRules.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import { findClassSectionById } from '../services/schoolRepo.js';
+import { toDateString } from '../lib/ids.js';
+import { clipAuditSummary } from '../lib/attendanceAuditDetails.js';
 
 const router = Router();
 
@@ -105,29 +108,48 @@ router.post('/', async (req, res) => {
             }
           }
 
+          const cs = await findClassSectionById(row.Class_Section_id);
+          const classLabel =
+            [cs?.tblClass?.Class_Name, cs?.tblSection?.Section_Name].filter(Boolean).join('-') ||
+            row.Class_Section_id;
+          const dateLabel = toDateString(row.Attendance_Date) || '';
+          const teacherName = row.teacher?.name || row.Teacher_id;
+          const approverName = approverUser?.name || row.approver?.name || row.Approver_id;
+          const actor = {
+            id: approverUser?.user_id || row.Approver_id,
+            name: approverUser?.name || row.approver?.name || null,
+            email: approverUser?.email || row.approver?.email || null,
+            role: approverUser?.role || row.approver?.role || null,
+          };
+          const requestDetails = {
+            channel: 'whatsapp',
+            className: cs?.tblClass?.Class_Name || null,
+            sectionName: cs?.tblSection?.Section_Name || null,
+            classSectionId: row.Class_Section_id,
+            attendanceDate: dateLabel,
+            teacherId: row.Teacher_id,
+            teacherName,
+            approverId: row.Approver_id,
+            approverName,
+            reason: row.Reason || null,
+            fromPhone: from || null,
+          };
+
           if (parsed.action === 'approve') {
             await approveEditRequest(row.Request_id, { actorId: row.Approver_id });
             console.log('[whatsapp-webhook] approved', row.Request_id);
             logAdminAudit(
               { headers: {}, ip: null },
               {
-                actor: {
-                  id: approverUser?.user_id || row.Approver_id,
-                  name: approverUser?.name || row.approver?.name || null,
-                  email: approverUser?.email || row.approver?.email || null,
-                  role: approverUser?.role || row.approver?.role || null,
-                },
+                actor,
                 action: 'EDIT_REQUEST_APPROVE',
                 category: 'APPROVAL',
                 entityType: 'attendance_edit_request',
                 entityId: row.Request_id,
-                summary: `Approved attendance edit request ${row.Request_id} via WhatsApp`,
-                details: {
-                  channel: 'whatsapp',
-                  classSectionId: row.Class_Section_id,
-                  teacherId: row.Teacher_id,
-                  fromPhone: from || null,
-                },
+                summary: clipAuditSummary(
+                  `${approverName} approved ${teacherName}'s request to edit Class ${classLabel} attendance on ${dateLabel} via WhatsApp`
+                ),
+                details: requestDetails,
               }
             );
           } else if (parsed.action === 'deny') {
@@ -136,23 +158,15 @@ router.post('/', async (req, res) => {
             logAdminAudit(
               { headers: {}, ip: null },
               {
-                actor: {
-                  id: approverUser?.user_id || row.Approver_id,
-                  name: approverUser?.name || row.approver?.name || null,
-                  email: approverUser?.email || row.approver?.email || null,
-                  role: approverUser?.role || row.approver?.role || null,
-                },
+                actor,
                 action: 'EDIT_REQUEST_DENY',
                 category: 'APPROVAL',
                 entityType: 'attendance_edit_request',
                 entityId: row.Request_id,
-                summary: `Denied attendance edit request ${row.Request_id} via WhatsApp`,
-                details: {
-                  channel: 'whatsapp',
-                  classSectionId: row.Class_Section_id,
-                  teacherId: row.Teacher_id,
-                  fromPhone: from || null,
-                },
+                summary: clipAuditSummary(
+                  `${approverName} denied ${teacherName}'s request to edit Class ${classLabel} attendance on ${dateLabel} via WhatsApp`
+                ),
+                details: requestDetails,
               }
             );
           }

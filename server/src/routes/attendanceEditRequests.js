@@ -11,8 +11,16 @@ import {
 } from '../lib/attendanceEditRules.js';
 import { sendAttendanceEditApprovalMessage, isWhatsAppConfigured } from '../lib/whatsapp.js';
 import { prisma } from '../lib/prisma.js';
-import { findClassSectionById } from '../services/schoolRepo.js';
+import { findClassSectionById, listEnrollmentsForSection } from '../services/schoolRepo.js';
+import { getDailyMarks } from '../services/attendanceRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import {
+  attendanceSnapshotDetails,
+  clipAuditSummary,
+  groupMarksByStatus,
+  nameList,
+  statusCountSummary,
+} from '../lib/attendanceAuditDetails.js';
 import {
   createEditRequest,
   findApproverForSection,
@@ -124,17 +132,38 @@ router.post('/', requireAuth, async (req, res) => {
     });
   }
 
+  const className = section.tblClass?.Class_Name || '';
+  const sectionName = section.tblSection?.Section_Name || '';
+  const classLabel = [className, sectionName].filter(Boolean).join('-') || section.Class_Section_id;
+  const enrollments = await listEnrollmentsForSection(section.Class_Section_id);
+  const currentMarks = await getDailyMarks(section.Class_Section_id, date);
+  const currentByStatus = groupMarksByStatus(enrollments, currentMarks);
+  const snapshot = attendanceSnapshotDetails(currentByStatus);
+  const teacherName = req.user.name || req.user.email || teacherId;
+  const reasonText = reason.trim();
+
   logAdminAudit(req, {
     action: 'EDIT_REQUEST_CREATE',
     category: 'APPROVAL',
     entityType: 'attendance_edit_request',
     entityId: request.id,
-    summary: `Requested attendance edit for ${section.Class_Section_id} on ${attendanceDate}`,
+    summary: clipAuditSummary(
+      `${teacherName} requested to edit Class ${classLabel} attendance on ${attendanceDate}` +
+        (reasonText ? ` (reason: ${reasonText})` : '') +
+        `; currently ${statusCountSummary(currentByStatus)}` +
+        (snapshot.absent.length ? `; absent: ${nameList(snapshot.absent)}` : '')
+    ),
     details: {
+      className,
+      sectionName,
       sectionId: section.Class_Section_id,
       attendanceDate,
+      teacherId,
+      teacherName,
       approverId: approver.userId,
-      reason: reason.trim().slice(0, 200),
+      approverName: approver.name || null,
+      reason: reasonText.slice(0, 500),
+      currentAttendance: snapshot,
     },
   });
 

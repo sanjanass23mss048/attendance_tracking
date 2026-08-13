@@ -32,6 +32,14 @@ import {
 } from '../services/editRequestRepo.js';
 import { writeAttendanceAuditLogs } from '../services/attendanceAuditRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import {
+  attendanceSnapshotDetails,
+  clipAuditSummary,
+  formatChangeLine,
+  groupMarksByStatus,
+  nameList,
+  statusCountSummary,
+} from '../lib/attendanceAuditDetails.js';
 import { attendanceHeaderId } from '../lib/ids.js';
 import { isSmsConfigured, parentContactsForEnrollments, resolveRecipientPhones, sendSms } from '../lib/sms.js';
 import { isWhatsAppConfigured, sendAbsenceAlertWhatsApp } from '../lib/whatsapp.js';
@@ -279,18 +287,52 @@ router.put('/daily', requireAuth, async (req, res) => {
 
   const className = section.tblClass?.Class_Name || '';
   const sectionName = section.tblSection?.Section_Name || '';
+  const classLabel = [className, sectionName].filter(Boolean).join('-') || section.Class_Section_id;
+  const marksByStudent = new Map(fullMarks.map((m) => [String(m.studentId), m.status || 'P']));
+  const byStatus = groupMarksByStatus(enrollments, marksByStudent);
+  const snapshot = attendanceSnapshotDetails(byStatus);
+  const enrollmentById = new Map(enrollments.map((s) => [String(s.id), s]));
+  const changes = auditEntries.map((e) => {
+    const s = enrollmentById.get(String(e.studentClassId));
+    return {
+      studentId: e.studentClassId,
+      rollNo: s?.rollNo ?? null,
+      name: s?.name || e.studentClassId,
+      from: e.oldStatus,
+      to: e.newStatus,
+    };
+  });
+  const isEditAfterApproval = Boolean(activePermission);
+  const absentNames = nameList(snapshot.absent);
+  let summary;
+  if (isEditAfterApproval) {
+    const changeText = changes.length
+      ? changes.map(formatChangeLine).join('; ')
+      : 'no status changes';
+    summary = `Edited Class ${classLabel} on ${parsed.data.date} after approval: ${changeText}`;
+  } else {
+    summary = `Saved attendance for Class ${classLabel} on ${parsed.data.date}: ${statusCountSummary(byStatus)}`;
+    if (absentNames) summary += `; absent: ${absentNames}`;
+  }
+
   logAdminAudit(req, {
-    action: 'ATTENDANCE_SAVE_DAILY',
+    action: isEditAfterApproval ? 'ATTENDANCE_EDIT_AFTER_APPROVAL' : 'ATTENDANCE_SAVE_DAILY',
     category: 'ATTENDANCE',
     entityType: 'class_section',
     entityId: section.Class_Section_id,
-    summary: `Saved daily attendance for Class ${className}-${sectionName} on ${parsed.data.date} (${fullMarks.length} students, ${auditEntries.length} status changes)`,
+    summary: clipAuditSummary(summary),
     details: {
       date: parsed.data.date,
+      className,
+      sectionName,
       sectionId: section.Class_Section_id,
       updated: fullMarks.length,
-      statusChanges: auditEntries.length,
-      requestUsed: Boolean(activePermission),
+      statusChanges: changes.length,
+      editAfterApproval: isEditAfterApproval,
+      requestId: activePermission?.Request_id || null,
+      approverId: activePermission?.Approver_id || null,
+      ...snapshot,
+      changes,
     },
   });
 
@@ -403,16 +445,48 @@ router.put('/periods', requireAuth, async (req, res) => {
     type: 'periods',
   });
 
+  const className = section.tblClass?.Class_Name || '';
+  const sectionName = section.tblSection?.Section_Name || '';
+  const classLabel = [className, sectionName].filter(Boolean).join('-') || section.Class_Section_id;
+  const enrollments = await listEnrollmentsForSection(section.Class_Section_id);
+  const enrollmentById = new Map(enrollments.map((s) => [String(s.id), s]));
+  const periodMarks = parsed.data.marks.map((m) => {
+    const s = enrollmentById.get(String(m.studentId));
+    return {
+      studentId: m.studentId,
+      rollNo: s?.rollNo ?? null,
+      name: s?.name || m.studentId,
+      periodNo: m.periodNo,
+      status: m.status,
+    };
+  });
+  const absentPeriod = periodMarks.filter((m) => String(m.status).toUpperCase() === 'A');
+  const isEditAfterApproval = Boolean(activePermission);
+  const periodSummary = isEditAfterApproval
+    ? `Edited period attendance for Class ${classLabel} on ${parsed.data.date} after approval (${periodMarks.length} marks)`
+    : `Saved period attendance for Class ${classLabel} on ${parsed.data.date} (${periodMarks.length} marks)`;
+
   logAdminAudit(req, {
-    action: 'ATTENDANCE_SAVE_PERIODS',
+    action: isEditAfterApproval ? 'ATTENDANCE_EDIT_PERIODS_AFTER_APPROVAL' : 'ATTENDANCE_SAVE_PERIODS',
     category: 'ATTENDANCE',
     entityType: 'class_section',
     entityId: section.Class_Section_id,
-    summary: `Saved period attendance for ${section.Class_Section_id} on ${parsed.data.date} (${parsed.data.marks.length} marks)`,
+    summary: clipAuditSummary(
+      absentPeriod.length
+        ? `${periodSummary}; absent: ${nameList(absentPeriod)}`
+        : periodSummary
+    ),
     details: {
       date: parsed.data.date,
+      className,
+      sectionName,
       sectionId: section.Class_Section_id,
-      updated: parsed.data.marks.length,
+      updated: periodMarks.length,
+      editAfterApproval: isEditAfterApproval,
+      requestId: activePermission?.Request_id || null,
+      approverId: activePermission?.Approver_id || null,
+      marks: periodMarks,
+      absent: absentPeriod,
     },
   });
 
