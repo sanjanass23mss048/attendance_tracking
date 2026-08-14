@@ -17,6 +17,12 @@ export const TEMPLATE_HEADERS = [
   'Section',
   'Roll Number',
   'Student Name',
+  "Father's Name",
+  "Mother's Name",
+  'Email-Id',
+  'Blood Group',
+  "Father's No",
+  "Mother's No",
 ];
 
 /** Accept common school spreadsheet header names (any column order). */
@@ -25,7 +31,39 @@ const HEADER_ALIASES = {
   sectionName: ['section', 'sec', 'section name'],
   rollNo: ['roll number', 'roll no', 'roll no.', 'roll', 'r.no', 'r no', 'rollnum'],
   name: ['student name', 'name', 'student', 'pupil name', 'child name'],
-  // Optional extras if a school file includes them — not in the downloadable template
+  fatherName: ["father's name", 'father name', 'father'],
+  motherName: ["mother's name", 'mother name', 'mother'],
+  parentEmail: [
+    'email-id',
+    'email id',
+    'emailid',
+    'parent email',
+    'email',
+    'parent e-mail',
+    'e-mail',
+    'e mail',
+  ],
+  bloodGroup: ['blood group', 'blood grp', 'bloodgroup', 'bld grp', 'b.g', 'bg'],
+  fatherMobile: [
+    "father's no",
+    "father's no.",
+    'father no',
+    'father no.',
+    'father number',
+    "father's number",
+    'father mobile',
+    'father phone',
+  ],
+  motherMobile: [
+    "mother's no",
+    "mother's no.",
+    'mother no',
+    'mother no.',
+    'mother number',
+    "mother's number",
+    'mother mobile',
+    'mother phone',
+  ],
   admissionNo: [
     'admission number',
     'admission no',
@@ -37,13 +75,7 @@ const HEADER_ALIASES = {
   ],
   gender: ['gender', 'sex'],
   dob: ['date of birth', 'dob', 'd.o.b', 'birth date', 'birthday'],
-  parentName: [
-    'parent name',
-    'father name',
-    "father's name",
-    'guardian name',
-    'parent / guardian',
-  ],
+  parentName: ['parent name', 'guardian name', 'parent / guardian'],
   parentMobile: [
     'parent mobile number',
     'parent mobile',
@@ -53,9 +85,7 @@ const HEADER_ALIASES = {
     'phone',
     'phone number',
     'contact',
-    'father number',
   ],
-  parentEmail: ['parent email', 'email', 'parent e-mail', 'e-mail'],
   address: ['address', 'residential address', 'home address'],
 };
 
@@ -76,7 +106,7 @@ function resolveHeaderField(headerText) {
  */
 function mapHeaderColumns(headerRow) {
   const columnMap = {}; // fieldKey -> 1-based column index
-  const maxCol = Math.max(headerRow.cellCount || 0, TEMPLATE_HEADERS.length, 20);
+  const maxCol = Math.max(headerRow.cellCount || 0, TEMPLATE_HEADERS.length, 30);
   for (let c = 1; c <= maxCol; c += 1) {
     const label = normalizeText(cellToString(headerRow.getCell(c).value));
     if (!label) continue;
@@ -93,12 +123,17 @@ function rowPayloadFromMappedColumns(excelRow, columnMap) {
     sectionName: '',
     rollNo: '',
     name: '',
+    fatherName: '',
+    motherName: '',
+    parentEmail: '',
+    bloodGroup: '',
+    fatherMobile: '',
+    motherMobile: '',
     admissionNo: '',
     gender: '',
     dob: '',
     parentName: '',
     parentMobile: '',
-    parentEmail: '',
     address: '',
   };
   for (const [field, col] of Object.entries(columnMap)) {
@@ -113,6 +148,12 @@ function rowValuesInTemplateOrder(r) {
     r.sectionName || '',
     r.rollNo || '',
     r.name || '',
+    r.fatherName || r.parentName || '',
+    r.motherName || '',
+    r.parentEmail || '',
+    r.bloodGroup || '',
+    r.fatherMobile || r.parentMobile || '',
+    r.motherMobile || '',
   ];
 }
 
@@ -250,11 +291,15 @@ export async function buildTemplateBuffer() {
   ws.addRow(['LKG', 'A', '3', 'Ananya Iyer']);
   const notes = wb.addWorksheet('Notes');
   notes.getCell('A1').value =
-    'Only Class, Section, Roll Number and Student Name are required.';
+    'Required: Class, Section, Roll Number, Student Name.';
   notes.getCell('A2').value =
-    'Column order can vary. Common headers like Roll No / Std / Sec are accepted.';
+    "Optional: Father's Name, Mother's Name, Email-Id, Blood Group, Father's No, Mother's No.";
   notes.getCell('A3').value =
+    'Column order can vary. Common headers like Roll No / Std / Sec are accepted.';
+  notes.getCell('A4').value =
     'Do not invent new Class/Section names — they must already exist in Presence.';
+  notes.getCell('A5').value =
+    "Phone numbers should be 10 digits. Email-Id is the parent/guardian email.";
   notes.getColumn(1).width = 100;
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
@@ -402,11 +447,15 @@ export async function validateWorkbookBuffer(buffer) {
       }
     }
     if (raw.parentEmail && !EMAIL_RE.test(raw.parentEmail)) {
-      errors.push('Invalid parent email.');
+      errors.push('Invalid email.');
     }
-    const phoneDigits = normalizePhone(raw.parentMobile);
-    if (raw.parentMobile && !isValidPhone(phoneDigits)) {
-      errors.push('Invalid parent mobile number.');
+    const fatherPhone = normalizePhone(raw.fatherMobile || raw.parentMobile);
+    const motherPhone = normalizePhone(raw.motherMobile);
+    if ((raw.fatherMobile || raw.parentMobile) && !isValidPhone(fatherPhone)) {
+      errors.push("Invalid father's number.");
+    }
+    if (raw.motherMobile && !isValidPhone(motherPhone)) {
+      errors.push("Invalid mother's number.");
     }
 
     let section = null;
@@ -466,9 +515,14 @@ export async function validateWorkbookBuffer(buffer) {
       dob: dobParsed.display || '',
       className: normalizeClassName(raw.className),
       sectionName: normalizeSectionName(raw.sectionName),
-      parentName: raw.parentName,
-      parentMobile: phoneDigits || raw.parentMobile,
+      fatherName: raw.fatherName || raw.parentName,
+      motherName: raw.motherName,
+      parentName: raw.fatherName || raw.parentName,
+      fatherMobile: fatherPhone || raw.fatherMobile || raw.parentMobile,
+      motherMobile: motherPhone || raw.motherMobile,
+      parentMobile: fatherPhone || motherPhone || raw.fatherMobile || raw.parentMobile,
       parentEmail: raw.parentEmail.toLowerCase(),
+      bloodGroup: raw.bloodGroup,
       address: raw.address,
       sectionId,
       academicYear: section?.tblClass?.Academic_Year || null,
@@ -647,8 +701,10 @@ async function insertStudentRow(row, userId) {
         Last_Name: last,
         Gender: row.gender || null,
         DOB: dob,
-        Father_Name: row.parentName || null,
-        Father_Number: row.parentMobile || null,
+        Father_Name: row.fatherName || row.parentName || null,
+        Mother_Name: row.motherName || null,
+        Father_Number: row.fatherMobile || row.parentMobile || null,
+        Mother_Number: row.motherMobile || null,
         Address_Line_1: row.address || null,
         Country: 'Indian',
         Int_Status: 1,

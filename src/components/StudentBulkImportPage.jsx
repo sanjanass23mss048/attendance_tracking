@@ -91,6 +91,11 @@ function RowTable({ rows, mode }) {
             <th className="px-3 py-2">Section</th>
             <th className="px-3 py-2">Roll</th>
             <th className="px-3 py-2">Name</th>
+            <th className="px-3 py-2">Father</th>
+            <th className="px-3 py-2">Mother</th>
+            <th className="px-3 py-2">Email</th>
+            <th className="px-3 py-2">Father's No</th>
+            <th className="px-3 py-2">Mother's No</th>
             {(mode === 'failed' || mode === 'duplicate') && (
               <th className="px-3 py-2">Reason</th>
             )}
@@ -104,6 +109,11 @@ function RowTable({ rows, mode }) {
               <td className="px-3 py-2">{r.sectionName || '—'}</td>
               <td className="px-3 py-2">{r.rollNo || '—'}</td>
               <td className="px-3 py-2 font-medium text-gray-900">{r.name || '—'}</td>
+              <td className="px-3 py-2">{r.fatherName || r.parentName || '—'}</td>
+              <td className="px-3 py-2">{r.motherName || '—'}</td>
+              <td className="px-3 py-2">{r.parentEmail || '—'}</td>
+              <td className="px-3 py-2">{r.fatherMobile || r.parentMobile || '—'}</td>
+              <td className="px-3 py-2">{r.motherMobile || '—'}</td>
               {(mode === 'failed' || mode === 'duplicate') && (
                 <td className="px-3 py-2 text-red-700">{r.errorReason || '—'}</td>
               )}
@@ -444,7 +454,7 @@ export default function StudentBulkImportPage({ user, onBack }) {
                 Excel workflow
               </h2>
               <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-gray-600">
-                <li>Download the school-style Excel template (Class, Section, Roll first)</li>
+                <li>Download the school-style Excel template (Class, Section, Roll, Name, then parent details)</li>
                 <li>Fill one row per student — or upload a school sheet with those columns</li>
                 <li>Validate — review Successful / Failed / Duplicate tabs</li>
                 <li>Import only valid students</li>
@@ -680,7 +690,8 @@ export default function StudentBulkImportPage({ user, onBack }) {
             {sourceMode === 'excel' ? (
               <>
                 <li>
-                  Template has only <strong>Class, Section, Roll Number, Student Name</strong>.
+                  Required: <strong>Class, Section, Roll Number, Student Name</strong>. Optional:{' '}
+                  <strong>Father's Name, Mother's Name, Email-Id, Blood Group, Father's No, Mother's No</strong>.
                 </li>
                 <li>Headers like Roll No / Std / Sec are accepted (any order).</li>
                 <li>Class and section must already exist in Presence.</li>

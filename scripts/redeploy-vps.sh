@@ -13,6 +13,15 @@ grep -q 'CLIENT_ORIGIN=' /opt/attendance-tracking/server/.env \
   && sed -i 's#^CLIENT_ORIGIN=.*#CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"#' /opt/attendance-tracking/server/.env
 sed -i 's#^NODE_ENV=.*#NODE_ENV=production#' /opt/attendance-tracking/server/.env
 
+# Multi-tenant registry (Attendence_Tenants) — derive from DATABASE_URL if missing
+if ! grep -q '^TENANT_DATABASE_URL=' /opt/attendance-tracking/server/.env; then
+  DB_VAL=$(grep '^DATABASE_URL=' /opt/attendance-tracking/server/.env | head -1 | sed 's/^DATABASE_URL=//' | tr -d '"')
+  TENANT_VAL=$(echo "$DB_VAL" | sed 's|/Attendence|/Attendence_Tenants|')
+  echo "TENANT_DATABASE_URL=\"$TENANT_VAL\"" >> /opt/attendance-tracking/server/.env
+fi
+grep -q '^MAIN_DOMAIN=' /opt/attendance-tracking/server/.env \
+  || echo 'MAIN_DOMAIN=rioassetmanagement.info' >> /opt/attendance-tracking/server/.env
+
 # Local dev Postgres host port (avoid clash with host Postgres)
 sed -i 's#"5432:5432"#"5437:5432"#g; s#"5436:5432"#"5437:5432"#g' /opt/attendance-tracking/docker-compose.yml
 

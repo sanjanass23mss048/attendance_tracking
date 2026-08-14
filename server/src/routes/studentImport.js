@@ -106,9 +106,14 @@ const draftRowSchema = z.object({
   dob: z.string().optional().nullable(),
   className: z.string().optional().nullable(),
   sectionName: z.string().optional().nullable(),
+  fatherName: z.string().optional().nullable(),
+  motherName: z.string().optional().nullable(),
   parentName: z.string().optional().nullable(),
+  fatherMobile: z.string().optional().nullable(),
+  motherMobile: z.string().optional().nullable(),
   parentMobile: z.string().optional().nullable(),
   parentEmail: z.string().optional().nullable(),
+  bloodGroup: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
 });
 
