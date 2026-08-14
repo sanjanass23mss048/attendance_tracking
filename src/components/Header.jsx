@@ -27,6 +27,7 @@ const PAGE_TITLES = {
   'leave-letters': { title: 'Leave Letters', subtitle: 'Upload and track student leave letters.' },
   classes: { title: 'Classes', subtitle: 'Class and section management.' },
   teachers: { title: 'Teachers', subtitle: 'Staff directory and management.' },
+  users: { title: 'Users', subtitle: 'Create Teacher and Parent login accounts.' },
   calendar: { title: 'Academic Calendar', subtitle: 'Plan, manage and view academic events.' },
   timetable: {
     title: 'Manage Timetables',

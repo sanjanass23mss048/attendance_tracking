@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   PieChart,
   Pie,
@@ -21,7 +21,9 @@ import {
 } from 'lucide-react';
 import { DashboardStats } from './Header.jsx';
 import { formatClassRoman } from '../utils/classFormat.js';
-import { canApproveEditRequests } from '../data/navItems.js';
+import { canApproveEditRequests, canViewAuditLogs } from '../data/navItems.js';
+import { listAuditLogs } from '../services/auditLogService.js';
+import { getScheduledEvents } from '../services/calendarService.js';
 
 const STATUS_COLORS = {
   present: '#22c55e',
@@ -59,74 +61,44 @@ const QUICK_LINKS = [
   { id: 'classes', label: 'Classes', icon: BookOpen, color: 'bg-rose-50 text-rose-600' },
 ];
 
-/** Sample rows — className/sectionName are canonical (e.g. 1 / A). */
-const SAMPLE_CLASS_ROWS = [
-  { className: 'LKG', sectionName: 'A', percent: 92, present: 37, absent: 3 },
-  { className: 'LKG', sectionName: 'B', percent: 88, present: 35, absent: 5 },
-  { className: 'UKG', sectionName: 'A', percent: 95, present: 38, absent: 2 },
-  { className: '1', sectionName: 'A', percent: 90, present: 36, absent: 4 },
-  { className: '2', sectionName: 'A', percent: 86, present: 34, absent: 6 },
-  { className: '3', sectionName: 'A', percent: 93, present: 37, absent: 3 },
-];
+function relativeTime(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return '';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
 
-/** Sample feed — scoped by className + sectionName. */
-const SAMPLE_ACTIVITIES = [
-  {
-    text: 'Attendance marked for LKG-A',
-    time: '10 min ago',
-    tone: 'bg-green-500',
-    className: 'LKG',
-    sectionName: 'A',
-  },
-  {
-    text: 'Leave letter approved — Roll 12 · I-A',
-    time: '32 min ago',
-    tone: 'bg-sky-500',
-    className: '1',
-    sectionName: 'A',
-  },
-  {
-    text: 'New student added to UKG-B',
-    time: '1 hr ago',
-    tone: 'bg-indigo-500',
-    className: 'UKG',
-    sectionName: 'B',
-  },
-  {
-    text: 'Edit request pending for I-A',
-    time: '2 hr ago',
-    tone: 'bg-amber-500',
-    className: '1',
-    sectionName: 'A',
-  },
-  {
-    text: 'Attendance marked for I-A',
-    time: '3 hr ago',
-    tone: 'bg-green-500',
-    className: '1',
-    sectionName: 'A',
-  },
-  {
-    text: 'Attendance marked for II-A',
-    time: '4 hr ago',
-    tone: 'bg-green-500',
-    className: '2',
-    sectionName: 'A',
-  },
-  {
-    text: 'Edit request pending for III-A',
-    time: '5 hr ago',
-    tone: 'bg-amber-500',
-    className: '3',
-    sectionName: 'A',
-  },
-];
+function activityTone(category) {
+  switch (String(category || '').toUpperCase()) {
+    case 'AUTH':
+      return 'bg-slate-500';
+    case 'ATTENDANCE':
+      return 'bg-green-500';
+    case 'APPROVAL':
+      return 'bg-amber-500';
+    case 'STUDENT':
+      return 'bg-indigo-500';
+    case 'NOTICE':
+      return 'bg-violet-500';
+    default:
+      return 'bg-gray-400';
+  }
+}
 
-const SAMPLE_EVENTS = [
-  { day: '12', month: 'AUG', title: 'Football Match', sub: 'Sports Ground · 3:00 PM' },
-  { day: '15', month: 'AUG', title: 'Independence Day Celebration', sub: 'School Assembly · 8:30 AM' },
-  { day: '20', month: 'AUG', title: 'Science Exhibition', sub: 'Lab Block · All Day' },
-];
+function formatEventChip(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return { day: '—', month: '—' };
+  return {
+    day: String(d.getDate()).padStart(2, '0'),
+    month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+  };
+}
 
 function sectionKey(className, sectionName) {
   return `${String(className ?? '')
@@ -167,53 +139,75 @@ export default function DashboardPage({
   classesData = [],
 }) {
   const allowed = useMemo(() => allowedSectionKeys(user, classesData), [user, classesData]);
+  const [activities, setActivities] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!canViewAuditLogs(user)) {
+        if (!cancelled) setActivities([]);
+        return;
+      }
+      try {
+        const data = await listAuditLogs({ limit: 7 });
+        if (cancelled) return;
+        setActivities(
+          (data.logs || []).map((log) => ({
+            text: log.summary || log.action || 'Activity',
+            time: relativeTime(log.createdAt),
+            tone: activityTone(log.category),
+          }))
+        );
+      } catch {
+        if (!cancelled) setActivities([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const events = await getScheduledEvents(new Date().getFullYear(), 3);
+        if (cancelled) return;
+        setUpcomingEvents(
+          (events || []).map((event) => {
+            const chip = formatEventChip(event.date);
+            return {
+              day: chip.day,
+              month: chip.month,
+              title: event.title || 'Event',
+              sub: event.source ? String(event.source).replace(/_/g, ' ') : 'School calendar',
+            };
+          })
+        );
+      } catch {
+        if (!cancelled) setUpcomingEvents([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const classRows = useMemo(() => {
-    const rows = SAMPLE_CLASS_ROWS.filter((row) => {
-      if (!allowed) return true;
-      return allowed.has(sectionKey(row.className, row.sectionName));
-    }).map((row) => ({
-      ...row,
-      name: displaySectionLabel(row.className, row.sectionName),
-      className: row.className,
-      sectionName: row.sectionName,
-    }));
+    const rows = (classesData || []).flatMap((klass) =>
+      (klass.sections || []).map((sec) => ({
+        name: displaySectionLabel(klass.name, sec.name),
+        className: klass.name,
+        sectionName: sec.name,
+        percent: 0,
+        present: 0,
+        absent: 0,
+      }))
+    );
 
-    if (allowed && !rows.length && classesData?.length) {
-      return classesData.flatMap((klass) =>
-        (klass.sections || []).map((sec) => ({
-          name: displaySectionLabel(klass.name, sec.name),
-          className: klass.name,
-          sectionName: sec.name,
-          percent: 0,
-          present: 0,
-          absent: 0,
-        }))
-      );
-    }
-    return rows;
-  }, [allowed, classesData]);
-
-  const activities = useMemo(() => {
-    const list = SAMPLE_ACTIVITIES.filter((a) => {
-      if (!allowed) return true;
-      if (!a.className || !a.sectionName) return false;
-      return allowed.has(sectionKey(a.className, a.sectionName));
-    });
-
-    if (allowed && !list.length && classesData?.length) {
-      return classesData.flatMap((klass) =>
-        (klass.sections || []).map((sec) => {
-          const label = displaySectionLabel(klass.name, sec.name);
-          return {
-            text: `No recent activity for ${label} yet`,
-            time: 'Just now',
-            tone: 'bg-gray-400',
-          };
-        })
-      );
-    }
-    return list;
+    if (!allowed) return rows;
+    return rows.filter((row) => allowed.has(sectionKey(row.className, row.sectionName)));
   }, [allowed, classesData]);
 
   const marked = stats.markedToday ?? 0;
@@ -536,18 +530,22 @@ export default function DashboardPage({
                 Upcoming Events
               </h2>
               <ul className="space-y-3">
-                {SAMPLE_EVENTS.map((e) => (
-                  <li key={e.title} className="flex gap-3">
-                    <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
-                      <span className="text-[10px] font-semibold uppercase leading-none">{e.month}</span>
-                      <span className="text-sm font-bold leading-tight">{e.day}</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{e.title}</p>
-                      <p className="text-xs text-gray-500">{e.sub}</p>
-                    </div>
-                  </li>
-                ))}
+                {upcomingEvents.length ? (
+                  upcomingEvents.map((e) => (
+                    <li key={`${e.title}-${e.day}`} className="flex gap-3">
+                      <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+                        <span className="text-[10px] font-semibold uppercase leading-none">{e.month}</span>
+                        <span className="text-sm font-bold leading-tight">{e.day}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{e.title}</p>
+                        <p className="text-xs text-gray-500">{e.sub}</p>
+                      </div>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-sm text-gray-500">No upcoming events scheduled.</li>
+                )}
               </ul>
             </div>
           </div>

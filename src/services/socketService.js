@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client';
 import { API_BASE, getToken, useMock } from './api.js';
+import { getBrowserTenantSlug, tenantRequestHeaders } from '../lib/tenantHost.js';
 
 /** @typedef {'live' | 'reconnecting' | 'offline'} ConnectionStatus */
 
@@ -38,13 +39,14 @@ export function connectSocket() {
   }
 
   const token = getToken();
-  // Empty API_BASE → same origin (production / Vite proxy)
+  const tenant = getBrowserTenantSlug();
   socket = io(API_BASE || undefined, {
     path: '/socket.io',
     transports: ['websocket', 'polling'],
     withCredentials: true,
     autoConnect: true,
-    auth: token ? { token } : undefined,
+    auth: token ? { token, tenant } : { tenant },
+    extraHeaders: tenantRequestHeaders(),
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,

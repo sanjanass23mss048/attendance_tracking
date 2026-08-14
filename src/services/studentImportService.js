@@ -1,10 +1,7 @@
-import { API_BASE, getToken } from './api.js';
+import { API_BASE, apiHeaders } from './api.js';
 
 async function authHeaders(extra = {}) {
-  const headers = { Accept: 'application/json', ...extra };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
+  return apiHeaders(extra);
 }
 
 async function parseJsonResponse(res) {

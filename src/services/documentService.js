@@ -1,4 +1,4 @@
-import { API_BASE, getToken, useMock } from './api.js';
+import { API_BASE, apiHeaders, useMock } from './api.js';
 
 const DOCUMENT_TYPES = [
   { value: 'leave_letter', label: 'Leave Letter' },
@@ -140,9 +140,8 @@ export async function fetchDocumentBlob(documentId, { inline = false } = {}) {
   if (useMock()) {
     throw new Error('Preview is not available in mock mode');
   }
-  const token = getToken();
   const res = await fetch(documentDownloadUrl(documentId, { inline }), {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: apiHeaders(),
   });
   if (!res.ok) {
     throw new Error(inline ? 'Could not open document' : 'Download failed');
@@ -185,9 +184,7 @@ export async function downloadDocument(documentId, fileName) {
 }
 
 async function fetchJson(path, options = {}) {
-  const headers = { Accept: 'application/json', ...options.headers };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = apiHeaders(options.headers);
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const text = await res.text();
   let data = null;
@@ -207,9 +204,7 @@ async function fetchJson(path, options = {}) {
 }
 
 async function fetchForm(path, formData) {
-  const headers = { Accept: 'application/json' };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = apiHeaders();
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers,

@@ -47,6 +47,12 @@ export const navItems = [
     roles: STAFF_MANAGER_ROLES,
   },
   {
+    id: 'users',
+    label: 'Users',
+    icon: 'UserCog',
+    roles: STAFF_MANAGER_ROLES,
+  },
+  {
     id: 'audit-logs',
     label: 'Audit Logs',
     icon: 'ScrollText',
@@ -66,6 +72,7 @@ export function canAccessNavItem(item, user) {
   if (!item?.roles?.length) return true;
   if (item.id === 'edit-approvals') return canApproveEditRequests(user);
   if (item.id === 'teachers') return canManageTeachers(user);
+  if (item.id === 'users') return canManageUsers(user);
   if (item.id === 'audit-logs') return canViewAuditLogs(user);
   const role = String(user?.role || user?.role_id || '').toUpperCase();
   return item.roles.map((r) => String(r).toUpperCase()).includes(role);
@@ -77,6 +84,10 @@ export function canApproveEditRequests(user) {
 
 /** Teachers page — In-charge (e.g. A. Pune) and school leadership only. */
 export function canManageTeachers(user) {
+  return hasLeadershipRole(user);
+}
+
+export function canManageUsers(user) {
   return hasLeadershipRole(user);
 }
 

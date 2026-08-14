@@ -77,27 +77,46 @@ export async function findApproverForSection(classSectionId) {
     };
   }
 
-  // Fallback: first active Incharge / Admin user
-  const fallback = await prisma.tblUsers.findFirst({
+  // Bright Future: INCHARGE first. New 3-role schools have no INCHARGE → ADMIN.
+  const incharge = await prisma.tblUsers.findFirst({
     where: {
       int_status: { not: 0 },
       OR: [
         { role_id: { contains: 'INCHARGE', mode: 'insensitive' } },
-        { role_id: { contains: 'ADMIN', mode: 'insensitive' } },
         { tblRoles: { Text: { contains: 'Incharge', mode: 'insensitive' } } },
+      ],
+    },
+    include: { tblRoles: true },
+    orderBy: { name: 'asc' },
+  });
+  if (incharge) {
+    return {
+      userId: incharge.user_id,
+      name: incharge.name,
+      phone: incharge.phone,
+      roleId: incharge.role_id,
+      roleName: incharge.tblRoles?.Text,
+    };
+  }
+
+  const admin = await prisma.tblUsers.findFirst({
+    where: {
+      int_status: { not: 0 },
+      OR: [
+        { role_id: { contains: 'ADMIN', mode: 'insensitive' } },
         { tblRoles: { Text: { contains: 'Admin', mode: 'insensitive' } } },
       ],
     },
     include: { tblRoles: true },
     orderBy: { name: 'asc' },
   });
-  if (!fallback) return null;
+  if (!admin) return null;
   return {
-    userId: fallback.user_id,
-    name: fallback.name,
-    phone: fallback.phone,
-    roleId: fallback.role_id,
-    roleName: fallback.tblRoles?.Text,
+    userId: admin.user_id,
+    name: admin.name,
+    phone: admin.phone,
+    roleId: admin.role_id,
+    roleName: admin.tblRoles?.Text,
   };
 }
 

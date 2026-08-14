@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { getIO } from '../lib/realtime.js';
 import { sendFcmToTokens } from '../lib/fcm.js';
+import { getRequestTenant } from '../lib/tenantContext.js';
 
 /**
  * Resolve parent user ids who should see this notice on their board.
@@ -76,8 +77,9 @@ export async function notifyParentsOfNotice(notice, {
   // Realtime (app open / connected)
   const io = getIO();
   if (io) {
+    const tenant = getRequestTenant() || 'apex';
     for (const uid of userIds) {
-      io.to(`user:${uid}`).emit('notice:new', payload);
+      io.to(`user:${tenant}:${uid}`).emit('notice:new', payload);
     }
   }
 

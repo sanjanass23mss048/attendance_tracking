@@ -18,9 +18,11 @@ import {
   Sun,
   Trophy,
   Upload,
+  X,
 } from 'lucide-react';
-import { getClasses } from '../services/classService.js';
+import { getClasses, createClass } from '../services/classService.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
+import { networkErrorMessage, showToast } from '../services/toast.js';
 import {
   buildDefaultWeeklyTimetable,
   DEFAULT_TEACHERS,
@@ -164,21 +166,35 @@ export default function ClassesPage() {
   const [editCell, setEditCell] = useState(null);
   const timetablePanelRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showAddClass, setShowAddClass] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [newSections, setNewSections] = useState('A');
+  const [savingClass, setSavingClass] = useState(false);
 
-  useEffect(() => {
-    getClasses()
+  const loadClasses = useCallback(() => {
+    setLoading(true);
+    return getClasses({ force: true })
       .then((data) => {
         const list = data.classes || [];
         setClasses(list);
         if (list.length) {
-          setSelectedClassId(list[0].id);
-          const firstSec = list[0].sections?.[0]?.name;
-          if (firstSec) setSectionName(firstSec);
+          setSelectedClassId((prev) => {
+            const next = prev && list.some((c) => c.id === prev) ? prev : list[0].id;
+            const current = list.find((c) => c.id === next);
+            const firstSec = current?.sections?.[0]?.name;
+            if (firstSec) setSectionName(firstSec);
+            return next;
+          });
         }
+        setError('');
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => setError(networkErrorMessage(err) || err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadClasses();
+  }, [loadClasses]);
 
   useEffect(() => {
     const onChange = () => {
@@ -296,6 +312,37 @@ export default function ClassesPage() {
   );
   const classStudentCount = (sections || []).reduce((n, s) => n + (s.studentCount || 0), 0);
 
+  const handleAddClass = async (e) => {
+    e.preventDefault();
+    const className = newClassName.trim();
+    if (!className) {
+      showToast('Enter a class name.', 'error');
+      return;
+    }
+    const sectionNames = newSections
+      .split(/[,;/]+/)
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    setSavingClass(true);
+    try {
+      const result = await createClass({ className, sectionNames });
+      const created = result.class;
+      setShowAddClass(false);
+      setNewClassName('');
+      setNewSections('A');
+      await loadClasses();
+      if (created?.id) {
+        setSelectedClassId(created.id);
+        setSectionName(created.sections?.[0]?.name || 'A');
+      }
+      showToast(`Class ${formatClassLabel(className)} created.`, 'success');
+    } catch (err) {
+      showToast(networkErrorMessage(err) || 'Could not create class', 'error');
+    } finally {
+      setSavingClass(false);
+    }
+  };
+
   const handleExportPdf = () => {
     const headers = ['Day', ...periods.map((p) => `P${p.period} (${p.time})`)];
     const rows = TIMETABLE_DAYS.map((day, di) => {
@@ -336,13 +383,78 @@ export default function ClassesPage() {
         </button>
         <button
           type="button"
-          onClick={() => alert('Add Class: connect to API create endpoint next.')}
+          onClick={() => {
+            setNewClassName('');
+            setNewSections('A');
+            setShowAddClass(true);
+          }}
           className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           <Plus size={16} />
           Add Class
         </button>
       </div>
+
+      {showAddClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form
+            onSubmit={handleAddClass}
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                <Plus className="h-4 w-4 text-indigo-600" />
+                Add class
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddClass(false)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Class name</span>
+                <input
+                  required
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  placeholder="e.g. 10, LKG, Nursery"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">Sections</span>
+                <input
+                  value={newSections}
+                  onChange={(e) => setNewSections(e.target.value)}
+                  placeholder="A or A, B, C"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">Comma-separated section labels. Default is A.</p>
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddClass(false)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingClass}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {savingClass ? 'Creating…' : 'Create class'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

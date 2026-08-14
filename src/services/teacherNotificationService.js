@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE, getToken } from './api.js';
+import { apiFetch, API_BASE, apiHeaders } from './api.js';
 
 export async function getNotificationComposerOptions() {
   return apiFetch('/api/teacher-notifications/composer-options');
@@ -28,9 +28,7 @@ export async function saveTeacherNotification(payload, file) {
   const form = new FormData();
   form.append('payload', JSON.stringify(payload));
   form.append('file', file);
-  const headers = { Accept: 'application/json' };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = apiHeaders();
   const res = await fetch(`${API_BASE}/api/teacher-notifications`, {
     method: 'POST',
     headers,

@@ -11,13 +11,13 @@ text = path.read_text()
 marker = "# ---------------------------\n# TENANT ALM (apex + wildcard)"
 block = """
 # ---------------------------
-# BRIGHT FUTURE ATTENDANCE
+# ATTENDANCE (rioassetmanagement.info)
 # ---------------------------
 
 server {
     listen 80;
     listen [::]:80;
-    server_name attendance.rioassetmanagement.net;
+    server_name rioassetmanagement.info www.rioassetmanagement.info *.rioassetmanagement.info;
     return 301 https://$host$request_uri;
 }
 
@@ -25,7 +25,7 @@ server {
     listen 443 ssl;
     listen [::]:443 ssl;
     http2 on;
-    server_name attendance.rioassetmanagement.net;
+    server_name rioassetmanagement.info www.rioassetmanagement.info *.rioassetmanagement.info;
 
     ssl_certificate     /etc/nginx/ssl/fullchain-wildcard.pem;
     ssl_certificate_key /etc/nginx/ssl/privkey-wildcard.pem;
@@ -47,7 +47,7 @@ server {
 }
 
 """
-if "attendance.rioassetmanagement.net" in text:
+if "rioassetmanagement.info" in text and "*.rioassetmanagement.info" in text:
     print("ALREADY_PRESENT")
 else:
     if marker not in text:
@@ -61,9 +61,11 @@ docker exec alm_nginx nginx -s reload
 echo NGINX_RELOADED
 
 cd /opt/attendance-tracking
-sed -i 's|^CLIENT_ORIGIN=.*|CLIENT_ORIGIN="https://attendance.rioassetmanagement.net"|' server/.env
-grep '^CLIENT_ORIGIN=' server/.env
+sed -i 's|^CLIENT_ORIGIN=.*|CLIENT_ORIGIN="https://rioassetmanagement.info"|' server/.env
+grep '^CLIENT_ORIGIN=' server/.env || true
+grep -q '^MAIN_DOMAIN=' server/.env || echo 'MAIN_DOMAIN=rioassetmanagement.info' >> server/.env
+grep '^MAIN_DOMAIN=' server/.env
 docker-compose -f docker-compose.prod.yml up -d
 sleep 2
-curl -sk -m 5 -H 'Host: attendance.rioassetmanagement.net' https://127.0.0.1/health
+curl -sk -m 5 -H 'Host: rioassetmanagement.info' https://127.0.0.1/health
 echo

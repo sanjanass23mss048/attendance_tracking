@@ -7,6 +7,9 @@ import cors from 'cors';
 import { prisma } from './lib/prisma.js';
 import { requireAuth, toPublicUser } from './middleware/auth.js';
 import { mapRoleToApp } from './services/schoolRepo.js';
+import { userRequiresPasswordChange } from './lib/initialPassword.js';
+import { APEX_TENANT, isAllowedBrowserOrigin } from './lib/tenantHost.js';
+import { findTenantBySlug } from './services/tenantRegistry.js';
 import { initRealtime } from './lib/realtime.js';
 import authRoutes from './routes/auth.js';
 import classRoutes from './routes/classes.js';
@@ -26,13 +29,18 @@ import diaryRoutes from './routes/diary.js';
 import timetableRoutes from './routes/timetable.js';
 import parentRoutes from './routes/parent.js';
 import adminAuditRoutes from './routes/adminAudit.js';
+import setupRoutes from './routes/setup.js';
+import userRoutes from './routes/users.js';
 import { requireStaff } from './middleware/roles.js';
+import { resolveTenant } from './middleware/resolveTenant.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
 import { ensureUploadDir } from './lib/storage.js';
 import { logFcmStartupStatus } from './lib/fcm.js';
 import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
 import { ensureAdminAuditTables } from './lib/ensureAdminAuditTables.js';
+import { ensureTenantRegistry } from './lib/ensureTenantRegistry.js';
+import { getRequestTenant } from './lib/tenantContext.js';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'];
 for (const key of required) {
@@ -68,12 +76,16 @@ app.use(
   cors({
     origin: (origin, cb) => {
       // Same-origin / curl / server-to-server have no Origin header
-      if (!origin || allowAnyOrigin || CORS_ORIGINS.includes(origin)) return cb(null, true);
+      if (!origin || allowAnyOrigin || CORS_ORIGINS.includes(origin) || isAllowedBrowserOrigin(origin)) {
+        return cb(null, true);
+      }
       return cb(null, false);
     },
     credentials: true,
   })
 );
+
+app.use(resolveTenant);
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -109,7 +121,21 @@ if (!isProd) {
   });
 }
 
+app.use('/api/setup', setupRoutes);
 app.use('/api/auth', authRoutes);
+
+app.get('/api/tenant', async (req, res) => {
+  const slug = req.tenant || APEX_TENANT;
+  if (slug === APEX_TENANT) {
+    return res.json({ tenant: APEX_TENANT, database: 'Attendence', host: req.headers.host || null });
+  }
+  const row = await findTenantBySlug(slug);
+  return res.json({
+    tenant: slug,
+    database: row?.dbName || null,
+    host: req.headers.host || null,
+  });
+});
 
 app.get('/api/me', requireAuth, async (req, res) => {
   const user = await prisma.tblUsers.findUnique({
@@ -119,13 +145,17 @@ app.get('/api/me', requireAuth, async (req, res) => {
   if (!user || user.int_status === 0) {
     return res.status(404).json({ error: 'User not found' });
   }
+  const appRole = mapRoleToApp(user.role_id, user.tblRoles?.Text);
+  const requiresPasswordChange = await userRequiresPasswordChange(user, appRole);
   return res.json({
     user: toPublicUser({
       id: user.user_id,
       email: user.email,
       name: user.name,
-      role: mapRoleToApp(user.role_id, user.tblRoles?.Text),
+      role: appRole,
+      tenant: req.tenant || getRequestTenant(),
     }),
+    requiresPasswordChange,
   });
 });
 
@@ -133,6 +163,7 @@ app.use('/api/classes', requireAuth, requireStaff, classRoutes);
 app.use('/api/students/import', requireAuth, requireStaff, studentImportRoutes);
 app.use('/api/students', requireAuth, requireStaff, studentRoutes);
 app.use('/api/teachers', requireAuth, requireStaff, teacherRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/reports', requireAuth, requireStaff, reportRoutes);
 app.use('/api/attendance', requireAuth, requireStaff, attendanceRoutes);
 app.use('/api/holidays', requireAuth, requireStaff, holidayRoutes);
@@ -161,14 +192,26 @@ if (isProd) {
 }
 
 const server = http.createServer(app);
-initRealtime(server, allowAnyOrigin ? true : CORS_ORIGINS);
+initRealtime(
+  server,
+  allowAnyOrigin
+    ? true
+    : (origin, cb) => {
+        if (!origin || CORS_ORIGINS.includes(origin) || isAllowedBrowserOrigin(origin)) {
+          return cb(null, true);
+        }
+        return cb(null, false);
+      }
+);
 
 ensureUploadDir()
+  .then(() => ensureTenantRegistry())
   .then(() => ensureAttendanceStatuses())
   .then(() => ensureStudentImportTables())
   .then(() => ensureTeacherNotificationTables())
   .then(() => ensureAdminAuditTables())
   .then(() => {
+    console.log('Tenant registry ensured');
     console.log('Attendance statuses ensured (P/A/L/H/OH/OF)');
     console.log('Student import tables ensured');
     console.log('Teacher notification tables ensured');

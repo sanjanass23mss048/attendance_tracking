@@ -1,3 +1,5 @@
+import { tenantRequestHeaders } from '../lib/tenantHost.js';
+
 const TOKEN_KEY = 'bfps_auth_token';
 const USER_KEY = 'bfps_auth_user';
 const REMEMBER_EMAIL_KEY = 'bfps_remember_email';
@@ -72,24 +74,26 @@ export function setRememberedEmail(email) {
 }
 
 /**
- * Fetch JSON from the API. Attaches Bearer token when present.
- * @param {string} path - e.g. `/api/classes`
- * @param {RequestInit & { json?: unknown }} [options]
+ * Headers for every API call: auth + school subdomain (X-Tenant / X-Forwarded-Host).
  */
-export async function apiFetch(path, options = {}) {
-  const { json, headers: extraHeaders, ...rest } = options;
+export function apiHeaders(extra = {}) {
   const headers = {
     Accept: 'application/json',
-    ...extraHeaders,
+    ...tenantRequestHeaders(),
+    ...extra,
   };
+  const token = getToken();
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+export async function apiFetch(path, options = {}) {
+  const { json, headers: extraHeaders, ...rest } = options;
+  const headers = apiHeaders(extraHeaders);
 
   if (json !== undefined) {
     headers['Content-Type'] = 'application/json';
-  }
-
-  const token = getToken();
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
   }
 
   let res;

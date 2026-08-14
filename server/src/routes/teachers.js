@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import bcrypt from 'bcrypt';
+import { hashInitialPassword } from '../lib/initialPassword.js';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/roles.js';
@@ -171,7 +171,7 @@ router.post('/', requireAuth, staffManagers, async (req, res) => {
   }
   const body = parsed.data;
   const role = await ensureTeacherRole();
-  const password = await bcrypt.hash('password123', 10);
+  const password = await hashInitialPassword();
   const profileData = profileFromBody({
     staffType: body.staffType || 'teaching',
     role: body.role || 'Subject Teacher',

@@ -1,10 +1,11 @@
 import { PrismaClient } from '@prisma/client';
+import { getRequestPrisma } from './tenantContext.js';
 
 const globalForPrisma = globalThis;
 
 /** Cap pool size so we don't exhaust shared VPS Postgres (max_connections). */
-function datasourceUrl() {
-  const raw = process.env.DATABASE_URL || '';
+export function withPoolLimits(rawUrl) {
+  const raw = rawUrl || '';
   if (!raw) return raw;
   try {
     const u = new URL(raw);
@@ -16,12 +17,32 @@ function datasourceUrl() {
   }
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    datasources: { db: { url: datasourceUrl() } },
+export function createPrismaClient(databaseUrl) {
+  return new PrismaClient({
+    datasources: { db: { url: withPoolLimits(databaseUrl) } },
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
+}
 
-// Always reuse one client (prod + dev) — multiple PrismaClients open many PG sessions.
-globalForPrisma.prisma = prisma;
+/** Bright Future apex database (DATABASE_URL / Attendence). */
+export const controlPrisma =
+  globalForPrisma.controlPrisma ?? createPrismaClient(process.env.DATABASE_URL || '');
+
+globalForPrisma.controlPrisma = controlPrisma;
+
+/**
+ * Request-scoped Prisma (tenant or apex). Falls back to Bright Future DB.
+ * Existing `import { prisma }` call sites keep working under tenant ALS.
+ */
+export const prisma = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      const client = getRequestPrisma() || controlPrisma;
+      const value = client[prop];
+      return typeof value === 'function' ? value.bind(client) : value;
+    },
+  }
+);
+
+globalForPrisma.prisma = controlPrisma;

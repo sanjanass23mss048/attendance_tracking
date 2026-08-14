@@ -20,6 +20,9 @@ import SettingsPage from './components/SettingsPage';
 import SupportCenterPage from './components/SupportCenterPage';
 import ReportsPage from './components/ReportsPage';
 import LoginPage from './components/LoginPage';
+import ChangePasswordPage from './components/ChangePasswordPage';
+import SchoolSetupPage from './components/SchoolSetupPage';
+import UsersPage from './components/UsersPage';
 import WeeklyTimetablePage from './components/WeeklyTimetablePage';
 import TeachersPage from './components/TeachersPage';
 import EditApprovalsPage from './components/EditApprovalsPage';
@@ -61,10 +64,11 @@ import {
   canApproveEditRequests,
   canBulkImportStudents,
   canManageTeachers,
+  canManageUsers,
   canViewAuditLogs,
 } from './data/navItems.js';
 import { getToken, useMock } from './services/api.js';
-import { getMe, logout as authLogout } from './services/authService.js';
+import { getMe, logout as authLogout, getRequiresPasswordChange, setRequiresPasswordChange } from './services/authService.js';
 import { getClasses, resolveSectionId } from './services/classService.js';
 import { SCHOOL_GRADES, SCHOOL_SECTIONS, formatClassLabel } from './data/schoolGrades.js';
 import { getStudents } from './services/studentService.js';
@@ -120,8 +124,21 @@ const EMPTY_DASH_STATS = {
 };
 
 export default function App() {
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/setup')) {
+    return (
+      <>
+        <SchoolSetupPage />
+        <AppToast />
+      </>
+    );
+  }
+  return <AttendanceApp />;
+}
+
+function AttendanceApp() {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);
+  const [requiresPasswordChange, setRequiresPasswordChangeState] = useState(() => getRequiresPasswordChange());
 
   const [activePage, setActivePage] = useState('dashboard');
   const [headerNotifications, setHeaderNotifications] = useState([]);
@@ -293,7 +310,10 @@ export default function App() {
       }
       try {
         const data = await getMe();
-        if (!cancelled) setUser(data.user);
+        if (!cancelled) {
+          setUser(data.user);
+          setRequiresPasswordChangeState(Boolean(data.requiresPasswordChange));
+        }
       } catch {
         authLogout();
         if (!cancelled) setUser(null);
@@ -535,6 +555,10 @@ export default function App() {
       setActivePage('dashboard');
       return;
     }
+    if (pageId === 'users' && !canManageUsers(user)) {
+      setActivePage('dashboard');
+      return;
+    }
     if (pageId === 'student-import' && !canBulkImportStudents(user)) {
       setActivePage('students');
       return;
@@ -559,6 +583,10 @@ export default function App() {
     setActivePage('dashboard');
   }, []);
 
+  const denyUsersAccess = useCallback(() => {
+    setActivePage('dashboard');
+  }, []);
+
   const denyStudentImportAccess = useCallback(() => {
     setActivePage('students');
   }, []);
@@ -575,6 +603,9 @@ export default function App() {
     if (activePage === 'teachers' && !canManageTeachers(user)) {
       denyTeachersAccess();
     }
+    if (activePage === 'users' && !canManageUsers(user)) {
+      denyUsersAccess();
+    }
     if (activePage === 'student-import' && !canBulkImportStudents(user)) {
       denyStudentImportAccess();
     }
@@ -586,6 +617,7 @@ export default function App() {
     user,
     denyEditApprovalsAccess,
     denyTeachersAccess,
+    denyUsersAccess,
     denyStudentImportAccess,
     denyAuditLogsAccess,
   ]);
@@ -1137,8 +1169,27 @@ export default function App() {
       <>
         <LoginPage
           onSuccess={(data) => {
-            if (data?.user && getToken()) setUser(data.user);
-            else showToast('Login saved incompletely — please try again.', 'error');
+            if (data?.user && getToken()) {
+              setUser(data.user);
+              setRequiresPasswordChangeState(Boolean(data.requiresPasswordChange));
+              setRequiresPasswordChange(Boolean(data.requiresPasswordChange));
+            } else showToast('Login saved incompletely — please try again.', 'error');
+          }}
+        />
+        <AppToast />
+      </>
+    );
+  }
+
+  if (requiresPasswordChange) {
+    return (
+      <>
+        <ChangePasswordPage
+          user={user}
+          onSuccess={() => {
+            setRequiresPasswordChangeState(false);
+            setRequiresPasswordChange(false);
+            showToast('Password updated. Welcome!', 'success');
           }}
         />
         <AppToast />
@@ -1346,6 +1397,10 @@ export default function App() {
           ) : activePage === 'teachers' ? (
             canManageTeachers(user) ? (
               <TeachersPage user={user} onAccessDenied={denyTeachersAccess} />
+            ) : null
+          ) : activePage === 'users' ? (
+            canManageUsers(user) ? (
+              <UsersPage user={user} onAccessDenied={denyUsersAccess} />
             ) : null
           ) : activePage === 'audit-logs' ? (
             canViewAuditLogs(user) ? (

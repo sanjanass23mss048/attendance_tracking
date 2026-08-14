@@ -11,6 +11,25 @@ import {
 } from './api.js';
 import { clearClassesCache } from './classService.js';
 
+const REQUIRES_PW_KEY = 'bfps_requires_pw_change';
+
+export function getRequiresPasswordChange() {
+  try {
+    return localStorage.getItem(REQUIRES_PW_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setRequiresPasswordChange(value) {
+  try {
+    if (value) localStorage.setItem(REQUIRES_PW_KEY, '1');
+    else localStorage.removeItem(REQUIRES_PW_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 const MOCK_USERS = {
   'admin@brightfuture.edu.in': {
     id: 'mock-admin',
@@ -102,6 +121,7 @@ export async function login({ email, password, rememberMe = false }) {
   }
   setToken(data.token);
   setStoredUser(data.user);
+  setRequiresPasswordChange(Boolean(data.requiresPasswordChange));
   if (!getToken()) {
     const err = new Error('Could not save login session — check browser storage settings');
     err.status = 500;
@@ -119,6 +139,16 @@ export async function getMe() {
   }
   const data = await apiFetch('/api/me');
   setStoredUser(data.user);
+  setRequiresPasswordChange(Boolean(data.requiresPasswordChange));
+  return data;
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  const data = await apiFetch('/api/auth/change-password', {
+    method: 'PUT',
+    json: { currentPassword, newPassword },
+  });
+  setRequiresPasswordChange(false);
   return data;
 }
 
@@ -129,5 +159,6 @@ export function getCurrentUser() {
 export function logout() {
   clearToken();
   clearStoredUser();
+  setRequiresPasswordChange(false);
   clearClassesCache();
 }

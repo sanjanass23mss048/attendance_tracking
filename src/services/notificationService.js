@@ -61,16 +61,6 @@ export async function getNotificationsFeed() {
   const today = getTodayAttendanceDate();
   const items = [];
 
-  items.push({
-    id: `attendance-today-${today}`,
-    category: 'attendance',
-    title: 'Mark today’s attendance',
-    body: 'Submit attendance for your assigned classes, then send parent SMS for absentees.',
-    time: 'Today',
-    page: 'attendance',
-    tone: 'indigo',
-  });
-
   if (!useMock()) {
     try {
       const [mine, pending] = await Promise.all([
@@ -141,16 +131,6 @@ export async function getNotificationsFeed() {
   } catch {
     // ignore calendar failures
   }
-
-  items.push({
-    id: 'parent-sms-tip',
-    category: 'system',
-    title: 'Parent SMS after confirm',
-    body: 'Absent-parent messages go out when you confirm attendance and tap Send to parents.',
-    time: 'Tip',
-    page: 'attendance',
-    tone: 'slate',
-  });
 
   const seen = readSeenIds();
   const withRead = items.map((n) => ({

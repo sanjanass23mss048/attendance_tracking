@@ -21,6 +21,7 @@ import {
   Library,
   ChevronDown,
   ScrollText,
+  UserCog,
 } from 'lucide-react';
 import { isNavChildActive, navItemsForUser } from '../data/navItems';
 import attendanceLogoMark from '../assets/attendance-logo-mark.png';
@@ -41,6 +42,7 @@ const iconMap = {
   CalendarClock,
   Library,
   ScrollText,
+  UserCog,
 };
 
 export default function Sidebar({

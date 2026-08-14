@@ -129,6 +129,70 @@ export async function listClassesWithSections() {
   return out;
 }
 
+function academicYearLabel(d = new Date()) {
+  const y = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const start = month >= 4 ? y : y - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
+}
+
+/**
+ * Create a class and link one or more sections (e.g. A, B).
+ * Reuses existing tblSection rows when the section label already exists.
+ */
+export async function createClassWithSections({ className, sectionNames, academicYear } = {}) {
+  const name = String(className || '').trim();
+  if (!name) throw new Error('Class name is required.');
+
+  const sections = [...new Set((sectionNames?.length ? sectionNames : ['A']).map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
+  if (!sections.length) throw new Error('At least one section is required.');
+
+  const existingByName = await prisma.tblClass.findFirst({ where: { Class_Name: name } });
+  if (existingByName) {
+    const err = new Error(`Class “${name}” already exists.`);
+    err.code = 'CLASS_EXISTS';
+    throw err;
+  }
+
+  const classId = `CLS-${name}`.slice(0, 50);
+  const idTaken = await prisma.tblClass.findUnique({ where: { Class_id: classId } });
+  const finalClassId = idTaken ? newId('CLS-') : classId;
+  const year = String(academicYear || '').trim() || academicYearLabel();
+
+  await prisma.tblClass.create({
+    data: {
+      Class_id: finalClassId,
+      Class_Name: name,
+      Academic_Year: year,
+    },
+  });
+
+  for (const sectionName of sections) {
+    const sectionId = `SEC-${sectionName}`.slice(0, 50);
+    await prisma.tblSection.upsert({
+      where: { Section_id: sectionId },
+      create: { Section_id: sectionId, Section_Name: sectionName, Int_Status: 1 },
+      update: { Section_Name: sectionName, Int_Status: 1 },
+    });
+
+    let csId = `CS-${name}-${sectionName}`.slice(0, 50);
+    const csTaken = await prisma.tblClass_Section.findUnique({ where: { Class_Section_id: csId } });
+    if (csTaken) csId = newId('CS-');
+
+    await prisma.tblClass_Section.create({
+      data: {
+        Class_Section_id: csId,
+        Class_id: finalClassId,
+        Section_id: sectionId,
+        int_status: 1,
+      },
+    });
+  }
+
+  const all = await listClassesWithSections();
+  return all.find((c) => c.id === finalClassId) || null;
+}
+
 /** Roles that can see / manage every class-section. */
 export const FULL_ACCESS_ROLES = new Set([
   'INCHARGE',

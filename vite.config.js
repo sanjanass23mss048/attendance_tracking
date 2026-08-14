@@ -51,20 +51,25 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), calendarificProxyPlugin(apiKey)],
     server: {
+      host: true,
+      allowedHosts: true,
       proxy: {
-        // Same-origin `/api` + Socket.IO in dev when VITE_API_URL is empty
+        // Keep the browser Host (test.localhost) so the API can switch school DBs.
         '/api': {
           target: apiTarget,
-          changeOrigin: true,
+          changeOrigin: false,
+          xfwd: true,
         },
         '/socket.io': {
           target: apiTarget,
-          changeOrigin: true,
+          changeOrigin: false,
           ws: true,
+          xfwd: true,
         },
         '/health': {
           target: apiTarget,
-          changeOrigin: true,
+          changeOrigin: false,
+          xfwd: true,
         },
       },
     },

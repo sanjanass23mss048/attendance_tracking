@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { login } from '../services/authService.js';
 import { getRememberedEmail } from '../services/api.js';
+import { isApexBrowserHost } from '../lib/tenantHost.js';
 import { networkErrorMessage } from '../services/toast.js';
 import attendanceLogo from '../assets/attendance-logo.png';
 import attendanceLogoMark from '../assets/attendance-logo-mark.png';
@@ -26,7 +27,7 @@ const DEFAULT_EMAIL = 'incharge@brightfuture.edu.in';
 
 export default function LoginPage({ onSuccess }) {
   const remembered = getRememberedEmail();
-  const [email, setEmail] = useState(remembered || DEFAULT_EMAIL);
+  const [email, setEmail] = useState(remembered || (isApexBrowserHost() ? DEFAULT_EMAIL : ''));
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);

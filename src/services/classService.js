@@ -78,6 +78,19 @@ export async function getClasses({ force = false } = {}) {
   return data;
 }
 
+export async function createClass({ className, sectionNames, academicYear } = {}) {
+  const data = await apiFetch('/api/classes', {
+    method: 'POST',
+    json: {
+      className,
+      sectionNames,
+      academicYear,
+    },
+  });
+  clearClassesCache();
+  return data;
+}
+
 export function clearClassesCache() {
   classesCache = null;
   classesCacheAt = 0;
