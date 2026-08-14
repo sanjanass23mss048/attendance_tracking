@@ -10,8 +10,11 @@ cp /tmp/attendance.env.backup /opt/attendance-tracking/server/.env
 sed -i 's#@127.0.0.1:5432/#@host.docker.internal:5432/#g' /opt/attendance-tracking/server/.env
 # Prefer HTTPS domain (+ IP fallback) for CORS / Socket.IO
 grep -q 'CLIENT_ORIGIN=' /opt/attendance-tracking/server/.env \
-  && sed -i 's#^CLIENT_ORIGIN=.*#CLIENT_ORIGIN="https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"#' /opt/attendance-tracking/server/.env
+  && sed -i 's#^CLIENT_ORIGIN=.*#CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"#' /opt/attendance-tracking/server/.env
 sed -i 's#^NODE_ENV=.*#NODE_ENV=production#' /opt/attendance-tracking/server/.env
+
+# Local dev Postgres host port (avoid clash with host Postgres)
+sed -i 's#"5432:5432"#"5437:5432"#g; s#"5436:5432"#"5437:5432"#g' /opt/attendance-tracking/docker-compose.yml
 
 # Ensure FCM path is set (file itself is secret — must already be on host)
 if ! grep -q '^FIREBASE_SERVICE_ACCOUNT_PATH=' /opt/attendance-tracking/server/.env; then
