@@ -21,7 +21,7 @@ class _ParentTimetableScreenState extends State<ParentTimetableScreen> {
   bool loading = true;
   String? error;
   ParentStudentsState? _students;
-  _TimetableMode _mode = _TimetableMode.exam;
+  _TimetableMode _mode = _TimetableMode.classWeekly;
 
   @override
   void initState() {

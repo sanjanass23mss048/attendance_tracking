@@ -117,6 +117,7 @@ export default function Header({
   onNotificationsClick,
   onNotificationItemClick,
   onNotificationsOpened,
+  onMarkAllNotificationsRead,
   user,
   onLogout,
   dateLabel,
@@ -216,20 +217,34 @@ export default function Header({
 
           {openMenu === 'notifications' ? (
             <div className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
-              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+              <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
                 <p className="text-sm font-bold text-gray-900">Notifications</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenMenu(null);
-                    onNotificationsOpened?.();
-                    onNotificationsClick?.();
-                  }}
-                  className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
-                >
-                  View all
-                  <ChevronRight size={14} />
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  {badgeCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onMarkAllNotificationsRead?.(notifications);
+                        setOpenMenu(null);
+                      }}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      Mark all as read
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      onNotificationsOpened?.();
+                      onNotificationsClick?.();
+                    }}
+                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                  >
+                    View all
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
               <ul className="max-h-72 overflow-y-auto py-1">
                 {notifications.length === 0 ? (
@@ -250,9 +265,22 @@ export default function Header({
                             onNotificationsClick?.();
                           }
                         }}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50"
+                        className={`w-full px-4 py-3 text-left hover:bg-gray-50 ${
+                          n.read ? '' : 'bg-indigo-50/50'
+                        }`}
                       >
-                        <p className="text-sm font-semibold text-gray-900">{n.title}</p>
+                        <div className="flex items-start justify-between gap-2">
+                          <p
+                            className={`text-sm ${
+                              n.read ? 'font-semibold text-gray-900' : 'font-bold text-gray-900'
+                            }`}
+                          >
+                            {n.title}
+                          </p>
+                          {!n.read ? (
+                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />
+                          ) : null}
+                        </div>
                         <p className="mt-0.5 text-xs text-gray-500">{n.body}</p>
                         <p className="mt-1 text-[11px] font-medium text-indigo-600">{n.time}</p>
                       </button>

@@ -1180,6 +1180,7 @@ export default function App() {
             handleNavigate(n.page || 'notifications');
           }}
           onNotificationsOpened={() => {}}
+          onMarkAllNotificationsRead={clearNotificationBadge}
           user={user}
           onLogout={handleLogout}
           dateLabel={attendanceDateLabel}
