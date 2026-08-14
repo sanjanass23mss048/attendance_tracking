@@ -15,6 +15,7 @@ import {
 } from '../services/studentImportService.js';
 import { extractStudentsFromChits } from '../services/studentChitService.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import { continueTenantAls, restoreTenantAls } from '../middleware/restoreTenantAls.js';
 
 const router = Router();
 
@@ -71,30 +72,34 @@ const chitUpload = multer({
 
 function uploadMiddleware(req, res, next) {
   upload.single('file')(req, res, (err) => {
-    if (!err) return next();
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File is too large. Maximum size is 15 MB.' });
+    continueTenantAls(req, () => {
+      if (!err) return next();
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'File is too large. Maximum size is 15 MB.' });
+        }
+        return res.status(400).json({ error: 'Upload failed. Please try again.' });
       }
-      return res.status(400).json({ error: 'Upload failed. Please try again.' });
-    }
-    return res.status(400).json({ error: err.message || 'Unsupported file type' });
+      return res.status(400).json({ error: err.message || 'Unsupported file type' });
+    });
   });
 }
 
 function chitUploadMiddleware(req, res, next) {
   chitUpload.array('photos', 8)(req, res, (err) => {
-    if (!err) return next();
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'Photo is too large. Maximum size is 12 MB each.' });
+    continueTenantAls(req, () => {
+      if (!err) return next();
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'Photo is too large. Maximum size is 12 MB each.' });
+        }
+        if (err.code === 'LIMIT_FILE_COUNT') {
+          return res.status(400).json({ error: 'You can upload up to 8 chit photos at once.' });
+        }
+        return res.status(400).json({ error: 'Photo upload failed. Please try again.' });
       }
-      if (err.code === 'LIMIT_FILE_COUNT') {
-        return res.status(400).json({ error: 'You can upload up to 8 chit photos at once.' });
-      }
-      return res.status(400).json({ error: 'Photo upload failed. Please try again.' });
-    }
-    return res.status(400).json({ error: err.message || 'Unsupported photo type' });
+      return res.status(400).json({ error: err.message || 'Unsupported photo type' });
+    });
   });
 }
 
@@ -137,7 +142,7 @@ router.get('/template', requireAuth, importManagers, async (_req, res) => {
   }
 });
 
-router.post('/chits', requireAuth, importManagers, chitUploadMiddleware, async (req, res) => {
+router.post('/chits', requireAuth, importManagers, chitUploadMiddleware, restoreTenantAls, async (req, res) => {
   try {
     const files = req.files || [];
     if (!files.length) {
@@ -157,7 +162,7 @@ router.post('/chits', requireAuth, importManagers, chitUploadMiddleware, async (
   }
 });
 
-router.post('/validate', requireAuth, importManagers, uploadMiddleware, async (req, res) => {
+router.post('/validate', requireAuth, importManagers, uploadMiddleware, restoreTenantAls, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file selected' });

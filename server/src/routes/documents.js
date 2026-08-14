@@ -16,6 +16,7 @@ import {
   storageKeyFor,
 } from '../lib/storage.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import { restoreTenantAls } from '../middleware/restoreTenantAls.js';
 
 const router = Router();
 
@@ -67,7 +68,7 @@ router.get('/', requireAuth, async (req, res) => {
   return res.json({ documents: docs });
 });
 
-router.post('/', requireAuth, upload.single('file'), async (req, res) => {
+router.post('/', requireAuth, upload.single('file'), restoreTenantAls, async (req, res) => {
   const parsed = uploadFieldsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid body', details: parsed.error.flatten() });

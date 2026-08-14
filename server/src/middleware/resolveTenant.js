@@ -11,12 +11,14 @@ export async function resolveTenant(req, res, next) {
   const path = req.path || req.originalUrl || '';
   if (path.startsWith('/api/setup') || path.startsWith('/health')) {
     req.tenant = APEX_TENANT;
+    req.prisma = controlPrisma;
     return tenantAls.run({ prisma: controlPrisma, tenant: APEX_TENANT }, () => next());
   }
 
   const slug = resolveRequestTenantSlug(req);
   if (!slug || slug === APEX_TENANT) {
     req.tenant = APEX_TENANT;
+    req.prisma = controlPrisma;
     return tenantAls.run({ prisma: controlPrisma, tenant: APEX_TENANT }, () => next());
   }
 
@@ -29,6 +31,7 @@ export async function resolveTenant(req, res, next) {
       });
     }
     req.tenant = slug;
+    req.prisma = client;
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[tenant] ${slug} ${req.method} ${req.originalUrl}`);
     }

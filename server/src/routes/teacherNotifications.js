@@ -8,6 +8,7 @@ import {
 } from '../services/teacherNotificationService.js';
 import { listEnrollmentsForSection, canAccessSection } from '../services/schoolRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import { continueTenantAls } from '../middleware/restoreTenantAls.js';
 
 const router = Router();
 
@@ -39,11 +40,13 @@ const upload = multer({
 
 function uploadOptional(req, res, next) {
   upload.single('file')(req, res, (err) => {
-    if (!err) return next();
-    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Attachment is too large (max 10 MB).' });
-    }
-    return res.status(400).json({ error: err.message || 'Upload failed' });
+    continueTenantAls(req, () => {
+      if (!err) return next();
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Attachment is too large (max 10 MB).' });
+      }
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    });
   });
 }
 
