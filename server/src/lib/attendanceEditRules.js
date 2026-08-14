@@ -1,9 +1,12 @@
 import crypto from 'crypto';
 
-/** Today's date as YYYY-MM-DD in Asia/Kolkata (school timezone). */
-export function todayYmd(timeZone = process.env.SCHOOL_TIMEZONE || 'Asia/Kolkata') {
+import { env } from './appSettings.js';
+
+/** Today's date as YYYY-MM-DD in the school timezone. */
+export function todayYmd(timeZone) {
+  const tz = timeZone || env('SCHOOL_TIMEZONE', 'Asia/Kolkata');
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
+    timeZone: tz,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -22,7 +25,10 @@ export function isFutureAttendanceDate(dateStr) {
   return String(dateStr) > todayYmd();
 }
 
-export const EDIT_PERMISSION_MINUTES = Number(process.env.EDIT_PERMISSION_MINUTES) || 30;
+export function getEditPermissionMinutes() {
+  const n = Number(env('EDIT_PERMISSION_MINUTES', '30'));
+  return Number.isFinite(n) && n > 0 ? n : 30;
+}
 
 export const APPROVER_ROLES = new Set([
   'INCHARGE',

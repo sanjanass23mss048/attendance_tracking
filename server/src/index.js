@@ -31,6 +31,7 @@ import parentRoutes from './routes/parent.js';
 import adminAuditRoutes from './routes/adminAudit.js';
 import setupRoutes from './routes/setup.js';
 import userRoutes from './routes/users.js';
+import appSettingsRoutes from './routes/appSettings.js';
 import { requireStaff } from './middleware/roles.js';
 import { resolveTenant } from './middleware/resolveTenant.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
@@ -40,6 +41,7 @@ import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
 import { ensureAdminAuditTables } from './lib/ensureAdminAuditTables.js';
 import { ensureTenantRegistry } from './lib/ensureTenantRegistry.js';
+import { loadAppSettings } from './lib/appSettings.js';
 import { getRequestTenant } from './lib/tenantContext.js';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'];
@@ -177,6 +179,7 @@ app.use('/api/diary', diaryRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/parent', parentRoutes);
 app.use('/api/admin/audit-logs', adminAuditRoutes);
+app.use('/api/settings', appSettingsRoutes);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
@@ -209,13 +212,15 @@ ensureUploadDir()
   .then(() => ensureAttendanceStatuses())
   .then(() => ensureStudentImportTables())
   .then(() => ensureTeacherNotificationTables())
-  .then(() => ensureAdminAuditTables())
-  .then(() => {
+    .then(() => ensureAdminAuditTables())
+    .then(() => loadAppSettings())
+    .then(() => {
     console.log('Tenant registry ensured');
     console.log('Attendance statuses ensured (P/A/L/H/OH/OF)');
     console.log('Student import tables ensured');
     console.log('Teacher notification tables ensured');
     console.log('Admin audit tables ensured');
+    console.log('App settings table ensured (SMS / WhatsApp / FCM from DB)');
   })
   .catch((err) => {
     console.error('Startup init failed', err);

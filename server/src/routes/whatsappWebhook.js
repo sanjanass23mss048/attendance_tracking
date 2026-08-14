@@ -7,6 +7,7 @@ import {
   findLatestPendingForApprover,
 } from '../services/editRequestRepo.js';
 import { verifyMetaSignature, normalizePhone } from '../lib/attendanceEditRules.js';
+import { env } from '../lib/appSettings.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { findClassSectionById } from '../services/schoolRepo.js';
 import { toDateString } from '../lib/ids.js';
@@ -19,7 +20,7 @@ router.get('/', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token === env('WHATSAPP_VERIFY_TOKEN')) {
     return res.status(200).send(challenge);
   }
   return res.sendStatus(403);
@@ -53,13 +54,13 @@ router.post('/', async (req, res) => {
   const signature = req.get('x-hub-signature-256');
   const raw = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
   const skipVerify =
-    process.env.WHATSAPP_WEBHOOK_SKIP_VERIFY === 'true' ||
-    (process.env.NODE_ENV !== 'production' && !process.env.WHATSAPP_APP_SECRET);
+    env('WHATSAPP_WEBHOOK_SKIP_VERIFY') === 'true' ||
+    (process.env.NODE_ENV !== 'production' && !env('WHATSAPP_APP_SECRET'));
   if (
     !skipVerify &&
-    !verifyMetaSignature(raw, signature, process.env.WHATSAPP_APP_SECRET)
+    !verifyMetaSignature(raw, signature, env('WHATSAPP_APP_SECRET'))
   ) {
-    console.warn('[whatsapp-webhook] invalid signature — update WHATSAPP_APP_SECRET in Meta App Settings → Basic, or set WHATSAPP_WEBHOOK_SKIP_VERIFY=true for local dev');
+    console.warn('[whatsapp-webhook] invalid signature — update WHATSAPP_APP_SECRET in Settings, or set WHATSAPP_WEBHOOK_SKIP_VERIFY=true for local dev');
     return res.sendStatus(401);
   }
 

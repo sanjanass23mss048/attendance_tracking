@@ -13,6 +13,7 @@ import {
 import { seedNewTenant } from './tenantSeedService.js';
 import { ensureAttendanceStatuses } from '../lib/statusMap.js';
 import { ensureAdminAuditTables } from '../lib/ensureAdminAuditTables.js';
+import { loadAppSettings } from '../lib/appSettings.js';
 import { ensureStudentImportTables } from '../lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from '../lib/ensureTeacherNotificationTables.js';
 import { tenantAls } from '../lib/tenantContext.js';
@@ -146,6 +147,7 @@ export async function createSchoolTenant({
         await ensureStudentImportTables();
         await ensureTeacherNotificationTables();
         await ensureAdminAuditTables();
+        await loadAppSettings();
         await seedNewTenant(tenantPrisma, {
           schoolName: name,
           includeKg: kg,

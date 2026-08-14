@@ -2,6 +2,22 @@ import { controlPrisma } from '../lib/prisma.js';
 import { tenantAls } from '../lib/tenantContext.js';
 import { APEX_TENANT, resolveRequestTenantSlug } from '../lib/tenantHost.js';
 import { getPrismaForSlug } from '../services/tenantPrismaCache.js';
+import { loadAppSettings } from '../lib/appSettings.js';
+
+async function bindTenant(req, res, next, prismaClient, tenant, { loadSettings = true } = {}) {
+  req.tenant = tenant;
+  req.prisma = prismaClient;
+  return tenantAls.run({ prisma: prismaClient, tenant }, async () => {
+    if (loadSettings) {
+      try {
+        await loadAppSettings();
+      } catch (err) {
+        console.warn('app settings load', err?.message || err);
+      }
+    }
+    next();
+  });
+}
 
 /**
  * Bind this request to the school Prisma client (or Bright Future on apex).
@@ -9,17 +25,15 @@ import { getPrismaForSlug } from '../services/tenantPrismaCache.js';
  */
 export async function resolveTenant(req, res, next) {
   const path = req.path || req.originalUrl || '';
+  const loadSettings = path.startsWith('/api') && !path.startsWith('/api/setup');
+
   if (path.startsWith('/api/setup') || path.startsWith('/health')) {
-    req.tenant = APEX_TENANT;
-    req.prisma = controlPrisma;
-    return tenantAls.run({ prisma: controlPrisma, tenant: APEX_TENANT }, () => next());
+    return bindTenant(req, res, next, controlPrisma, APEX_TENANT, { loadSettings: false });
   }
 
   const slug = resolveRequestTenantSlug(req);
   if (!slug || slug === APEX_TENANT) {
-    req.tenant = APEX_TENANT;
-    req.prisma = controlPrisma;
-    return tenantAls.run({ prisma: controlPrisma, tenant: APEX_TENANT }, () => next());
+    return bindTenant(req, res, next, controlPrisma, APEX_TENANT, { loadSettings });
   }
 
   try {
@@ -30,12 +44,10 @@ export async function resolveTenant(req, res, next) {
         code: 'UNKNOWN_TENANT',
       });
     }
-    req.tenant = slug;
-    req.prisma = client;
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[tenant] ${slug} ${req.method} ${req.originalUrl}`);
     }
-    return tenantAls.run({ prisma: client, tenant: slug }, () => next());
+    return bindTenant(req, res, next, client, slug, { loadSettings });
   } catch (err) {
     console.error('resolveTenant', err);
     return res.status(503).json({ error: 'School database unavailable' });

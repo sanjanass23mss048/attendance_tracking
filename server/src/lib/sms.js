@@ -1,7 +1,7 @@
 /**
  * Parent SMS delivery (server-only).
  *
- * Providers (set SMS_PROVIDER):
+ * Providers (set SMS_PROVIDER in DB Settings or .env):
  * - twilio  → SMS_TWILIO_ACCOUNT_SID, SMS_TWILIO_AUTH_TOKEN, SMS_TWILIO_FROM
  * - msg91   → SMS_MSG91_AUTH_KEY, SMS_MSG91_SENDER_ID, SMS_MSG91_TEMPLATE_ID (DLT Flow)
  * - console → logs only (local / no SMS account yet)
@@ -9,30 +9,26 @@
  * Optional: SMS_DEFAULT_COUNTRY=91 (India) for 10-digit numbers.
  */
 
-const DEFAULT_COUNTRY = String(process.env.SMS_DEFAULT_COUNTRY || '91').replace(/\D/g, '');
+import { env } from './appSettings.js';
+
+function defaultCountry() {
+  return String(env('SMS_DEFAULT_COUNTRY', '91')).replace(/\D/g, '');
+}
 
 export function isSmsConfigured() {
-  const provider = String(process.env.SMS_PROVIDER || 'console').toLowerCase();
+  const provider = String(env('SMS_PROVIDER', 'console')).toLowerCase();
   if (provider === 'console') return true;
   if (provider === 'twilio') {
-    return Boolean(
-      process.env.SMS_TWILIO_ACCOUNT_SID &&
-        process.env.SMS_TWILIO_AUTH_TOKEN &&
-        process.env.SMS_TWILIO_FROM
-    );
+    return Boolean(env('SMS_TWILIO_ACCOUNT_SID') && env('SMS_TWILIO_AUTH_TOKEN') && env('SMS_TWILIO_FROM'));
   }
   if (provider === 'msg91') {
-    return Boolean(
-      process.env.SMS_MSG91_AUTH_KEY &&
-        process.env.SMS_MSG91_SENDER_ID &&
-        process.env.SMS_MSG91_TEMPLATE_ID
-    );
+    return Boolean(env('SMS_MSG91_AUTH_KEY') && env('SMS_MSG91_SENDER_ID') && env('SMS_MSG91_TEMPLATE_ID'));
   }
   return false;
 }
 
 /** Normalize to digits with country code (MSG91 wants 91XXXXXXXXXX). */
-export function normalizePhone(raw, country = DEFAULT_COUNTRY) {
+export function normalizePhone(raw, country = defaultCountry()) {
   if (!raw) return null;
   let digits = String(raw).replace(/\D/g, '');
   if (!digits) return null;
@@ -53,9 +49,9 @@ function e164(digits) {
 }
 
 async function sendTwilio({ to, body }) {
-  const sid = process.env.SMS_TWILIO_ACCOUNT_SID;
-  const token = process.env.SMS_TWILIO_AUTH_TOKEN;
-  const from = process.env.SMS_TWILIO_FROM;
+  const sid = env('SMS_TWILIO_ACCOUNT_SID');
+  const token = env('SMS_TWILIO_AUTH_TOKEN');
+  const from = env('SMS_TWILIO_FROM');
   const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
   const auth = Buffer.from(`${sid}:${token}`).toString('base64');
   const params = new URLSearchParams({
@@ -94,9 +90,9 @@ async function sendTwilio({ to, body }) {
  *   SMS_MSG91_TEMPLATE_ID
  */
 async function sendMsg91({ to, body, vars = {} }) {
-  const authKey = process.env.SMS_MSG91_AUTH_KEY;
-  const sender = process.env.SMS_MSG91_SENDER_ID;
-  const templateId = process.env.SMS_MSG91_TEMPLATE_ID;
+  const authKey = env('SMS_MSG91_AUTH_KEY');
+  const sender = env('SMS_MSG91_SENDER_ID');
+  const templateId = env('SMS_MSG91_TEMPLATE_ID');
 
   if (!authKey || !sender || !templateId) {
     throw new Error(
@@ -161,7 +157,7 @@ export async function sendSms({ to, body, vars = {} }) {
     return { ok: false, error: 'Invalid or missing phone number', to: String(to || '') };
   }
 
-  const provider = String(process.env.SMS_PROVIDER || 'console').toLowerCase();
+  const provider = String(env('SMS_PROVIDER', 'console')).toLowerCase();
   const text = String(body || '').trim();
   if (!text && provider !== 'msg91') {
     return { ok: false, error: 'Empty message body', to: phone };
@@ -176,7 +172,7 @@ export async function sendSms({ to, body, vars = {} }) {
     if (!isSmsConfigured()) {
       return {
         ok: false,
-        error: `SMS_PROVIDER=${provider} is not fully configured in server/.env`,
+        error: `SMS_PROVIDER=${provider} is not fully configured in Settings`,
         to: phone,
       };
     }

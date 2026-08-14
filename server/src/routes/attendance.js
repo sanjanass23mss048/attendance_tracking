@@ -43,6 +43,7 @@ import {
 import { attendanceHeaderId } from '../lib/ids.js';
 import { isSmsConfigured, parentContactsForEnrollments, resolveRecipientPhones, sendSms } from '../lib/sms.js';
 import { isWhatsAppConfigured, sendAbsenceAlertWhatsApp } from '../lib/whatsapp.js';
+import { env } from '../lib/appSettings.js';
 
 const router = Router();
 
@@ -672,7 +673,7 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     },
     sms: {
       configured: isSmsConfigured(),
-      provider: String(process.env.SMS_PROVIDER || 'console').toLowerCase(),
+      provider: String(env('SMS_PROVIDER', 'console')).toLowerCase(),
       sent: sendSmsChannel ? countChannel('sms', (c) => c.ok && !c.skipped) : 0,
       skipped: sendSmsChannel ? countChannel('sms', (c) => c.skipped) : 0,
       failed: sendSmsChannel ? countChannel('sms', (c) => !c.ok && !c.skipped) : 0,

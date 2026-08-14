@@ -2,10 +2,14 @@
  * WhatsApp Cloud API (Meta) — credentials stay server-side only.
  * Uses approved template `attendance_appr`, then sends Approve/Deny buttons.
  */
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
+import { env } from './appSettings.js';
+
+function graphVersion() {
+  return env('META_GRAPH_VERSION', 'v21.0');
+}
 
 function configured() {
-  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+  return Boolean(env('WHATSAPP_ACCESS_TOKEN') && env('WHATSAPP_PHONE_NUMBER_ID'));
 }
 
 export function isWhatsAppConfigured() {
@@ -13,14 +17,14 @@ export function isWhatsAppConfigured() {
 }
 
 function graphUrl() {
-  return `https://graph.facebook.com/${GRAPH_VERSION}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  return `https://graph.facebook.com/${graphVersion()}/${env('WHATSAPP_PHONE_NUMBER_ID')}/messages`;
 }
 
 async function postMessage(payload) {
   const res = await fetch(graphUrl(), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${env('WHATSAPP_ACCESS_TOKEN')}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
@@ -85,8 +89,8 @@ export async function sendAttendanceEditApprovalMessage({
   }
 
   const classLabel = `${className}${sectionName ? `-${sectionName}` : ''}`;
-  const templateName = process.env.WHATSAPP_TEMPLATE_NAME || 'attendance_approval';
-  const languageCode = process.env.WHATSAPP_TEMPLATE_LANG || 'en';
+  const templateName = env('WHATSAPP_TEMPLATE_NAME', 'attendance_approval');
+  const languageCode = env('WHATSAPP_TEMPLATE_LANG', 'en');
 
   const bodyParams =
     templateName === 'attendance_approval'
@@ -224,7 +228,7 @@ export async function sendAbsenceAlertWhatsApp({
   date,
 }) {
   if (!configured()) {
-    console.warn('[whatsapp] Skipping absence alert — WHATSAPP_* env not configured');
+    console.warn('[whatsapp] Skipping absence alert — WhatsApp is not configured in Settings');
     return { ok: true, skipped: true, provider: 'whatsapp', to: null, reason: 'not_configured' };
   }
 
@@ -233,8 +237,8 @@ export async function sendAbsenceAlertWhatsApp({
     return { ok: false, skipped: false, provider: 'whatsapp', error: 'Missing phone number', to: '' };
   }
 
-  const templateName = process.env.WHATSAPP_ABSENCE_TEMPLATE || '';
-  const languageCode = process.env.WHATSAPP_ABSENCE_TEMPLATE_LANG || process.env.WHATSAPP_TEMPLATE_LANG || 'en';
+  const templateName = env('WHATSAPP_ABSENCE_TEMPLATE');
+  const languageCode = env('WHATSAPP_ABSENCE_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
 
   try {
     if (templateName) {

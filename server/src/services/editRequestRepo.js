@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { newId, toDateString } from '../lib/ids.js';
 import {
-  EDIT_PERMISSION_MINUTES,
+  getEditPermissionMinutes,
   addMinutes,
   normalizePhone,
 } from '../lib/attendanceEditRules.js';
@@ -210,7 +210,7 @@ export async function approveEditRequest(requestId, { actorId } = {}) {
     if (row.Status !== REQUEST_STATUS.PENDING) {
       throw Object.assign(new Error('Request is no longer pending'), { status: 409 });
     }
-    const expires = addMinutes(new Date(), EDIT_PERMISSION_MINUTES);
+    const expires = addMinutes(new Date(), getEditPermissionMinutes());
     const updated = await tx.tblAttendance_Edit_Requests.update({
       where: { Request_id: requestId },
       data: {

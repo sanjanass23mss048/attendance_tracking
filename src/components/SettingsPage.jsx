@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, LogOut, Save, Settings as SettingsIcon } from 'lucide-react';
 import AlertDeliveryOptions from './AlertDeliveryOptions';
 import {
   getAlertDeliveryPrefs,
   setAlertDeliveryPrefs,
 } from '../services/alertDeliveryPrefs';
+import { getAppSettings, saveAppSettings } from '../services/appSettingsService';
 import { showToast } from '../services/toast';
 
 const ROLE_LABELS = {
@@ -12,6 +13,109 @@ const ROLE_LABELS = {
   TEACHER: 'Teacher',
   ADMIN: 'Administrator',
 };
+
+const SETTINGS_ROLES = new Set(['ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'HEADMASTER', 'INCHARGE']);
+
+function IntegrationSettings() {
+  const [groups, setGroups] = useState([]);
+  const [draft, setDraft] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getAppSettings();
+        if (!cancelled) setGroups(data.groups || []);
+      } catch (err) {
+        if (!cancelled) showToast(err.message || 'Could not load integration settings', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const data = await saveAppSettings(draft);
+      setGroups(data.groups || []);
+      setDraft({});
+      showToast('Settings saved to the database', 'success');
+    } catch (err) {
+      showToast(err.message || 'Could not save settings', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <Loader2 size={16} className="animate-spin" />
+        Loading integration settings…
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSave} className="space-y-6">
+      {groups.map((group) => (
+        <div key={group.id} className="space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900">{group.label}</h4>
+            {group.description ? (
+              <p className="mt-0.5 text-xs text-gray-500">{group.description}</p>
+            ) : null}
+          </div>
+          <div className="grid gap-3">
+            {group.fields.map((field) => (
+              <label key={field.key} className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">{field.label}</span>
+                {field.multiline ? (
+                  <textarea
+                    rows={4}
+                    value={draft[field.key] ?? field.value}
+                    placeholder={field.secret ? field.preview || 'Leave blank to keep current' : field.hint}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:outline-none"
+                  />
+                ) : (
+                  <input
+                    type={field.secret ? 'password' : 'text'}
+                    autoComplete="off"
+                    value={draft[field.key] ?? field.value}
+                    placeholder={field.secret ? field.preview || 'Leave blank to keep current' : field.hint}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  />
+                )}
+                {field.secret && field.configured ? (
+                  <span className="mt-1 block text-xs text-emerald-700">Saved in DB {field.preview}</span>
+                ) : field.hint && !field.secret ? (
+                  <span className="mt-1 block text-xs text-gray-400">{field.hint}</span>
+                ) : null}
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button
+        type="submit"
+        disabled={saving}
+        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+      >
+        {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+        Save to database
+      </button>
+    </form>
+  );
+}
 
 export default function SettingsPage({ user, onLogout }) {
   const initials = (user?.name || '?')
@@ -77,6 +181,17 @@ export default function SettingsPage({ user, onLogout }) {
           onRecipientChange={(recipient) => updatePrefs({ recipient })}
         />
       </div>
+
+      {SETTINGS_ROLES.has(String(user?.role || '').toUpperCase()) ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h3 className="text-base font-bold text-gray-900">SMS, WhatsApp &amp; push</h3>
+          <p className="mb-5 mt-1 text-sm text-gray-500">
+            Values are stored in this school’s database (<span className="font-medium">tblApp_Settings</span>
+            ). SMS and WhatsApp use these rows on every send — not a local .env file.
+          </p>
+          <IntegrationSettings />
+        </div>
+      ) : null}
     </div>
   );
 }

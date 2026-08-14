@@ -481,3 +481,11 @@ model tblAdmin_Audit_Logs {
   @@index([Actor_User_id, Created_On])
   @@index([Action, Created_On])
 }
+
+/// Per-school integration settings (SMS / WhatsApp / FCM). Seeded from .env, then edited in Settings.
+model tblApp_Settings {
+  setting_key   String    @id @db.VarChar(80)
+  setting_value String?   @db.Text
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  updated_by    String?   @db.VarChar(50)
+}

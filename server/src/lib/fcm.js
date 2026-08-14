@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { env } from './appSettings.js';
 
 let cachedAccessToken = null;
 let cachedAccessTokenExp = 0;
@@ -16,11 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_ROOT = path.resolve(__dirname, '../..');
 
 function hasServiceAccountConfig() {
-  return Boolean(
-    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
-      process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-      process.env.FCM_SERVER_KEY
-  );
+  return Boolean(env('FIREBASE_SERVICE_ACCOUNT_JSON') || process.env.FIREBASE_SERVICE_ACCOUNT_PATH || env('FCM_SERVER_KEY'));
 }
 
 /**
@@ -44,8 +41,9 @@ function resolveServiceAccountPath(rawPath) {
 }
 
 async function loadServiceAccount() {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const inline = env('FIREBASE_SERVICE_ACCOUNT_JSON');
+  if (inline) {
+    return JSON.parse(inline);
   }
   if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
     const resolved = resolveServiceAccountPath(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
@@ -67,12 +65,12 @@ export async function logFcmStartupStatus() {
   if (loggedStatus) return;
   loggedStatus = true;
 
-  if (process.env.FCM_SERVER_KEY && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH && !process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  if (env('FCM_SERVER_KEY') && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH && !env('FIREBASE_SERVICE_ACCOUNT_JSON')) {
     console.log('FCM: using legacy FCM_SERVER_KEY');
     return;
   }
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    console.log('FCM: using FIREBASE_SERVICE_ACCOUNT_JSON (inline)');
+  if (env('FIREBASE_SERVICE_ACCOUNT_JSON')) {
+    console.log('FCM: using FIREBASE_SERVICE_ACCOUNT_JSON (database)');
     return;
   }
   if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
@@ -197,7 +195,7 @@ async function sendViaHttpV1(tokens, { title, body, data }) {
 
 /** Legacy FCM API (server key) — still used by some projects. */
 async function sendViaLegacy(tokens, { title, body, data }) {
-  const key = process.env.FCM_SERVER_KEY;
+  const key = env('FCM_SERVER_KEY');
   if (!key) return null;
 
   const res = await fetch('https://fcm.googleapis.com/fcm/send', {
@@ -247,7 +245,7 @@ export async function sendFcmToTokens(tokens, message) {
   }
 
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+    if (env('FIREBASE_SERVICE_ACCOUNT_JSON') || process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       const result = await sendViaHttpV1(list, message);
       if (result?.skipped) {
         console.log(
