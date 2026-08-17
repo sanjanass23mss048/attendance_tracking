@@ -7,11 +7,15 @@ export default function AttendanceEditStatusBanner({
   request,
   onRequestEdit,
   onEditNow,
+  finalized = false,
 }) {
   if (!locked && !request) return null;
 
   const status = request?.status;
   const label = status ? editStatusLabel(status) : locked ? 'Attendance locked' : null;
+  const defaultDetail = finalized
+    ? 'Parent SMS was sent. Request approval to edit again.'
+    : 'Past dates are locked. Request approval to edit.';
 
   return (
     <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
@@ -41,7 +45,7 @@ export default function AttendanceEditStatusBanner({
                       ? 'Changes were saved. Attendance is locked again.'
                       : status === 'EXPIRED'
                         ? 'Approval expired. Submit a new edit request.'
-                        : 'Past dates are locked. Request approval to edit.'}
+                        : defaultDetail}
             </p>
             {status ? (
               <span

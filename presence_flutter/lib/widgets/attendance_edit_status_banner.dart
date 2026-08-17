@@ -20,7 +20,7 @@ String editStatusLabel(String? status) {
   }
 }
 
-String editStatusDetail(Map<String, dynamic>? request) {
+String editStatusDetail(Map<String, dynamic>? request, { bool finalized = false }) {
   final status = (request?['status'] ?? '').toString().toUpperCase();
   switch (status) {
     case 'APPROVED':
@@ -40,7 +40,9 @@ String editStatusDetail(Map<String, dynamic>? request) {
     case 'EXPIRED':
       return 'Approval expired. Submit a new edit request.';
     default:
-      return 'Past dates are locked. Request approval to edit.';
+      return finalized
+          ? 'Parent SMS was sent. Request approval to edit again.'
+          : 'Past dates are locked. Request approval to edit.';
   }
 }
 
@@ -58,12 +60,14 @@ class AttendanceEditStatusBanner extends StatelessWidget {
     required this.canEdit,
     required this.canRequestEdit,
     this.request,
+    this.finalized = false,
     this.onRequestEdit,
   });
 
   final bool locked;
   final bool canEdit;
   final bool canRequestEdit;
+  final bool finalized;
   final Map<String, dynamic>? request;
   final VoidCallback? onRequestEdit;
 
@@ -112,7 +116,7 @@ class AttendanceEditStatusBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      editStatusDetail(request),
+                      editStatusDetail(request, finalized: finalized),
                       style: const TextStyle(color: PresenceColors.muted, fontSize: 12),
                     ),
                   ],

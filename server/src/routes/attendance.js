@@ -13,6 +13,7 @@ import {
 import {
   listParentMessages,
   recordParentMessages,
+  hasParentMessages,
 } from '../services/parentMessageRepo.js';
 import {
   assertEnrollmentsInSection,
@@ -24,7 +25,7 @@ import { prisma } from '../lib/prisma.js';
 import { emitAttendanceUpdated } from '../lib/realtime.js';
 import {
   isPastAttendanceDate,
-  canBypassEditLock,
+  attendanceLockedMessage,
 } from '../lib/attendanceEditRules.js';
 import {
   findActiveEditPermission,
@@ -57,6 +58,25 @@ async function forbidUnlessSectionAccess(req, res, classSectionId) {
     return false;
   }
   return true;
+}
+
+async function requireAttendanceEditPermission(req, res, { dateStr, date, classSectionId }) {
+  const past = isPastAttendanceDate(dateStr);
+  const finalized = await hasParentMessages(classSectionId, date);
+  if (!past && !finalized) return { activePermission: null };
+
+  const activePermission = await findActiveEditPermission({
+    teacherId: req.user.sub,
+    classSectionId,
+    attendanceDate: date,
+  });
+  if (activePermission) return { activePermission };
+
+  res.status(403).json({
+    error: attendanceLockedMessage({ past, finalized }),
+    code: 'ATTENDANCE_LOCKED',
+  });
+  return false;
 }
 
 const statusEnum = z.enum(['P', 'A', 'L', 'H', 'OH', 'OF', 'O']);
@@ -224,23 +244,13 @@ router.put('/daily', requireAuth, async (req, res) => {
   });
 
   const dateStr = parsed.data.date;
-  const role = String(req.user?.role || '').toUpperCase();
-  let activePermission = null;
-
-  if (isPastAttendanceDate(dateStr) && !canBypassEditLock(role)) {
-    activePermission = await findActiveEditPermission({
-      teacherId: req.user.sub,
-      classSectionId: section.Class_Section_id,
-      attendanceDate: date,
-    });
-    if (!activePermission) {
-      return res.status(403).json({
-        error:
-          'Previous-day attendance is locked. Submit an edit request and wait for approval before saving changes.',
-        code: 'ATTENDANCE_LOCKED',
-      });
-    }
-  }
+  const permission = await requireAttendanceEditPermission(req, res, {
+    dateStr,
+    date,
+    classSectionId: section.Class_Section_id,
+  });
+  if (!permission) return;
+  const activePermission = permission.activePermission;
 
   // getDailyMarks returns Map<studentId, statusCode> (not an array)
   const existingByStudent = await getDailyMarks(section.Class_Section_id, date);
@@ -412,22 +422,13 @@ router.put('/periods', requireAuth, async (req, res) => {
   }
 
   const dateStr = parsed.data.date;
-  const role = String(req.user?.role || '').toUpperCase();
-  let activePermission = null;
-  if (isPastAttendanceDate(dateStr) && !canBypassEditLock(role)) {
-    activePermission = await findActiveEditPermission({
-      teacherId: req.user.sub,
-      classSectionId: section.Class_Section_id,
-      attendanceDate: date,
-    });
-    if (!activePermission) {
-      return res.status(403).json({
-        error:
-          'Previous-day attendance is locked. Submit an edit request and wait for approval before saving changes.',
-        code: 'ATTENDANCE_LOCKED',
-      });
-    }
-  }
+  const permission = await requireAttendanceEditPermission(req, res, {
+    dateStr,
+    date,
+    classSectionId: section.Class_Section_id,
+  });
+  if (!permission) return;
+  const activePermission = permission.activePermission;
 
   await upsertPeriodMarks(
     section.Class_Section_id,

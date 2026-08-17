@@ -116,3 +116,16 @@ export function sentStatusMapFromMessages(messages) {
   }
   return map;
 }
+
+/** True once any parent absence/late/etc. message has been submitted for this class and date. */
+export async function hasParentMessages(classSectionId, date) {
+  const row = await prisma.tblParent_Attendance_Messages.findFirst({
+    where: {
+      Class_Section_id: classSectionId,
+      Attendance_Date: date,
+      Int_Status: { not: 0 },
+    },
+    select: { Message_id: true },
+  });
+  return Boolean(row);
+}

@@ -45,6 +45,8 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
 
   bool get _canRequestEdit => editContext?['canRequestEdit'] == true;
 
+  bool get _finalized => editContext?['finalized'] == true;
+
   Map<String, dynamic>? get _request {
     final raw = editContext?['request'];
     if (raw is Map) return Map<String, dynamic>.from(raw);
@@ -169,7 +171,9 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
     setState(() {
       message = _requestStatus == 'PENDING'
           ? 'Waiting for the assigned approver (WhatsApp).'
-          : 'Past dates are locked. Request approval to edit.';
+          : _finalized
+              ? 'Parent SMS was sent. Request approval to edit again.'
+              : 'Past dates are locked. Request approval to edit.';
     });
   }
 
@@ -362,6 +366,7 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
                         canEdit: _canEdit,
                         canRequestEdit: _canRequestEdit,
                         request: _request,
+                        finalized: _finalized,
                         onRequestEdit: _openRequestDialog,
                       ),
                       const SizedBox(height: 4),

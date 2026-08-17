@@ -156,6 +156,7 @@ export default function StudentCardGrid({
             locked={editContext.locked}
             canEdit={editContext.canEdit}
             request={editContext.request}
+            finalized={Boolean(editContext.finalized)}
             onRequestEdit={onRequestEdit}
             onEditNow={onApprovedEditNow}
           />

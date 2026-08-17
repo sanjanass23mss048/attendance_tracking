@@ -7,12 +7,14 @@ import {
   isPastAttendanceDate,
   isSameDayAttendance,
   canBypassEditLock,
+  attendanceNeedsEditApproval,
   normalizePhone,
 } from '../lib/attendanceEditRules.js';
 import { sendAttendanceEditApprovalMessage, isWhatsAppConfigured } from '../lib/whatsapp.js';
 import { prisma } from '../lib/prisma.js';
 import { findClassSectionById, listEnrollmentsForSection } from '../services/schoolRepo.js';
 import { getDailyMarks } from '../services/attendanceRepo.js';
+import { hasParentMessages } from '../services/parentMessageRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 import {
   attendanceSnapshotDetails,
@@ -48,17 +50,20 @@ router.post('/', requireAuth, async (req, res) => {
   }
 
   const { sectionId, attendanceDate, reason } = parsed.data;
-  if (!isPastAttendanceDate(attendanceDate)) {
-    return res.status(400).json({
-      error: 'Edit requests are only required for previous dates. Same-day attendance can be edited directly.',
-    });
-  }
-
+  const date = parseDateOnly(attendanceDate);
+  const past = isPastAttendanceDate(attendanceDate);
   const section = await findClassSectionById(sectionId);
   if (!section) return res.status(404).json({ error: 'Section not found' });
 
+  const finalized = await hasParentMessages(section.Class_Section_id, date);
+  if (!past && !finalized) {
+    return res.status(400).json({
+      error:
+        'Edit requests are only required for previous dates, or after parent SMS has been sent for today.',
+    });
+  }
+
   const teacherId = req.user.sub;
-  const date = parseDateOnly(attendanceDate);
   const dup = await findPendingDuplicate({
     teacherId,
     classSectionId: section.Class_Section_id,
@@ -201,18 +206,20 @@ router.get('/context', requireAuth, async (req, res) => {
 
   const sameDay = isSameDayAttendance(attendanceDate);
   const past = isPastAttendanceDate(attendanceDate);
-  const bypass = canBypassEditLock(req.user.role);
+  const date = parseDateOnly(attendanceDate);
+  const finalized = await hasParentMessages(sectionId, date);
+  const needsApproval = attendanceNeedsEditApproval(attendanceDate, { finalized });
 
   let request = null;
-  if (past && !bypass) {
+  if (needsApproval) {
     request = await findLatestRequestForContext({
       teacherId: req.user.sub,
       classSectionId: sectionId,
-      attendanceDate: parseDateOnly(attendanceDate),
+      attendanceDate: date,
     });
   }
 
-  const canEditDirectly = sameDay || bypass;
+  const canEditDirectly = !past && !finalized;
   const canEditWithApproval =
     request?.status === 'APPROVED' &&
     request.editExpiresAt &&
@@ -222,9 +229,10 @@ router.get('/context', requireAuth, async (req, res) => {
     date: attendanceDate,
     sectionId,
     today: sameDay,
-    locked: past && !canEditDirectly && !canEditWithApproval,
+    finalized,
+    locked: needsApproval && !canEditWithApproval,
     canEdit: canEditDirectly || canEditWithApproval,
-    canRequestEdit: past && !canEditDirectly && !canEditWithApproval && request?.status !== 'PENDING',
+    canRequestEdit: needsApproval && !canEditWithApproval && request?.status !== 'PENDING',
     request,
   });
 });

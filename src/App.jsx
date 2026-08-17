@@ -992,6 +992,7 @@ function AttendanceApp() {
       }
 
       handleSendToParents(pending.length, snapshot);
+      await refreshEditContext(sid, selectedDate);
     } catch (err) {
       showToast(networkErrorMessage(err) || 'Failed to record parent messages', 'error');
     }

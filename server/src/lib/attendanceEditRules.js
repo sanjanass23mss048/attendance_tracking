@@ -40,9 +40,22 @@ export const APPROVER_ROLES = new Set([
 
 export const TEACHER_ROLES = new Set(['TEACHER']);
 
+/** Past dates, or same-day after parent SMS was sent, need an approved edit request (all roles). */
+export function attendanceNeedsEditApproval(dateStr, { finalized = false } = {}) {
+  return isPastAttendanceDate(dateStr) || (isSameDayAttendance(dateStr) && Boolean(finalized));
+}
+
+/** Admin/Principal may view any request; they cannot skip the edit lock. */
 export function canBypassEditLock(role) {
   const r = String(role || '').toUpperCase();
   return r === 'ADMIN' || r === 'PRINCIPAL';
+}
+
+export function attendanceLockedMessage({ past, finalized }) {
+  if (finalized && !past) {
+    return 'Attendance is locked after parent SMS was sent. Submit an edit request and wait for approval before saving changes.';
+  }
+  return 'Previous-day attendance is locked. Submit an edit request and wait for approval before saving changes.';
 }
 
 export function isApproverRole(role) {
