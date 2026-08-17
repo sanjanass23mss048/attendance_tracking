@@ -272,10 +272,10 @@ router.post('/parent/otp/request', async (req, res) => {
     });
   }
 
-  const send = await sendOtpSms({ to: digits10, otp: issued.otp });
   const wa = await sendOtpWhatsApp({ toPhone: digits10, otp: issued.otp });
-  const smsOk = send.ok && !send.skipped;
   const waOk = wa.ok && !wa.skipped;
+  const send = waOk ? { ok: true, skipped: true } : await sendOtpSms({ to: digits10, otp: issued.otp });
+  const smsOk = send.ok && !send.skipped;
   const echo = echoOtpEnabled(send) && !waOk;
   if (!smsOk && !waOk && !echo) {
     return res.status(502).json({

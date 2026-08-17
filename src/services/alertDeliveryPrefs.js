@@ -3,7 +3,7 @@ import {
   ALERT_RECIPIENTS,
 } from '../components/AlertDeliveryOptions';
 
-const STORAGE_KEY = 'presence_alert_delivery_prefs_v1';
+const STORAGE_KEY = 'presence_alert_delivery_prefs_v3';
 
 const DEFAULTS = {
   channel: ALERT_CHANNELS.SMS,
