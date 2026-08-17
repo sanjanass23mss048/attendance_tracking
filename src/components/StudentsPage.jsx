@@ -6,13 +6,17 @@ import {
   Download,
   Eye,
   FileSpreadsheet,
+  GraduationCap,
   Maximize2,
   Minimize2,
   MoreHorizontal,
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   User,
+  UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import { getClasses } from '../services/classService.js';
@@ -105,6 +109,9 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showMobileMore, setShowMobileMore] = useState(false);
 
   const [drawer, setDrawer] = useState(null); // 'add' | 'details' | 'edit' | null
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -202,9 +209,13 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
   }, [selectedClass, selectedSection]);
 
   const filtered = useMemo(() => {
+    let list = students;
+    if (statusFilter) {
+      list = list.filter((s) => (s.status || 'Active') === statusFilter);
+    }
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter((s) => {
+    if (!q) return list;
+    return list.filter((s) => {
       const hay = [
         s.name,
         String(s.rollNo ?? s.roll ?? ''),
@@ -215,7 +226,7 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [students, searchQuery]);
+  }, [students, searchQuery, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -223,7 +234,7 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, statusFilter]);
 
   const openAdd = () => {
     setForm({
@@ -395,7 +406,7 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
         }`}
       >
       {/* Toolbar */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:block">
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Class</label>
@@ -493,7 +504,7 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
       )}
 
       {/* Desktop table */}
-      <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:block">
+      <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
@@ -632,22 +643,146 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
       </div>
 
       {/* Mobile stacked cards */}
-      <div className="space-y-3 md:hidden">
+      <div className="space-y-4 lg:hidden">
+        <div className="flex items-center gap-2">
+          <label className="relative min-w-0 flex-1">
+            <GraduationCap size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#1e3a8a]" />
+            <select
+              value={selectedClass}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSelectedClass(next);
+                const secs = classes.find((c) => String(c.name) === next)?.sections || [];
+                setSelectedSection(secs[0]?.name || 'A');
+              }}
+              className="w-full appearance-none rounded-2xl border border-gray-200 bg-white py-2.5 pl-9 pr-7 text-sm font-semibold text-gray-800 shadow-sm"
+            >
+              {classes.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {formatClassLabel(c.name)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="relative min-w-0 flex-1">
+            <Users size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#1e3a8a]" />
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+              className="w-full appearance-none rounded-2xl border border-gray-200 bg-white py-2.5 pl-9 pr-7 text-sm font-semibold text-gray-800 shadow-sm"
+            >
+              {sections.map((s) => (
+                <option key={s.id} value={s.name}>
+                  Section {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters((v) => !v)}
+            className={`flex h-11 shrink-0 items-center gap-1 rounded-2xl border px-3 text-xs font-semibold shadow-sm ${
+              showMobileFilters || statusFilter
+                ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white'
+                : 'border-gray-200 bg-white text-gray-700'
+            }`}
+          >
+            <SlidersHorizontal size={14} />
+            Filter
+          </button>
+        </div>
+
+        {showMobileFilters ? (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm"
+          >
+            <option value="">All statuses</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        ) : null}
+
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search students..."
-            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-9 pr-3 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            placeholder="Search by name, roll no. or admission no."
+            className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-[#1e3a8a] focus:outline-none"
           />
         </div>
 
-        {loading && <p className="py-8 text-center text-sm text-gray-500">Loading…</p>}
-        {!loading && pageRows.length === 0 && (
-          <p className="py-8 text-center text-sm text-gray-500">No students found.</p>
-        )}
+        <div className={`grid gap-2 ${canImport && typeof onNavigate === 'function' ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <button
+            type="button"
+            onClick={openAdd}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border border-violet-100 bg-violet-50 px-1 py-3 text-center shadow-sm"
+          >
+            <UserPlus size={18} className="text-violet-700" />
+            <span className="text-[10px] font-semibold leading-tight text-violet-800">Add Student</span>
+          </button>
+          {canImport && typeof onNavigate === 'function' ? (
+            <button
+              type="button"
+              onClick={() => onNavigate('student-import')}
+              className="flex flex-col items-center gap-1.5 rounded-2xl border border-sky-100 bg-sky-50 px-1 py-3 text-center shadow-sm"
+            >
+              <FileSpreadsheet size={18} className="text-sky-700" />
+              <span className="text-[10px] font-semibold leading-tight text-sky-800">Import</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={!filtered.length}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border border-emerald-100 bg-emerald-50 px-1 py-3 text-center shadow-sm disabled:opacity-50"
+          >
+            <Download size={18} className="text-emerald-700" />
+            <span className="text-[10px] font-semibold leading-tight text-emerald-800">Export PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowMobileMore((v) => !v)}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-1 py-3 text-center shadow-sm"
+          >
+            <MoreHorizontal size={18} className="text-gray-600" />
+            <span className="text-[10px] font-semibold leading-tight text-gray-700">More</span>
+          </button>
+        </div>
+
+        {showMobileMore ? (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 shadow-sm"
+          >
+            {isFullscreen ? 'Exit full screen' : 'Full screen'}
+          </button>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
+
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-gray-500">Total Students</p>
+            <p className="text-xl font-bold text-gray-900">{filtered.length} Students</p>
+          </div>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+            Active: {filtered.filter((s) => (s.status || 'Active') === 'Active').length}
+          </span>
+        </div>
+
+        {loading ? <p className="py-8 text-center text-sm text-gray-500">Loading…</p> : null}
+        {!loading && pageRows.length === 0 ? (
+          <p className="rounded-2xl bg-white px-4 py-10 text-center text-sm text-gray-500 shadow-sm">
+            No students found.
+          </p>
+        ) : null}
         {!loading &&
           pageRows.map((s) => {
             const active = (s.status || 'Active') === 'Active';
@@ -656,38 +791,63 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
                 key={s.id}
                 type="button"
                 onClick={() => openDetails(s)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm"
+                className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm active:scale-[0.99]"
               >
-                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
-                  {initials(s.name)}
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-800">
+                  {s.rollNo ?? s.roll ?? '—'}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-gray-500">
-                    Roll {s.rollNo ?? s.roll}
+                  <p className="truncate text-sm font-bold text-gray-900">{s.name}</p>
+                  <p className="truncate text-xs text-gray-500">
+                    Admission No. {s.admissionNo || '—'}
                   </p>
-                  <p className="truncate font-semibold text-gray-900">{s.name}</p>
                 </div>
                 <span
                   className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    active
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-gray-100 text-gray-600'
+                    active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'
                   }`}
                 >
                   {active ? 'Active' : s.status || 'Inactive'}
                 </span>
+                <ChevronRight size={18} className="shrink-0 text-gray-300" />
               </button>
             );
           })}
 
-        <button
-          type="button"
-          onClick={openAdd}
-          className="fixed bottom-24 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-indigo-700 lg:hidden"
-        >
-          <Plus size={18} />
-          Add Student
-        </button>
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-center gap-3 text-sm text-gray-600">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="text-xs font-medium">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
+
+        {!drawer ? (
+          <button
+            type="button"
+            onClick={openAdd}
+            className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#1e3a8a] text-white shadow-lg"
+            aria-label="Add student"
+          >
+            <Plus size={24} />
+          </button>
+        ) : null}
       </div>
       </div>
 

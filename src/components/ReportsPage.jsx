@@ -1350,7 +1350,9 @@ function ReportsLanding({ onSelect, user }) {
 export default function ReportsPage({ user }) {
   const [activeReport, setActiveReport] = useState(() => {
     const parsed = parseAttendancePath(window.location.hash.replace(/^#/, ''));
-    return parsed ? 'attendance' : null;
+    if (parsed) return 'attendance';
+    if (window.matchMedia('(max-width: 1023px)').matches) return 'attendance';
+    return null;
   });
 
   useEffect(() => {

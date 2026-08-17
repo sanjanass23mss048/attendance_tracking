@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
+  CalendarDays,
   CheckCircle2,
   ClipboardList,
   LoaderCircle,
@@ -43,6 +44,8 @@ import {
 import {
   CircularAttendance,
   KpiCard,
+  MobileKpi,
+  MobileStandardCard,
   ReportPageHeader,
   attendanceBand,
   formatShortDate,
@@ -118,53 +121,100 @@ function LoadingBlock() {
 
 function OverviewPage({ date, summary, standards, onNavigate, loading }) {
   if (loading) return <LoadingBlock />;
+
+  const kpis = [
+    { label: 'Total Classes', value: summary.totalClasses ?? standards.length, icon: School, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', cardBg: 'bg-indigo-50/70' },
+    { label: 'Total Students', value: summary.totalStudents ?? '—', icon: Users, iconBg: 'bg-sky-50', iconColor: 'text-sky-600', cardBg: 'bg-sky-50/80' },
+    { label: 'Present Today', value: summary.present ?? 0, icon: CheckCircle2, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', cardBg: 'bg-emerald-50/80', hint: 'School-wide' },
+    { label: 'Absent Today', value: summary.absent ?? 0, icon: XCircle, iconBg: 'bg-rose-50', iconColor: 'text-rose-500', cardBg: 'bg-rose-50/80' },
+    { label: 'Late / Half Day', value: (summary.late || 0) + (summary.halfDay || 0), icon: Clock3, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', cardBg: 'bg-amber-50/80' },
+    { label: 'Attendance %', value: `${summary.attendancePercent ?? 0}%`, icon: Percent, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', cardBg: 'bg-violet-50/80' },
+  ];
+
   return (
     <div>
-      <ReportPageHeader
-        title="Attendance Reports"
-        subtitle="View school-wide attendance and drill down by standard and section."
-        breadcrumb={[
-          { label: 'Reports', path: { view: 'hub' } },
-          { label: 'Attendance' },
-        ]}
-        onNavigate={onNavigate}
-      />
+      <div className="hidden lg:block">
+        <ReportPageHeader
+          title="Attendance Reports"
+          subtitle="View school-wide attendance and drill down by standard and section."
+          breadcrumb={[
+            { label: 'Reports', path: { view: 'hub' } },
+            { label: 'Attendance' },
+          ]}
+          onNavigate={onNavigate}
+        />
+      </div>
+
+      <div className="mb-4 flex items-center justify-between gap-2 lg:hidden">
+        <h3 className="text-lg font-bold text-gray-900">Overview</h3>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm">
+          <CalendarDays size={13} className="text-[#1e3a8a]" />
+          As of {formatShortDate(date)}
+        </span>
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total Classes" value={summary.totalClasses ?? standards.length} icon={School} tone="indigo" />
-        <KpiCard label="Total Students" value={summary.totalStudents ?? '—'} icon={Users} tone="sky" />
-        <KpiCard
-          label="Present Today"
-          value={summary.present ?? 0}
-          icon={CheckCircle2}
-          tone="green"
-          hint="School-wide"
-        />
-        <KpiCard label="Absent Today" value={summary.absent ?? 0} icon={XCircle} tone="red" />
-        <KpiCard
-          label="Late / Half Day"
-          value={(summary.late || 0) + (summary.halfDay || 0)}
-          icon={Clock3}
-          tone="amber"
-        />
-        <KpiCard
-          label="Attendance %"
-          value={`${summary.attendancePercent ?? 0}%`}
-          icon={Percent}
-          tone="violet"
-        />
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="contents">
+            <div className="lg:hidden">
+              <MobileKpi {...kpi} />
+            </div>
+            <div className="hidden lg:block">
+              <KpiCard
+                label={kpi.label}
+                value={kpi.value}
+                icon={kpi.icon}
+                tone={
+                  kpi.label.includes('Present')
+                    ? 'green'
+                    : kpi.label.includes('Absent')
+                      ? 'red'
+                      : kpi.label.includes('Late')
+                        ? 'amber'
+                        : kpi.label.includes('Attendance')
+                          ? 'violet'
+                          : kpi.label.includes('Students')
+                            ? 'sky'
+                            : 'indigo'
+                }
+                hint={kpi.hint}
+              />
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="mb-3 flex items-end justify-between gap-2">
-        <div>
-          <h3 className="text-base font-bold text-gray-900">Attendance by Standard</h3>
-          <p className="text-sm text-gray-500">As of {formatShortDate(date)} · click a standard to open its page</p>
-        </div>
+      <div className="mb-3">
+        <h3 className="text-base font-bold text-gray-900">Attendance by Standard</h3>
+        <p className="text-sm text-gray-500 lg:hidden">Tap a class to view sections</p>
+        <p className="hidden text-sm text-gray-500 lg:block">
+          As of {formatShortDate(date)} · click a standard to open its page
+        </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="space-y-3 lg:hidden">
+        {standards.map((std, i) => {
+          const unmarked = !std.marked;
+          return (
+            <MobileStandardCard
+              key={std.classId}
+              title={formatClassLabel(std.className)}
+              subtitle={`${std.studentCount} Students · ${std.sections} sections`}
+              present={std.present}
+              absent={std.absent}
+              percent={std.attendancePercent}
+              unmarked={unmarked}
+              tone={pastelAt(i + 2)}
+              onClick={() => onNavigate({ view: 'class', classId: std.classId })}
+            />
+          );
+        })}
+      </div>
+
+      <div className="hidden gap-4 lg:grid lg:grid-cols-2 xl:grid-cols-3">
         {standards.map((std, i) => {
           const tone = pastelAt(i);
+          const unmarked = !std.marked;
           return (
             <button
               key={std.classId}
@@ -181,7 +231,11 @@ function OverviewPage({ date, summary, standards, onNavigate, loading }) {
                     {std.studentCount} Students · {std.sections} sections
                   </p>
                 </div>
-                <CircularAttendance percent={std.attendancePercent} strokeClass={tone.bar} />
+                <CircularAttendance
+                  percent={std.attendancePercent}
+                  strokeClass={tone.bar}
+                  unmarked={unmarked}
+                />
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
                 <div>
@@ -194,7 +248,9 @@ function OverviewPage({ date, summary, standards, onNavigate, loading }) {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Attendance</p>
-                  <p className="font-bold text-gray-900">{std.attendancePercent}%</p>
+                  <p className="font-bold text-gray-900">
+                    {unmarked ? 'Not marked' : `${std.attendancePercent}%`}
+                  </p>
                 </div>
               </div>
               <p className={`mt-4 text-sm font-semibold ${tone.accent}`}>View Sections →</p>
@@ -232,6 +288,15 @@ function ClassPage({ classId, date, sections, onNavigate, loading }) {
 
   if (loading) return <LoadingBlock />;
 
+  const kpis = [
+    { label: 'Total Sections', value: totals.sections, icon: ClipboardList, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', cardBg: 'bg-indigo-50/70' },
+    { label: 'Total Students', value: totals.studentCount, icon: Users, iconBg: 'bg-sky-50', iconColor: 'text-sky-600', cardBg: 'bg-sky-50/80' },
+    { label: 'Present', value: totals.present, icon: CheckCircle2, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', cardBg: 'bg-emerald-50/80' },
+    { label: 'Absent', value: totals.absent, icon: XCircle, iconBg: 'bg-rose-50', iconColor: 'text-rose-500', cardBg: 'bg-rose-50/80' },
+    { label: 'Late / Half Day', value: totals.late + totals.halfDay, icon: Clock3, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', cardBg: 'bg-amber-50/80' },
+    { label: 'Attendance', value: `${totals.attendancePercent}%`, icon: Percent, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', cardBg: 'bg-violet-50/80' },
+  ];
+
   return (
     <div>
       <ReportPageHeader
@@ -247,16 +312,58 @@ function ClassPage({ classId, date, sections, onNavigate, loading }) {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total Sections" value={totals.sections} icon={ClipboardList} tone="indigo" />
-        <KpiCard label="Total Students" value={totals.studentCount} icon={Users} tone="sky" />
-        <KpiCard label="Present" value={totals.present} icon={CheckCircle2} tone="green" />
-        <KpiCard label="Absent" value={totals.absent} icon={XCircle} tone="red" />
-        <KpiCard label="Late / Half Day" value={totals.late + totals.halfDay} icon={Clock3} tone="amber" />
-        <KpiCard label="Attendance" value={`${totals.attendancePercent}%`} icon={Percent} tone="violet" />
+        {kpis.map((kpi) => (
+          <div key={kpi.label} className="contents">
+            <div className="lg:hidden">
+              <MobileKpi {...kpi} />
+            </div>
+            <div className="hidden lg:block">
+              <KpiCard
+                label={kpi.label}
+                value={kpi.value}
+                icon={kpi.icon}
+                tone={
+                  kpi.label === 'Present'
+                    ? 'green'
+                    : kpi.label === 'Absent'
+                      ? 'red'
+                      : kpi.label.includes('Late')
+                        ? 'amber'
+                        : kpi.label === 'Attendance'
+                          ? 'violet'
+                          : kpi.label.includes('Students')
+                            ? 'sky'
+                            : 'indigo'
+                }
+              />
+            </div>
+          </div>
+        ))}
       </div>
 
       <h3 className="mb-3 text-base font-bold text-gray-900">Sections</h3>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="space-y-3 lg:hidden">
+        {sections.map((sec, i) => (
+          <MobileStandardCard
+            key={sec.sectionId || sec.sectionName}
+            title={`${label} – ${sec.sectionName}`}
+            subtitle={`${sec.studentCount} Students`}
+            present={sec.present}
+            absent={sec.absent}
+            percent={sec.attendancePercent}
+            unmarked={!sec.marked}
+            tone={pastelAt(i + 2)}
+            onClick={() =>
+              onNavigate({
+                view: 'section',
+                classId,
+                sectionId: sec.sectionName || sec.sectionId,
+              })
+            }
+          />
+        ))}
+      </div>
+      <div className="hidden gap-4 lg:grid lg:grid-cols-2 xl:grid-cols-3">
         {sections.map((sec, i) => {
           const tone = pastelAt(i + 2);
           return (
@@ -279,7 +386,11 @@ function ClassPage({ classId, date, sections, onNavigate, loading }) {
                   </p>
                   <p className="mt-1 text-sm text-gray-600">{sec.studentCount} Students</p>
                 </div>
-                <CircularAttendance percent={sec.attendancePercent} strokeClass={tone.bar} />
+                <CircularAttendance
+                  percent={sec.attendancePercent}
+                  strokeClass={tone.bar}
+                  unmarked={!sec.marked}
+                />
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
                 <div>
@@ -321,7 +432,7 @@ function DateRangeTabs({ preset, date, onPreset, onDate }) {
           onClick={() => onPreset(t.id)}
           className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
             preset === t.id
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-[#f5c542] text-[#1e3a8a] lg:bg-indigo-600 lg:text-white'
               : 'border border-gray-200 bg-white text-gray-600 hover:border-indigo-200'
           }`}
         >

@@ -64,7 +64,7 @@ const PAGE_TITLES = {
   subjects: { title: 'Subjects', subtitle: 'Subjects used across timetable and homework.' },
   daywise: { title: 'Day-wise Attendance', subtitle: 'Mark period-wise attendance for the selected day.' },
   reports: {
-    title: 'Reports',
+    title: 'Attendance Reports',
     subtitle: 'School-wide attendance drill-down and PDF exports.',
   },
   notifications: { title: 'Notifications', subtitle: 'Alerts and school announcements.' },

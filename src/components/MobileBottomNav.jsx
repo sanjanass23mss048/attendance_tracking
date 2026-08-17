@@ -13,7 +13,6 @@ const TABS = [
   { id: 'students', label: 'Students', icon: Users },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
 ];
-
 /**
  * Fixed bottom navigation for phone layouts (navy + yellow active).
  */

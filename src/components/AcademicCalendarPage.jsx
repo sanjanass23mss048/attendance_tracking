@@ -198,6 +198,7 @@ export default function AcademicCalendarPage() {
   const [exporting, setExporting] = useState(false);
   const [previewMeta, setPreviewMeta] = useState(null);
   const [mobileListTab, setMobileListTab] = useState('upcoming');
+  const [mobileCalView, setMobileCalView] = useState('calendar');
 
   const calendarificReady = isCalendarificConfigured();
   const holidayStates = getHolidayStates();
@@ -489,7 +490,7 @@ export default function AcademicCalendarPage() {
           <div>
             <h2 className="text-lg font-bold text-gray-900">Academic Calendar</h2>
             <p className="mt-0.5 text-sm font-semibold text-gray-800">
-              {year} – {String(month + 1).padStart(2, '0')}
+              {MONTHS[month]} {year}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -511,6 +512,115 @@ export default function AcademicCalendarPage() {
             </button>
           </div>
         </div>
+
+        <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setMobileCalView('calendar')}
+            className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition-colors ${
+              mobileCalView === 'calendar' ? 'bg-[#1e3a8a] text-white' : 'text-[#1e3a8a]'
+            }`}
+          >
+            Calendar
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileCalView('list')}
+            className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition-colors ${
+              mobileCalView === 'list' ? 'bg-[#1e3a8a] text-white' : 'text-[#1e3a8a]'
+            }`}
+          >
+            List
+          </button>
+        </div>
+
+        {mobileCalView === 'calendar' ? (
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="grid grid-cols-7 bg-gray-50 text-center text-[10px] font-bold uppercase tracking-wide text-gray-500">
+              {WEEKDAYS.map((day) => (
+                <div key={day} className={`px-0.5 py-2 ${day === 'Sun' ? 'text-red-500' : ''}`}>
+                  {day.slice(0, 3)}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {monthCells.map((cell, idx) => {
+                const dayEvents = cell.inMonth ? eventsByDay[cell.day] || [] : [];
+                const isSunday = cell.inMonth && dayEvents.some((e) => e.source === 'sunday');
+                const isSelected = cell.inMonth && selectedDay === cell.day;
+                const dots = dayEvents
+                  .filter((e) => e.source !== 'sunday')
+                  .slice(0, 3);
+                return (
+                  <button
+                    type="button"
+                    key={`m-${cell.day}-${idx}`}
+                    disabled={!cell.inMonth}
+                    onClick={() => {
+                      if (!cell.inMonth) return;
+                      setSelectedDay((prev) => (prev === cell.day ? null : cell.day));
+                    }}
+                    className={`min-h-[48px] border-b border-r border-gray-100 p-1 text-center ${
+                      !cell.inMonth
+                        ? 'bg-gray-50 text-gray-300'
+                        : isSelected
+                          ? 'bg-indigo-50'
+                          : isSunday
+                            ? 'bg-red-50'
+                            : 'bg-white'
+                    }`}
+                  >
+                    <p className={`text-xs font-semibold ${cell.inMonth ? 'text-gray-800' : 'text-gray-300'}`}>
+                      {cell.day}
+                    </p>
+                    {cell.inMonth && (dots.length > 0 || isSunday) ? (
+                      <div className="mt-0.5 flex justify-center gap-0.5">
+                        {isSunday ? <span className="h-1.5 w-1.5 rounded-full bg-red-400" /> : null}
+                        {dots.map((event) => (
+                          <span
+                            key={event.id}
+                            className={`h-1.5 w-1.5 rounded-full ${(EVENT_TYPES[event.type] || EVENT_TYPES.other).dot}`}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {mobileCalView === 'calendar' && selectedDay ? (
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-3 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-gray-900">
+                {String(selectedDay).padStart(2, '0')} {MONTHS[month]} {year}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedDay(null)}
+                className="text-xs font-semibold text-[#1e3a8a]"
+              >
+                Close
+              </button>
+            </div>
+            {(eventsByDay[selectedDay] || []).length ? (
+              <ul className="space-y-1.5">
+                {(eventsByDay[selectedDay] || []).map((event) => (
+                  <li key={event.id} className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-800">
+                    {event.source === 'sunday' ? 'Weekly Holiday' : event.title}
+                    {event.subtitle ? (
+                      <span className="ml-1 font-medium text-gray-500">· {event.subtitle}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-gray-500">No events on this day.</p>
+            )}
+          </div>
+        ) : null}
 
         <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
           <button
@@ -611,20 +721,34 @@ export default function AcademicCalendarPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={openEventForm}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-semibold text-gray-700"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-3 text-xs font-semibold text-gray-700"
           >
             <Plus size={14} /> Add Event
           </button>
           <button
             type="button"
             onClick={openSuddenForm}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-xs font-semibold text-violet-800"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 py-3 text-xs font-semibold text-violet-800"
           >
             <Zap size={14} /> Sudden Holiday
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadCalendar}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 py-3 text-xs font-semibold text-sky-800"
+          >
+            <Download size={14} /> Download
+          </button>
+          <button
+            type="button"
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-[#f5c542]/40 py-3 text-xs font-semibold text-amber-900"
+          >
+            <LoaderCircle size={14} /> Reload
           </button>
         </div>
       </div>

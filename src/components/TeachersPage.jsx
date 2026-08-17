@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BookOpen,
   CalendarDays,
+  ChevronRight,
   ClipboardList,
   Download,
   Eye,
   FileText,
   Pencil,
   Plus,
+  School,
   Search,
+  SlidersHorizontal,
   Trash2,
   UserPlus,
   Users,
+  UserRound,
   X,
 } from 'lucide-react';
 import {
@@ -95,6 +100,14 @@ function StaffStatusBadge({ status }) {
   );
 }
 
+function staffRoleChip(role) {
+  const r = String(role || '').toLowerCase();
+  if (r.includes('class teacher')) return 'bg-violet-100 text-violet-800';
+  if (r.includes('subject teacher')) return 'bg-sky-100 text-sky-800';
+  if (r.includes('admin')) return 'bg-emerald-100 text-emerald-800';
+  return 'bg-gray-100 text-gray-700';
+}
+
 function StatCard({ label, value, accent }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
@@ -175,6 +188,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
   });
   const [leaveMsg, setLeaveMsg] = useState('');
   const [actionNotice, setActionNotice] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const staffListRef = useRef(null);
 
   const reload = async () => {
@@ -429,8 +443,197 @@ export default function TeachersPage({ user, onAccessDenied }) {
 
   if (!allowed) return null;
 
+  const mobileStats = [
+    { label: 'Teaching Staff', value: loading ? '—' : summary.teachingStaff, icon: Users, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', cardBg: 'bg-violet-50/80' },
+    { label: 'Non-Teaching Staff', value: loading ? '—' : summary.nonTeachingStaff, icon: UserRound, iconBg: 'bg-sky-50', iconColor: 'text-sky-600', cardBg: 'bg-sky-50/80' },
+    { label: 'Total Subjects', value: loading ? '—' : summary.totalSubjects, icon: BookOpen, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', cardBg: 'bg-emerald-50/80' },
+    { label: 'Classes Assigned', value: loading ? '—' : summary.classesAssigned, icon: School, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', cardBg: 'bg-amber-50/80' },
+  ];
+
   return (
     <div className="space-y-4">
+      <div className="space-y-4 lg:hidden">
+        <div className="grid grid-cols-2 gap-3">
+          {mobileStats.map((card) => (
+            <div
+              key={card.label}
+              className={`rounded-2xl border border-white/80 ${card.cardBg} p-3.5 shadow-sm`}
+            >
+              <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${card.iconBg}`}>
+                <card.icon size={18} className={card.iconColor} />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+              <p className="mt-0.5 text-xs font-medium text-gray-500">{card.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+          {STAFF_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setStaffTab(tab.id)}
+              className={`flex-1 rounded-full px-1 py-2 text-[11px] font-semibold transition-colors ${
+                staffTab === tab.id ? 'bg-[#1e3a8a] text-white' : 'text-[#1e3a8a]'
+              }`}
+            >
+              {tab.label.replace(' Staff', '')}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search name, email, ID…"
+              className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-[#1e3a8a] focus:outline-none"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters((v) => !v)}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm ${
+              showMobileFilters ? 'border-[#1e3a8a] bg-[#1e3a8a] text-white' : 'border-gray-200 bg-white text-gray-600'
+            }`}
+            aria-label="Filters"
+          >
+            <SlidersHorizontal size={18} />
+          </button>
+        </div>
+
+        {showMobileFilters ? (
+          <div className="grid grid-cols-3 gap-2">
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-2 py-2 text-xs"
+            >
+              <option value="">All Roles</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-2 py-2 text-xs"
+            >
+              <option value="">All Classes</option>
+              {classOptions.map((c) => (
+                <option key={c} value={c}>{formatClassLabel(c)}</option>
+              ))}
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 bg-white px-2 py-2 text-xs"
+            >
+              <option value="">All Status</option>
+              <option value="Active">Active</option>
+              <option value="On Leave">On Leave</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        ) : null}
+
+        {actionNotice ? (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {actionNotice}
+          </p>
+        ) : null}
+        {error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : null}
+
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-900">Staff Directory</h3>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={!filtered.length}
+            className="text-xs font-semibold text-[#1e3a8a] disabled:opacity-40"
+          >
+            Export PDF
+          </button>
+        </div>
+
+        <ul className="space-y-2.5">
+          {loading ? (
+            <li className="rounded-2xl bg-white px-4 py-10 text-center text-sm text-gray-500 shadow-sm">
+              Loading staff…
+            </li>
+          ) : null}
+          {!loading && pageRows.length === 0 ? (
+            <li className="rounded-2xl bg-white px-4 py-10 text-center text-sm text-gray-500 shadow-sm">
+              No staff members found.
+            </li>
+          ) : null}
+          {!loading &&
+            pageRows.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => openDetails(t)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-3 py-3 text-left shadow-sm active:scale-[0.99]"
+                >
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">
+                    {initials(t.name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-gray-900">{t.name}</p>
+                    <p className="truncate text-xs text-gray-500">{t.email}</p>
+                    <span className={`mt-1.5 inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ${staffRoleChip(t.role)}`}>
+                      {t.role}
+                    </span>
+                  </div>
+                  <ChevronRight size={18} className="shrink-0 text-gray-300" />
+                </button>
+              </li>
+            ))}
+        </ul>
+
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-center gap-3 text-sm text-gray-600">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="text-xs font-medium">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
+
+        {!drawer ? (
+          <button
+            type="button"
+            onClick={openAdd}
+            className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#1e3a8a] text-white shadow-lg lg:hidden"
+            aria-label="Add staff"
+          >
+            <Plus size={24} />
+          </button>
+        ) : null}
+      </div>
+
+      <div className="hidden space-y-4 lg:block">
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
@@ -797,10 +1000,11 @@ export default function TeachersPage({ user, onAccessDenied }) {
           </div>
         </aside>
       </div>
+      </div>
 
       {/* Drawer: add / edit / details */}
       {drawer && (
-        <div className="fixed inset-0 z-40 flex justify-end bg-black/30">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
           <button type="button" className="flex-1" aria-label="Close" onClick={closeDrawer} />
           <div className="flex h-full w-full max-w-md flex-col bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
