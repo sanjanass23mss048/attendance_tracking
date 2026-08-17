@@ -247,6 +247,7 @@ export function MobileStandardCard({
   );
 }
 
+export function attendanceBand(percent) {
   const p = Number(percent) || 0;
   if (p >= 95) return { label: 'Excellent', className: 'bg-emerald-100 text-emerald-800' };
   if (p >= 85) return { label: 'Good', className: 'bg-sky-100 text-sky-800' };
