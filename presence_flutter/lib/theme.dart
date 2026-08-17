@@ -22,7 +22,7 @@ ThemeData buildPresenceTheme() {
       primary: PresenceColors.primaryDark,
       secondary: PresenceColors.accent,
     ),
-    scaffoldBackgroundColor: PresenceColors.bg,
+    scaffoldBackgroundColor: Colors.white,
   );
   return base.copyWith(
     appBarTheme: const AppBarTheme(
@@ -32,27 +32,27 @@ ThemeData buildPresenceTheme() {
       centerTitle: true,
       titleTextStyle: TextStyle(
         color: Colors.white,
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: FontWeight.w700,
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: Colors.white,
+      backgroundColor: PresenceColors.primaryDark,
       indicatorColor: Colors.transparent,
-      elevation: 8,
+      elevation: 0,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
-          fontSize: 11,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? PresenceColors.primaryDark : PresenceColors.muted,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: selected ? PresenceColors.accent : Colors.white70,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
-          size: 24,
-          color: selected ? PresenceColors.primaryDark : PresenceColors.muted,
+          size: 22,
+          color: selected ? PresenceColors.accent : Colors.white70,
         );
       }),
     ),

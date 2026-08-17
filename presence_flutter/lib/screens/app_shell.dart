@@ -4,50 +4,78 @@ import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
 import '../theme.dart';
+import '../widgets/mobile_ui.dart';
 
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
 
-  static const destinations = [
-    _Dest('/dashboard', 'Dashboard', Icons.dashboard_outlined),
-    _Dest('/attendance', 'Attendance', Icons.fact_check_outlined),
-    _Dest('/notices', 'Notice Board', Icons.campaign_outlined),
-    _Dest('/students', 'Students', Icons.groups_outlined),
-    _Dest('/calendar', 'Calendar', Icons.calendar_month_outlined),
-    _Dest('/classes', 'Classes', Icons.menu_book_outlined),
-    _Dest('/reports', 'Reports', Icons.bar_chart_outlined),
-    _Dest('/notifications', 'Alerts', Icons.notifications_outlined),
-    _Dest('/settings', 'Settings', Icons.settings_outlined),
+  static const bottomTabs = [
+    (path: '/dashboard', label: 'Dashboard', icon: Icons.dashboard_outlined),
+    (path: '/attendance', label: 'Attendance', icon: Icons.fact_check_outlined),
+    (path: '/notices', label: 'Notice', icon: Icons.campaign_outlined),
+    (path: '/students', label: 'Students', icon: Icons.groups_outlined),
+    (path: '/calendar', label: 'Calendar', icon: Icons.calendar_month_outlined),
   ];
+
+  static const _titles = {
+    '/dashboard': 'Dashboard',
+    '/attendance': 'Attendance',
+    '/notices': 'Notice Board',
+    '/students': 'Students',
+    '/calendar': 'Academic Calendar',
+    '/classes': 'Classes',
+    '/reports': 'Attendance Reports',
+    '/notifications': 'Notifications',
+    '/settings': 'Settings',
+    '/teachers': 'Staff',
+    '/approvals': 'Edit Approvals',
+    '/audit-logs': 'Audit Logs',
+  };
 
   @override
   Widget build(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
     final auth = context.watch<AuthState>();
-    final items = [
-      ...destinations,
-      if (auth.isStaffManager)
-        const _Dest('/teachers', 'Staff', Icons.school_outlined),
-      if (auth.isStaffManager)
-        const _Dest('/approvals', 'Approvals', Icons.verified_user_outlined),
-      if (auth.isAdmin)
-        const _Dest('/audit-logs', 'Audit Logs', Icons.history_edu_outlined),
+    final drawerItems = [
+      const _Dest('/dashboard', 'Dashboard', Icons.dashboard_outlined),
+      const _Dest('/attendance', 'Attendance', Icons.fact_check_outlined),
+      const _Dest('/notices', 'Notice Board', Icons.campaign_outlined),
+      const _Dest('/students', 'Students', Icons.groups_outlined),
+      const _Dest('/calendar', 'Academic Calendar', Icons.calendar_month_outlined),
+      const _Dest('/classes', 'Classes', Icons.menu_book_outlined),
+      const _Dest('/reports', 'Reports', Icons.bar_chart_outlined),
+      const _Dest('/notifications', 'Alerts', Icons.notifications_outlined),
+      const _Dest('/settings', 'Settings', Icons.settings_outlined),
+      if (auth.isStaffManager) const _Dest('/teachers', 'Staff', Icons.school_outlined),
+      if (auth.isStaffManager) const _Dest('/approvals', 'Approvals', Icons.verified_user_outlined),
+      if (auth.isAdmin) const _Dest('/audit-logs', 'Audit Logs', Icons.history_edu_outlined),
     ];
 
-    final selectedRaw = items.indexWhere((d) => loc.startsWith(d.path));
-    final selected = selectedRaw < 0 ? 0 : selectedRaw;
-    final bottomItems = items.take(5).toList();
-    final bottomSelected = selected.clamp(0, bottomItems.length - 1);
+    var title = 'Presence';
+    for (final e in _titles.entries) {
+      if (loc == e.key || loc.startsWith('${e.key}/')) {
+        title = e.value;
+        break;
+      }
+    }
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(items[selected.clamp(0, items.length - 1)].label),
+        title: Text(title),
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu_rounded),
+            tooltip: 'Open menu',
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'Notifications',
             onPressed: () => context.go('/notifications'),
-            icon: const Icon(Icons.notifications_none),
+            icon: const Icon(Icons.notifications_none_rounded),
           ),
         ],
       ),
@@ -61,20 +89,26 @@ class AppShell extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Presence',
-                        style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+                    const Text(
+                      'Presence',
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                    ),
                     const SizedBox(height: 8),
-                    Text(auth.user?['name']?.toString() ?? '',
-                        style: const TextStyle(color: Colors.white)),
-                    Text(auth.role,
-                        style: const TextStyle(color: Color(0xFFBFDBFE), fontSize: 12)),
+                    Text(
+                      auth.user?['name']?.toString() ?? '',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    Text(
+                      auth.role,
+                      style: const TextStyle(color: Color(0xFFBFDBFE), fontSize: 12),
+                    ),
                   ],
                 ),
               ),
               Expanded(
                 child: ListView(
                   children: [
-                    for (final d in items)
+                    for (final d in drawerItems)
                       ListTile(
                         leading: Icon(d.icon),
                         title: Text(d.label),
@@ -92,17 +126,10 @@ class AppShell extends StatelessWidget {
         ),
       ),
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: bottomSelected,
-        onDestinationSelected: (i) {
-          if (i >= 0 && i < bottomItems.length) {
-            context.go(bottomItems[i].path);
-          }
-        },
-        destinations: [
-          for (final d in bottomItems)
-            NavigationDestination(icon: Icon(d.icon), label: d.label.split(' ').first),
-        ],
+      bottomNavigationBar: PresenceBottomNav(
+        tabs: bottomTabs,
+        location: loc,
+        onSelect: (path) => context.go(path),
       ),
     );
   }

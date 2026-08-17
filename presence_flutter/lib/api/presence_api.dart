@@ -239,6 +239,11 @@ class PresenceApi {
     return await client.fetch('/api/reports/daily?$q') as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> classComparison({required String date}) async {
+    final q = Uri(queryParameters: {'date': date}).query;
+    return await client.fetch('/api/reports/class-comparison?$q') as Map<String, dynamic>;
+  }
+
   // —— Notices (staff) ——
   Future<List<dynamic>> listNotices() async {
     final data = await client.fetch('/api/notices') as Map<String, dynamic>;
