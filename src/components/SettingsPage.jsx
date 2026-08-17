@@ -230,6 +230,9 @@ export default function SettingsPage({ user, onLogout }) {
         <h3 className="text-base font-bold text-gray-900">Absence alert delivery</h3>
         <p className="mb-5 mt-1 text-sm text-gray-500">
           These defaults are used when sending parent absence alerts from Attendance.
+          WhatsApp needs the Cloud API token, phone number ID, and the matching
+          approved template names saved below (attendance_alert, sudden_holiday, login_otp,
+          promotion_message).
         </p>
         <AlertDeliveryOptions
           channel={prefs.channel}

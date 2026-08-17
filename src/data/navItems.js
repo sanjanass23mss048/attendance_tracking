@@ -8,7 +8,7 @@ export const EDIT_APPROVER_ROLES = [
   'HEADMASTER',
 ];
 
-/** Same leadership roles — staff directory (Teachers) is for in-charge / admin, not class teachers. */
+/** Same leadership roles — staff directory is for in-charge / admin, not class teachers. */
 export const STAFF_MANAGER_ROLES = EDIT_APPROVER_ROLES;
 
 export const navItems = [
@@ -42,7 +42,7 @@ export const navItems = [
   { id: 'subjects', label: 'Subjects', icon: 'Library' },
   {
     id: 'teachers',
-    label: 'Teachers',
+    label: 'Staff',
     icon: 'GraduationCap',
     roles: STAFF_MANAGER_ROLES,
   },
@@ -82,7 +82,7 @@ export function canApproveEditRequests(user) {
   return hasLeadershipRole(user);
 }
 
-/** Teachers page — In-charge (e.g. A. Pune) and school leadership only. */
+/** Staff directory — In-charge (e.g. A. Pune) and school leadership only. */
 export function canManageTeachers(user) {
   return hasLeadershipRole(user);
 }

@@ -75,6 +75,25 @@ class AuthState extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> requestParentOtp(String phone) {
+    return api.requestParentOtp(phone);
+  }
+
+  Future<void> loginWithParentOtp(String phone, String otp) async {
+    error = null;
+    notifyListeners();
+    try {
+      await api.loginWithParentOtp(phone, otp);
+      await _syncPush();
+      await students?.load(force: true);
+      notifyListeners();
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> logout() async {
     try {
       await _push?.stop();

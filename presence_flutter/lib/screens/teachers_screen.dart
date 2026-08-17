@@ -44,7 +44,7 @@ class _TeachersScreenState extends State<TeachersScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Teachers directory',
+          const Text('Staff directory',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
           if (error != null) ...[
             const SizedBox(height: 8),

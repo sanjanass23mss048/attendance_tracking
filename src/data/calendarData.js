@@ -92,14 +92,31 @@ export const DEFAULT_SUDDEN_HOLIDAY = {
   message: '',
 };
 
-/** Build parent SMS/message from the sudden-holiday reason. */
-export function buildSuddenHolidayMessage(reason) {
-  const cleaned = String(reason || '').trim() || 'an unexpected reason';
-  const lower = cleaned.toLowerCase();
-  return `Dear Parent,\n\nDue to ${lower}, school will remain closed today. Attendance will not be marked for this date.`;
+/** Format YYYY-MM-DD as DD-MM-YYYY for parent messages / WhatsApp. */
+export function isoToDmy(iso) {
+  const s = String(iso || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '';
+  return `${s.slice(8, 10)}-${s.slice(5, 7)}-${s.slice(0, 4)}`;
 }
 
-DEFAULT_SUDDEN_HOLIDAY.message = buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason);
+export function formatClosedDates(fromIso, toIso) {
+  const from = isoToDmy(fromIso);
+  if (!from) return '';
+  if (!toIso || toIso === fromIso) return from;
+  return `${from} & ${isoToDmy(toIso)}`;
+}
+
+/** Build parent SMS/message from the sudden-holiday reason. */
+export function buildSuddenHolidayMessage(reason, fromDate, toDate) {
+  const cleaned = String(reason || '').trim() || 'an unexpected reason';
+  const when = formatClosedDates(fromDate, toDate) || 'today';
+  return `Dear Parent,\n\nDue to ${cleaned}, the school will remain closed on ${when}.\n\nRegards,\nRIOBizSols`;
+}
+
+DEFAULT_SUDDEN_HOLIDAY.message = buildSuddenHolidayMessage(
+  DEFAULT_SUDDEN_HOLIDAY.reason,
+  DEFAULT_SUDDEN_HOLIDAY.date
+);
 
 export const APPLICABLE_OPTIONS = [
   'All Classes',

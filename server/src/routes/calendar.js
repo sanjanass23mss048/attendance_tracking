@@ -4,12 +4,15 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { newId, parseDateOnly, toDateString } from '../lib/ids.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import { listUniqueParentPhones } from '../lib/sms.js';
+import { sendSuddenHolidayWhatsApp } from '../lib/whatsapp.js';
 
 const router = Router();
 
 const eventSchema = z.object({
   id: z.string().max(50).optional(),
   date: z.string(),
+  date_to: z.string().optional().nullable(),
   // Known types plus free-text "Others" (custom label, max 50 for DB column)
   type: z.string().min(1).max(50),
   title: z.string().min(1).max(255),
@@ -39,6 +42,56 @@ export function serializeCalendarEvent(row) {
     parent_message: row.Parent_message,
     source: row.Source,
   };
+}
+
+function isoToDmy(iso) {
+  const s = String(iso || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || '—';
+  return `${s.slice(8, 10)}-${s.slice(5, 7)}-${s.slice(0, 4)}`;
+}
+
+function formatClosedDates(fromIso, toIso) {
+  const from = isoToDmy(fromIso);
+  if (!toIso || toIso === fromIso) return from;
+  return `${from} & ${isoToDmy(toIso)}`;
+}
+
+function datesInclusive(fromIso, toIso) {
+  const start = parseDateOnly(fromIso);
+  const end = parseDateOnly(toIso || fromIso) || start;
+  if (!start) return [];
+  const out = [];
+  const cursor = new Date(start.getTime());
+  const last = end && end.getTime() >= start.getTime() ? end : start;
+  while (cursor.getTime() <= last.getTime()) {
+    out.push(toDateString(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
+async function notifySuddenHolidayWhatsApp({ reason, fromDate, toDate, applicableTo }) {
+  const phones = await listUniqueParentPhones(prisma, { applicableTo });
+  if (!phones.length) {
+    return { attempted: 0, sent: 0, failed: 0, skipped: 0 };
+  }
+  const dates = formatClosedDates(fromDate, toDate);
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+  const chunk = 6;
+  for (let i = 0; i < phones.length; i += chunk) {
+    const part = phones.slice(i, i + chunk);
+    const results = await Promise.all(
+      part.map((toPhone) => sendSuddenHolidayWhatsApp({ toPhone, reason, dates }))
+    );
+    for (const r of results) {
+      if (r.skipped) skipped += 1;
+      else if (r.ok) sent += 1;
+      else failed += 1;
+    }
+  }
+  return { attempted: phones.length, sent, failed, skipped };
 }
 
 export async function upsertCalendarEvent(input) {
@@ -113,7 +166,21 @@ router.post('/events', requireAuth, async (req, res) => {
   }
 
   try {
-    const row = await upsertCalendarEvent(parsed.data);
+    const dates = datesInclusive(parsed.data.date, parsed.data.date_to);
+    const days = dates.length ? dates : [parsed.data.date];
+    let row = null;
+    for (const day of days) {
+      row = await upsertCalendarEvent({ ...parsed.data, date: day, id: day === parsed.data.date ? parsed.data.id : undefined });
+    }
+    let whatsapp = null;
+    if (String(parsed.data.type || '').toLowerCase() === 'sudden') {
+      whatsapp = await notifySuddenHolidayWhatsApp({
+        reason: parsed.data.title,
+        fromDate: parsed.data.date,
+        toDate: parsed.data.date_to || parsed.data.date,
+        applicableTo: parsed.data.applicable_to,
+      });
+    }
     logAdminAudit(req, {
       action: 'CALENDAR_EVENT_UPSERT',
       category: 'CALENDAR',
@@ -123,10 +190,12 @@ router.post('/events', requireAuth, async (req, res) => {
       details: {
         type: parsed.data.type,
         date: parsed.data.date,
+        date_to: parsed.data.date_to || null,
         source: parsed.data.source || null,
+        whatsapp,
       },
     });
-    return res.status(201).json({ event: serializeCalendarEvent(row) });
+    return res.status(201).json({ event: serializeCalendarEvent(row), whatsapp });
   } catch (err) {
     if (err.message === 'date must be YYYY-MM-DD') {
       return res.status(400).json({ error: err.message });

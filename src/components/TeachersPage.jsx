@@ -40,21 +40,6 @@ const ROLES = [
   'Support Staff',
 ];
 
-const DEPARTMENTS = [
-  'Primary',
-  'Mathematics',
-  'Science',
-  'Languages',
-  'Computer Science',
-  'Arts',
-  'Physical Education',
-  'Library',
-  'Social Studies',
-  'Administration',
-  'Accounts',
-  'Maintenance',
-];
-
 const LEAVE_TYPES = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Maternity Leave', 'Other'];
 
 const emptyForm = () => ({
@@ -64,7 +49,6 @@ const emptyForm = () => ({
   phone: '',
   staffType: 'teaching',
   role: 'Subject Teacher',
-  department: '',
   subjects: '',
   classesAssigned: '',
   status: 'Active',
@@ -173,7 +157,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
   const [staffTab, setStaffTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -212,7 +195,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
         }
       );
     } catch (err) {
-      const msg = err.message || 'Failed to load teachers';
+      const msg = err.message || 'Failed to load staff';
       if (/forbidden/i.test(msg)) {
         onAccessDenied?.();
         return;
@@ -250,21 +233,20 @@ export default function TeachersPage({ user, onAccessDenied }) {
     if (staffTab === 'non-teaching') list = list.filter((t) => t.staffType === 'non-teaching');
 
     if (roleFilter) list = list.filter((t) => t.role === roleFilter);
-    if (deptFilter) list = list.filter((t) => t.department === deptFilter);
     if (classFilter) list = list.filter((t) => teacherHasClass(t.classesAssigned, classFilter));
     if (statusFilter) list = list.filter((t) => t.status === statusFilter);
 
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       list = list.filter((t) =>
-        [t.name, t.email, t.employeeId, t.role, t.department, t.subjects, t.classesAssigned]
+        [t.name, t.email, t.employeeId, t.role, t.subjects, t.classesAssigned]
           .join(' ')
           .toLowerCase()
           .includes(q)
       );
     }
     return list;
-  }, [teachers, staffTab, roleFilter, deptFilter, classFilter, statusFilter, searchQuery]);
+  }, [teachers, staffTab, roleFilter, classFilter, statusFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -272,7 +254,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
 
   useEffect(() => {
     setPage(1);
-  }, [staffTab, searchQuery, roleFilter, deptFilter, classFilter, statusFilter]);
+  }, [staffTab, searchQuery, roleFilter, classFilter, statusFilter]);
 
   const openAdd = () => {
     const nextNum = teachers.length + 1;
@@ -294,7 +276,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
       phone: t.phone || '',
       staffType: t.staffType || 'teaching',
       role: t.role || 'Subject Teacher',
-      department: t.department || '',
       subjects: t.subjects || '',
       classesAssigned: t.classesAssigned || '',
       status: t.status || 'Active',
@@ -347,7 +328,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
         phone: form.phone.trim() || null,
         staffType: form.staffType,
         role: form.role,
-        department: form.department.trim() || null,
         subjects: form.subjects.trim() || null,
         classesAssigned: form.classesAssigned.trim() || null,
         status: form.status,
@@ -396,7 +376,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
       'Phone',
       'Staff Type',
       'Role',
-      'Department',
       'Subjects',
       'Classes Assigned',
       'Status',
@@ -408,7 +387,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
       t.phone || '',
       t.staffType,
       t.role,
-      t.department || '',
       t.subjects || '',
       t.classesAssigned || '',
       t.status,
@@ -416,7 +394,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
     try {
       exportTablePdfReport({
         title: 'STAFF DIRECTORY',
-        pill: 'Teachers',
+        pill: 'Staff',
         headers,
         rows,
       });
@@ -430,7 +408,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
     setStaffTab('teaching');
     setSearchQuery('');
     setRoleFilter('');
-    setDeptFilter('');
     setClassFilter('');
     setStatusFilter('');
     setPage(1);
@@ -534,21 +511,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">Department</label>
-                <select
-                  value={deptFilter}
-                  onChange={(e) => setDeptFilter(e.target.value)}
-                  className="min-w-[150px] rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                >
-                  <option value="">All Departments</option>
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500">Class</label>
                 <select
                   value={classFilter}
@@ -592,7 +554,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
                   className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
                 >
                   <Plus size={16} />
-                  Add Teacher
+                  Add Staff
                 </button>
               </div>
             </div>
@@ -613,7 +575,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
                     <th className="px-4 py-3">Name</th>
                     <th className="px-4 py-3">Employee ID</th>
                     <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3">Department</th>
                     <th className="px-4 py-3">Subjects</th>
                     <th className="px-4 py-3">Classes</th>
                     <th className="px-4 py-3">Status</th>
@@ -623,14 +584,14 @@ export default function TeachersPage({ user, onAccessDenied }) {
                 <tbody className="divide-y divide-gray-100">
                   {loading && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                         Loading staff…
                       </td>
                     </tr>
                   )}
                   {!loading && pageRows.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                         No staff members found.
                       </td>
                     </tr>
@@ -657,7 +618,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-700">{t.employeeId}</td>
                         <td className="px-4 py-3 text-gray-700">{t.role}</td>
-                        <td className="px-4 py-3 text-gray-600">{t.department || '—'}</td>
                         <td className="px-4 py-3 text-gray-600">{t.subjects || '—'}</td>
                         <td className="px-4 py-3 text-gray-600">{t.classesAssigned || '—'}</td>
                         <td className="px-4 py-3">
@@ -742,7 +702,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
                 className="flex w-full items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm font-semibold text-violet-800 hover:bg-violet-100"
               >
                 <UserPlus size={16} />
-                Add Teacher
+                Add Staff
               </button>
               <button
                 type="button"
@@ -845,8 +805,8 @@ export default function TeachersPage({ user, onAccessDenied }) {
           <div className="flex h-full w-full max-w-md flex-col bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <h2 className="text-lg font-bold text-gray-900">
-                {drawer === 'add' && 'Add Teacher'}
-                {drawer === 'edit' && 'Edit Teacher'}
+                {drawer === 'add' && 'Add Staff'}
+                {drawer === 'edit' && 'Edit Staff'}
                 {drawer === 'details' && 'Staff Profile'}
               </h2>
               <button
@@ -877,7 +837,6 @@ export default function TeachersPage({ user, onAccessDenied }) {
                     <Field label="Employee ID" value={selected.employeeId} />
                     <Field label="Role" value={selected.role} />
                     <Field label="Staff Type" value={selected.staffType} />
-                    <Field label="Department" value={selected.department} />
                     <Field label="Subjects" value={selected.subjects} />
                     <Field label="Classes" value={selected.classesAssigned} />
                     <Field label="Phone" value={selected.phone} />
@@ -975,37 +934,20 @@ export default function TeachersPage({ user, onAccessDenied }) {
                       </select>
                     </label>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block text-xs">
-                      <span className="mb-1 block font-medium text-gray-500">Role</span>
-                      <select
-                        value={form.role}
-                        onChange={(e) => setFormField('role', e.target.value)}
-                        className={inputClass()}
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block text-xs">
-                      <span className="mb-1 block font-medium text-gray-500">Department</span>
-                      <select
-                        value={form.department}
-                        onChange={(e) => setFormField('department', e.target.value)}
-                        className={inputClass()}
-                      >
-                        <option value="">Select…</option>
-                        {DEPARTMENTS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
+                  <label className="block text-xs">
+                    <span className="mb-1 block font-medium text-gray-500">Role</span>
+                    <select
+                      value={form.role}
+                      onChange={(e) => setFormField('role', e.target.value)}
+                      className={inputClass()}
+                    >
+                      {ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="block text-xs">
                     <span className="mb-1 block font-medium text-gray-500">Subjects</span>
                     <input
@@ -1084,7 +1026,7 @@ export default function TeachersPage({ user, onAccessDenied }) {
                   disabled={saving}
                   className="flex-1 rounded-lg bg-violet-600 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
                 >
-                  {saving ? 'Saving…' : drawer === 'add' ? 'Add Teacher' : 'Save Changes'}
+                  {saving ? 'Saving…' : drawer === 'add' ? 'Add Staff' : 'Save Changes'}
                 </button>
               </div>
             )}

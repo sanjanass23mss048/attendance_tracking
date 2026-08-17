@@ -28,7 +28,7 @@ class AppShell extends StatelessWidget {
     final items = [
       ...destinations,
       if (auth.isStaffManager)
-        const _Dest('/teachers', 'Teachers', Icons.school_outlined),
+        const _Dest('/teachers', 'Staff', Icons.school_outlined),
       if (auth.isStaffManager)
         const _Dest('/approvals', 'Approvals', Icons.verified_user_outlined),
       if (auth.isAdmin)

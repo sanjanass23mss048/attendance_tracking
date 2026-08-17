@@ -561,6 +561,13 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     dateObj && !Number.isNaN(dateObj.getTime())
       ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       : parsed.data.date;
+  const iso = String(parsed.data.date || '');
+  const dateDmy = /^\d{4}-\d{2}-\d{2}$/.test(iso)
+    ? `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(0, 4)}`
+    : dateLabel;
+  const classSectionLabel = [section.tblClass?.Class_Name, section.tblSection?.Section_Name]
+    .filter(Boolean)
+    .join('-') || '—';
 
   const delivery = [];
   for (const m of messages) {
@@ -616,8 +623,8 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
           toPhone: phone,
           body,
           studentName,
-          rollNo,
-          date: dateLabel,
+          classSection: classSectionLabel,
+          date: dateDmy,
         });
         channelResults.push({
           channel: 'whatsapp',

@@ -173,7 +173,8 @@ export default function AcademicCalendarPage() {
   const [holidayForm, setHolidayForm] = useState({
     ...DEFAULT_SUDDEN_HOLIDAY,
     date: `${defaultYear}-07-14`,
-    message: buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason),
+    dateTo: '',
+    message: buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason, `${defaultYear}-07-14`),
   });
   const [eventForm, setEventForm] = useState({
     title: '',
@@ -315,7 +316,8 @@ export default function AcademicCalendarPage() {
     setHolidayForm({
       ...DEFAULT_SUDDEN_HOLIDAY,
       date: iso,
-      message: buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason),
+      dateTo: '',
+      message: buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason, iso),
     });
     setFormSubmitted(false);
     setError('');
@@ -449,6 +451,7 @@ export default function AcademicCalendarPage() {
     try {
       await createSuddenHoliday({
         date: holidayForm.date,
+        dateTo: holidayForm.dateTo || holidayForm.date,
         reason: holidayForm.reason.trim(),
         applicableTo: holidayForm.applicableTo,
         message: holidayForm.message,
@@ -1112,19 +1115,46 @@ export default function AcademicCalendarPage() {
               </button>
             </div>
             <p className="mb-4 text-xs text-gray-500">
-              For rain, strike, or other unplanned closures. Saves locally and syncs to the server when live. Parent message is prepared automatically.
+              For rain, strike, or other unplanned closures. Saves to the calendar and sends the
+              approved WhatsApp sudden_holiday template to parents.
             </p>
 
             <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Date</label>
-                <input
-                  type="date"
-                  value={holidayForm.date}
-                  onChange={(e) => setHolidayForm((prev) => ({ ...prev, date: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">From date</label>
+                  <input
+                    type="date"
+                    value={holidayForm.date}
+                    onChange={(e) => {
+                      const date = e.target.value;
+                      setHolidayForm((prev) => ({
+                        ...prev,
+                        date,
+                        message: buildSuddenHolidayMessage(prev.reason, date, prev.dateTo),
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-500">To date (optional)</label>
+                  <input
+                    type="date"
+                    value={holidayForm.dateTo || ''}
+                    min={holidayForm.date}
+                    onChange={(e) => {
+                      const dateTo = e.target.value;
+                      setHolidayForm((prev) => ({
+                        ...prev,
+                        dateTo,
+                        message: buildSuddenHolidayMessage(prev.reason, prev.date, dateTo),
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-500">Reason</label>
@@ -1136,7 +1166,7 @@ export default function AcademicCalendarPage() {
                     setHolidayForm((prev) => ({
                       ...prev,
                       reason,
-                      message: buildSuddenHolidayMessage(reason),
+                      message: buildSuddenHolidayMessage(reason, prev.date, prev.dateTo),
                     }));
                   }}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"

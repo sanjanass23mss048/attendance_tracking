@@ -11,6 +11,11 @@ import { getRequestTenant } from '../lib/tenantContext.js';
 import { userRequiresPasswordChange } from '../lib/initialPassword.js';
 import { APEX_TENANT, passwordResetAppOrigin } from '../lib/tenantHost.js';
 import { buildResetLink, isEmailConfigured, sendPasswordResetEmail } from '../lib/mailer.js';
+import { env } from '../lib/appSettings.js';
+import { sendOtpSms } from '../lib/sms.js';
+import { sendOtpWhatsApp } from '../lib/whatsapp.js';
+import { consumeOtp, issueOtp, last10Digits } from '../lib/parentOtpStore.js';
+import { findOrCreateParentByPhone, findStudentsByParentPhone } from '../services/parentOtpService.js';
 
 const RESET_TOKEN_TTL = '15m';
 const RESET_TOKEN_TYP = 'pwd_reset';
@@ -46,6 +51,21 @@ const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),
 });
+
+const parentPhoneSchema = z.object({
+  phone: z.string().min(8).max(20),
+});
+
+const parentOtpVerifySchema = z.object({
+  phone: z.string().min(8).max(20),
+  otp: z.string().regex(/^\d{4,8}$/),
+});
+
+function echoOtpEnabled(sendResult) {
+  if (sendResult?.skipped) return true;
+  const flag = String(env('OTP_RETURN_IN_RESPONSE', '') || '').toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+}
 
 router.post('/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
@@ -227,6 +247,104 @@ router.post('/reset-password', async (req, res) => {
   });
 
   return res.json({ message: 'Password has been reset. You can sign in with your new password.' });
+});
+
+router.post('/parent/otp/request', async (req, res) => {
+  const parsed = parentPhoneSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Enter a valid mobile number' });
+  }
+  const digits10 = last10Digits(parsed.data.phone);
+  if (!digits10) {
+    return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+  }
+
+  const students = await findStudentsByParentPhone(digits10);
+  if (!students.length) {
+    return res.status(404).json({ error: 'This mobile number is not registered with any student' });
+  }
+
+  const issued = issueOtp(digits10);
+  if (!issued.ok) {
+    return res.status(429).json({
+      error: issued.error,
+      retryAfterSec: issued.retryAfterSec,
+    });
+  }
+
+  const send = await sendOtpSms({ to: digits10, otp: issued.otp });
+  const wa = await sendOtpWhatsApp({ toPhone: digits10, otp: issued.otp });
+  const smsOk = send.ok && !send.skipped;
+  const waOk = wa.ok && !wa.skipped;
+  const echo = echoOtpEnabled(send) && !waOk;
+  if (!smsOk && !waOk && !echo) {
+    return res.status(502).json({
+      error: wa.error || send.error || 'Could not send OTP',
+    });
+  }
+
+  const payload = {
+    ok: true,
+    phoneHint: `xxxxxx${digits10.slice(-4)}`,
+    expiresInSec: issued.expiresInSec,
+    sent: Boolean(smsOk || waOk),
+    channels: { sms: Boolean(smsOk), whatsapp: Boolean(waOk) },
+  };
+  if (send.warning) payload.warning = send.warning;
+  if (echo) payload.devOtp = issued.otp;
+  return res.json(payload);
+});
+
+router.post('/parent/otp/verify', async (req, res) => {
+  const parsed = parentOtpVerifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Enter the mobile number and 6-digit OTP' });
+  }
+  const digits10 = last10Digits(parsed.data.phone);
+  if (!digits10) {
+    return res.status(400).json({ error: 'Enter a valid 10-digit mobile number' });
+  }
+
+  const checked = consumeOtp(digits10, parsed.data.otp);
+  if (!checked.ok) {
+    logAdminAudit(req, {
+      actor: { phone: digits10 },
+      action: 'LOGIN_FAILED',
+      category: 'AUTH',
+      summary: `Failed parent OTP for ****${digits10.slice(-4)}`,
+      details: { reason: 'bad_or_expired_otp' },
+      success: false,
+    });
+    return res.status(401).json({ error: checked.error });
+  }
+
+  const result = await findOrCreateParentByPhone(digits10);
+  if (!result.ok) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const publicUser = { ...result.user, tenant: getRequestTenant() };
+  const expiresIn = '30d';
+  const token = signToken(
+    {
+      id: publicUser.id,
+      email: publicUser.email,
+      name: publicUser.name,
+      role: publicUser.role,
+      tenant: publicUser.tenant,
+    },
+    { expiresIn }
+  );
+  logAdminAudit(req, {
+    actor: publicUser,
+    action: 'LOGIN',
+    category: 'AUTH',
+    entityType: 'user',
+    entityId: publicUser.id,
+    summary: `${publicUser.name || publicUser.email} logged in via OTP (${publicUser.role})`,
+    details: { method: 'parent_otp', expiresIn, studentCount: result.studentCount },
+  });
+  return res.json({ token, user: publicUser, expiresIn, requiresPasswordChange: false });
 });
 
 router.put('/change-password', requireAuth, async (req, res) => {

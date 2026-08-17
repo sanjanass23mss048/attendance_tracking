@@ -112,6 +112,7 @@ function toApiEventPayload(row) {
     applicable_to: row.applicable_to || row.applicableTo || 'All Classes',
     parent_message: row.parent_message ?? row.parentMessage ?? null,
     source: row.source || 'school',
+    date_to: row.date_to || row.dateTo || null,
   };
 }
 
@@ -539,6 +540,7 @@ export async function createSuddenHoliday(payload) {
     applicable_to: payload.applicableTo,
     parent_message: payload.message,
     source: 'sudden',
+    date_to: payload.dateTo || null,
   };
 
   const events = readSchoolEvents().filter(

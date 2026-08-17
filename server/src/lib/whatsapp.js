@@ -218,13 +218,16 @@ export async function sendAttendanceEditApprovalMessage({
 
 /**
  * Send an absence / attendance alert to a parent via WhatsApp.
- * Uses WHATSAPP_ABSENCE_TEMPLATE when set; otherwise sends a free-form text body.
+ * attendance_alert body:
+ *   Name: {{1}}
+ *   Class & Section: {{2}}
+ *   Your ward is absent on {{3}}
  */
 export async function sendAbsenceAlertWhatsApp({
   toPhone,
   body,
   studentName,
-  rollNo,
+  classSection,
   date,
 }) {
   if (!configured()) {
@@ -237,7 +240,7 @@ export async function sendAbsenceAlertWhatsApp({
     return { ok: false, skipped: false, provider: 'whatsapp', error: 'Missing phone number', to: '' };
   }
 
-  const templateName = env('WHATSAPP_ABSENCE_TEMPLATE');
+  const templateName = env('WHATSAPP_ABSENCE_TEMPLATE', 'attendance_alert');
   const languageCode = env('WHATSAPP_ABSENCE_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
 
   try {
@@ -254,7 +257,7 @@ export async function sendAbsenceAlertWhatsApp({
               type: 'body',
               parameters: textParams([
                 studentName || 'Student',
-                rollNo || '-',
+                classSection || '—',
                 date || '—',
               ]),
             },
@@ -298,5 +301,121 @@ export async function sendAbsenceAlertWhatsApp({
       to,
       error: err.message || 'WhatsApp send failed',
     };
+  }
+}
+
+function waLang() {
+  return env('WHATSAPP_ABSENCE_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
+}
+
+function waResult({ ok, skipped = false, to, id = null, error = null, reason = null }) {
+  return { ok, skipped, provider: 'whatsapp', to, id, error, reason };
+}
+
+/**
+ * Parent login OTP via Authentication template `login_otp`:
+ * "{{1}} is your verification code. For your security, do not share this code."
+ */
+export async function sendOtpWhatsApp({ toPhone, otp }) {
+  if (!configured()) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
+  }
+  const templateName = env('WHATSAPP_OTP_TEMPLATE', 'login_otp');
+  if (!templateName) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'no_template' });
+  }
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return waResult({ ok: false, to: '', error: 'Missing phone number' });
+  }
+  const code = String(otp || '').trim();
+  const languageCode = waLang();
+  const bodyComponent = { type: 'body', parameters: textParams([code]) };
+  const buttonComponent = {
+    type: 'button',
+    sub_type: 'url',
+    index: '0',
+    parameters: [{ type: 'text', text: code }],
+  };
+
+  try {
+    const data = await postMessage({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: [bodyComponent, buttonComponent],
+      },
+    });
+    return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+  } catch (err) {
+    try {
+      const data = await postMessage({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [bodyComponent],
+        },
+      });
+      return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+    } catch (retryErr) {
+      console.error('[whatsapp] login OTP failed', retryErr);
+      return waResult({
+        ok: false,
+        to,
+        error: retryErr.message || err.message || 'WhatsApp OTP send failed',
+      });
+    }
+  }
+}
+
+/**
+ * sudden_holiday body:
+ *   Dear Parent,
+ *   Due to {{1}}, the school will remain closed on *{{2}}*.
+ *   Regards, RIOBizSols
+ */
+export async function sendSuddenHolidayWhatsApp({ toPhone, reason, dates }) {
+  if (!configured()) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
+  }
+  const templateName = env('WHATSAPP_HOLIDAY_TEMPLATE', 'sudden_holiday');
+  if (!templateName) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'no_template' });
+  }
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return waResult({ ok: false, to: '', error: 'Missing phone number' });
+  }
+  const languageCode = waLang();
+  try {
+    const data = await postMessage({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: [
+          {
+            type: 'body',
+            parameters: textParams([reason || 'unforeseen circumstances', dates || '—']),
+          },
+        ],
+      },
+    });
+    return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+  } catch (err) {
+    console.error('[whatsapp] sudden holiday failed', err);
+    return waResult({
+      ok: false,
+      to,
+      error: err.message || 'WhatsApp holiday send failed',
+    });
   }
 }

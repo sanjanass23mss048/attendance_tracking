@@ -32,6 +32,30 @@ class PresenceApi {
     ) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> requestParentOtp(String phone) async {
+    return await client.fetch(
+      '/api/auth/parent/otp/request',
+      method: 'POST',
+      jsonBody: {'phone': phone.trim()},
+    ) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> loginWithParentOtp(String phone, String otp) async {
+    final data = await client.fetch(
+      '/api/auth/parent/otp/verify',
+      method: 'POST',
+      jsonBody: {
+        'phone': phone.trim(),
+        'otp': otp.trim(),
+      },
+    ) as Map<String, dynamic>;
+    await client.setSession(
+      data['token'] as String,
+      Map<String, dynamic>.from(data['user'] as Map),
+    );
+    return data;
+  }
+
   Future<Map<String, dynamic>> me() async {
     final data = await client.fetch('/api/me') as Map<String, dynamic>;
     if (data['user'] is Map) {
