@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, LogOut, Save, Settings as SettingsIcon } from 'lucide-react';
+import { ImagePlus, Loader2, LogOut, Save, Settings as SettingsIcon } from 'lucide-react';
 import AlertDeliveryOptions from './AlertDeliveryOptions';
 import {
   getAlertDeliveryPrefs,
@@ -7,6 +7,8 @@ import {
 } from '../services/alertDeliveryPrefs';
 import { getAppSettings, saveAppSettings } from '../services/appSettingsService';
 import { showToast } from '../services/toast';
+import { uploadSchoolLogo, useBranding } from '../lib/branding.jsx';
+import { canManageUsers } from '../data/navItems.js';
 
 const ROLE_LABELS = {
   INCHARGE: 'Attendance In-charge',
@@ -126,11 +128,36 @@ export default function SettingsPage({ user, onLogout }) {
     .toUpperCase();
 
   const [prefs, setPrefs] = useState(() => getAlertDeliveryPrefs());
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const { markSrc, refresh } = useBranding();
+  const canEditLogo = canManageUsers(user);
 
   const updatePrefs = (partial) => {
     const next = setAlertDeliveryPrefs({ ...prefs, ...partial });
     setPrefs(next);
     showToast('Alert preferences saved', 'success');
+  };
+
+  const onLogoChosen = async (file) => {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      showToast('School logo must be a PNG, JPEG, or WebP image.', 'error');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('School logo must be 2 MB or smaller.', 'error');
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      await uploadSchoolLogo(file);
+      await refresh();
+      showToast('School logo updated', 'success');
+    } catch (err) {
+      showToast(err.message || 'Could not upload school logo.', 'error');
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   return (
@@ -145,6 +172,36 @@ export default function SettingsPage({ user, onLogout }) {
             <p className="text-sm text-gray-500">Account and notification preferences</p>
           </div>
         </div>
+
+        {canEditLogo && (
+          <div className="mb-6 flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+            <img src={markSrc} alt="" className="h-16 w-16 rounded-xl bg-white object-contain p-1 ring-1 ring-gray-200" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-gray-900">School logo</p>
+              <p className="text-xs text-gray-500">Shown on login, sidebar, and reports. PNG, JPEG, or WebP up to 2 MB.</p>
+              <input
+                id="settings-logo-upload"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  onLogoChosen(file);
+                }}
+              />
+              <label
+                htmlFor="settings-logo-upload"
+                className={`mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 ${
+                  uploadingLogo ? 'pointer-events-none opacity-60' : ''
+                }`}
+              >
+                <ImagePlus size={14} />
+                {uploadingLogo ? 'Uploading…' : 'Upload school logo'}
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">

@@ -39,9 +39,20 @@ StatusOption statusMeta(String? code) {
   );
 }
 
-String todayYmd() {
-  final d = DateTime.now();
+String dateYmd(DateTime d) {
   final m = d.month.toString().padLeft(2, '0');
   final day = d.day.toString().padLeft(2, '0');
   return '${d.year}-$m-$day';
+}
+
+String todayYmd() => dateYmd(DateTime.now());
+
+DateTime? parseYmd(String ymd) {
+  final parts = ymd.split('-');
+  if (parts.length != 3) return null;
+  final y = int.tryParse(parts[0]);
+  final m = int.tryParse(parts[1]);
+  final d = int.tryParse(parts[2]);
+  if (y == null || m == null || d == null) return null;
+  return DateTime(y, m, d);
 }

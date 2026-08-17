@@ -6,15 +6,28 @@ import {
   ChevronLeft,
   ChevronRight,
   GraduationCap,
+  ImagePlus,
   Loader2,
   Lock,
+  Minus,
+  Plus,
   School,
   UserRound,
   X,
 } from 'lucide-react';
 import { checkSetupSlug, createSchool, getSetupMeta } from '../services/setupService.js';
 import { networkErrorMessage } from '../services/toast.js';
+import { formatClassLabel } from '../data/schoolGrades.js';
 import attendanceLogoMark from '../assets/attendance-logo-mark.png';
+
+const MIN_SECTIONS = 1;
+const MAX_SECTIONS = 12;
+const SECTION_LETTERS = 'ABCDEFGHIJKL';
+
+function lettersForCount(count) {
+  const n = Math.min(MAX_SECTIONS, Math.max(MIN_SECTIONS, Number(count) || 1));
+  return SECTION_LETTERS.slice(0, n).split('').join(', ');
+}
 
 const STEPS = [
   { id: 0, title: 'School', description: 'Name, subdomain, and location' },
@@ -52,8 +65,11 @@ export default function SchoolSetupPage() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [city, setCity] = useState('');
   const [board, setBoard] = useState('');
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState('');
   const [includeKg, setIncludeKg] = useState(true);
   const [maxGrade, setMaxGrade] = useState(12);
+  const [sectionCounts, setSectionCounts] = useState({});
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
@@ -85,6 +101,12 @@ export default function SchoolSetupPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+    };
+  }, [logoPreview]);
 
   useEffect(() => {
     if (slugTouched) return;
@@ -120,6 +142,27 @@ export default function SchoolSetupPage() {
     return list;
   }, [includeKg, maxGrade]);
 
+  const sectionsFor = (className) => {
+    const n = Number(sectionCounts[className]);
+    if (Number.isFinite(n) && n >= MIN_SECTIONS) return Math.min(MAX_SECTIONS, n);
+    return 1;
+  };
+
+  const setSectionsFor = (className, next) => {
+    const n = Math.min(MAX_SECTIONS, Math.max(MIN_SECTIONS, Number(next) || 1));
+    setSectionCounts((prev) => ({ ...prev, [className]: n }));
+  };
+
+  const sectionPayload = useMemo(() => {
+    const out = {};
+    for (const g of gradesPreview) out[g] = sectionsFor(g);
+    return out;
+  }, [gradesPreview, sectionCounts]);
+
+  const gradesReviewValue = gradesPreview
+    .map((g) => `${formatClassLabel(g)} (${lettersForCount(sectionsFor(g))})`)
+    .join(' · ');
+
   const canNext = () => {
     if (step === 0) {
       if (requiresSecret && !String(setupSecret || '').trim()) return false;
@@ -148,20 +191,24 @@ export default function SchoolSetupPage() {
     setError('');
     setCreating(true);
     try {
-      const result = await createSchool({
-        schoolName: schoolName.trim(),
-        slug: slug.trim().toLowerCase(),
-        city: city.trim() || undefined,
-        board: board.trim() || undefined,
-        includeKg,
-        maxGrade: Number(maxGrade),
-        setupSecret: setupSecret || undefined,
-        admin: {
-          name: adminName.trim(),
-          email: adminEmail.trim(),
-          phone: adminPhone.trim() || undefined,
+      const result = await createSchool(
+        {
+          schoolName: schoolName.trim(),
+          slug: slug.trim().toLowerCase(),
+          city: city.trim() || undefined,
+          board: board.trim() || undefined,
+          includeKg,
+          maxGrade: Number(maxGrade),
+          sectionCounts: sectionPayload,
+          setupSecret: setupSecret || undefined,
+          admin: {
+            name: adminName.trim(),
+            email: adminEmail.trim(),
+            phone: adminPhone.trim() || undefined,
+          },
         },
-      });
+        logoFile
+      );
       setCreated(result);
       const url = result.subdomainUrl;
       if (url) {
@@ -275,38 +322,82 @@ export default function SchoolSetupPage() {
                   placeholder="Sunrise Public School"
                 />
               </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Subdomain slug</span>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-xs font-medium text-slate-600">Subdomain slug</span>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      value={slug}
+                      onChange={(e) => {
+                        setSlugTouched(true);
+                        setSlug(slugify(e.target.value));
+                      }}
+                      className={`${inputClass()} sm:max-w-[220px]`}
+                      placeholder="sunrise"
+                    />
+                    <span className="truncate text-sm text-slate-500">.{mainHost}</span>
+                  </div>
+                  <p className="mt-1.5 min-h-[1.25rem] text-xs">
+                    {checkingSlug ? (
+                      <span className="inline-flex items-center gap-1 text-slate-500">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                      </span>
+                    ) : slugStatus?.available ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-700">
+                        <Check className="h-3 w-3" /> {slugStatus.message}
+                      </span>
+                    ) : slugStatus ? (
+                      <span className="inline-flex items-center gap-1 text-rose-600">
+                        <X className="h-3 w-3" /> {slugStatus.message}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">3–40 letters, numbers, or hyphens.</span>
+                    )}
+                  </p>
+                </label>
+                <div className="flex shrink-0 flex-col items-center sm:pt-5">
                   <input
-                    value={slug}
+                    id="school-logo-upload"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
                     onChange={(e) => {
-                      setSlugTouched(true);
-                      setSlug(slugify(e.target.value));
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!file) return;
+                      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+                        setError('School logo must be a PNG, JPEG, or WebP image.');
+                        return;
+                      }
+                      if (file.size > 2 * 1024 * 1024) {
+                        setError('School logo must be 2 MB or smaller.');
+                        return;
+                      }
+                      setError('');
+                      setLogoPreview((prev) => {
+                        if (prev) URL.revokeObjectURL(prev);
+                        return URL.createObjectURL(file);
+                      });
+                      setLogoFile(file);
                     }}
-                    className={`${inputClass()} sm:max-w-[220px]`}
-                    placeholder="sunrise"
                   />
-                  <span className="truncate text-sm text-slate-500">.{mainHost}</span>
+                  <label
+                    htmlFor="school-logo-upload"
+                    className="flex cursor-pointer flex-col items-center gap-2"
+                  >
+                    <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 shadow-sm hover:border-indigo-400 hover:bg-indigo-50">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="School logo preview" className="h-full w-full object-contain p-1" />
+                      ) : (
+                        <ImagePlus className="h-7 w-7 text-slate-400" />
+                      )}
+                    </span>
+                    <span className="text-xs font-semibold text-indigo-700">
+                      {logoFile ? 'Change logo' : 'Upload school logo'}
+                    </span>
+                  </label>
                 </div>
-                <p className="mt-1.5 min-h-[1.25rem] text-xs">
-                  {checkingSlug ? (
-                    <span className="inline-flex items-center gap-1 text-slate-500">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Checking…
-                    </span>
-                  ) : slugStatus?.available ? (
-                    <span className="inline-flex items-center gap-1 text-emerald-700">
-                      <Check className="h-3 w-3" /> {slugStatus.message}
-                    </span>
-                  ) : slugStatus ? (
-                    <span className="inline-flex items-center gap-1 text-rose-600">
-                      <X className="h-3 w-3" /> {slugStatus.message}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">3–40 letters, numbers, or hyphens.</span>
-                  )}
-                </p>
-              </label>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-slate-600">City (optional)</span>
@@ -332,8 +423,8 @@ export default function SchoolSetupPage() {
                 Grades to seed
               </h1>
               <p className="text-sm text-slate-600">
-                Section <strong>A</strong> is created for each grade. Add more sections later on the Classes page.
-                No student names are seeded.
+                Pick the highest class, then set how many sections each class has. Letters are assigned in order
+                (1 = A, 2 = A+B, …). No student names are seeded.
               </p>
               <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <input
@@ -361,9 +452,28 @@ export default function SchoolSetupPage() {
                   ))}
                 </select>
               </label>
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-                <p className="font-semibold">Will create</p>
-                <p className="mt-1 text-indigo-800">{gradesPreview.join(', ')} — section A</p>
+              <div className="overflow-hidden rounded-xl border border-indigo-100 bg-indigo-50/70">
+                <div className="flex items-center justify-between border-b border-indigo-100 px-4 py-2.5">
+                  <p className="text-sm font-semibold text-indigo-950">Classes</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-700">Sections</p>
+                </div>
+                <ul className="max-h-[22rem] divide-y divide-indigo-100/80 overflow-y-auto bg-white">
+                  {gradesPreview.map((className) => {
+                    const count = sectionsFor(className);
+                    return (
+                      <li key={className} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{formatClassLabel(className)}</p>
+                          <p className="text-xs text-slate-500">{lettersForCount(count)}</p>
+                        </div>
+                        <SectionStepper
+                          value={count}
+                          onChange={(next) => setSectionsFor(className, next)}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             </div>
           )}
@@ -413,10 +523,14 @@ export default function SchoolSetupPage() {
               </h1>
               <dl className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50">
                 <ReviewRow label="School" value={schoolName} />
+                <ReviewRow
+                  label="Logo"
+                  value={logoFile ? logoFile.name : 'Default Presence logo'}
+                />
                 <ReviewRow label="URL" value={`${slug}.${mainHost}`} />
                 <ReviewRow label="Database" value={slugStatus?.databaseName || `${slug.replace(/-/g, '_')}_attdb`} />
                 <ReviewRow label="City / board" value={[city, board].filter(Boolean).join(' · ') || '—'} />
-                <ReviewRow label="Grades" value={`${gradesPreview.join(', ')} (section A)`} />
+                <ReviewRow label="Grades" value={gradesReviewValue} />
                 <ReviewRow label="Admin" value={`${adminName} · ${adminEmail}`} />
                 <ReviewRow label="Initial password" value={initialPassword} />
                 <ReviewRow label="Roles seeded" value="Admin, Teacher, Parent" />
@@ -474,6 +588,71 @@ function ReviewRow({ label, value }) {
     <div className="flex gap-4 px-4 py-3 text-sm">
       <dt className="w-28 shrink-0 font-medium text-slate-500">{label}</dt>
       <dd className="min-w-0 font-semibold text-slate-900">{value}</dd>
+    </div>
+  );
+}
+
+function SectionStepper({ value, onChange }) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = (raw) => {
+    const parsed = parseInt(String(raw), 10);
+    const next = Number.isFinite(parsed)
+      ? Math.min(MAX_SECTIONS, Math.max(MIN_SECTIONS, parsed))
+      : value;
+    onChange(next);
+    setDraft(String(next));
+  };
+
+  return (
+    <div className="flex shrink-0 flex-col items-center">
+      <span className="mb-1 text-[11px] font-medium text-slate-500">sections</span>
+      <div className="inline-flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+        <button
+          type="button"
+          aria-label="Fewer sections"
+          disabled={value <= MIN_SECTIONS}
+          onClick={() => onChange(value - 1)}
+          className="flex h-9 w-9 items-center justify-center text-slate-700 hover:bg-slate-50 disabled:text-slate-300"
+        >
+          <Minus className="h-4 w-4" strokeWidth={2.4} />
+        </button>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          aria-label="Number of sections"
+          value={draft}
+          onChange={(e) => {
+            const next = e.target.value.replace(/[^\d]/g, '').slice(0, 2);
+            setDraft(next);
+            if (next === '') return;
+            const parsed = parseInt(next, 10);
+            if (Number.isFinite(parsed) && parsed >= MIN_SECTIONS && parsed <= MAX_SECTIONS) {
+              onChange(parsed);
+            }
+          }}
+          onFocus={(e) => e.target.select()}
+          onBlur={() => commit(draft)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          className="h-9 w-8 border-0 bg-transparent p-0 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:ring-0"
+        />
+        <button
+          type="button"
+          aria-label="More sections"
+          disabled={value >= MAX_SECTIONS}
+          onClick={() => onChange(value + 1)}
+          className="flex h-9 w-9 items-center justify-center text-slate-700 hover:bg-slate-50 disabled:text-slate-300"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.4} />
+        </button>
+      </div>
     </div>
   );
 }

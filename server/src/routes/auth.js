@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { signToken } from '../middleware/auth.js';
@@ -8,6 +9,30 @@ import { serializeUser } from '../services/schoolRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { getRequestTenant } from '../lib/tenantContext.js';
 import { userRequiresPasswordChange } from '../lib/initialPassword.js';
+import { APEX_TENANT, passwordResetAppOrigin } from '../lib/tenantHost.js';
+import { buildResetLink, isEmailConfigured, sendPasswordResetEmail } from '../lib/mailer.js';
+
+const RESET_TOKEN_TTL = '15m';
+const RESET_TOKEN_TYP = 'pwd_reset';
+const GENERIC_RESET_MESSAGE = 'If that email is registered at this school, we sent a password reset link.';
+
+function signPasswordResetToken(user, tenant) {
+  return jwt.sign(
+    {
+      typ: RESET_TOKEN_TYP,
+      sub: user.user_id,
+      email: user.email,
+      tenant: tenant || APEX_TENANT,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: RESET_TOKEN_TTL }
+  );
+}
+
+function isLocalRequest(req) {
+  const host = String(req.get('host') || '');
+  return host.includes('localhost') || process.env.NODE_ENV !== 'production';
+}
 
 const router = Router();
 
@@ -81,6 +106,127 @@ router.post('/login', async (req, res) => {
     details: { rememberMe: Boolean(rememberMe), expiresIn, requiresPasswordChange },
   });
   return res.json({ token, user: publicUser, expiresIn, requiresPasswordChange });
+});
+
+const forgotSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetSchema = z.object({
+  token: z.string().min(10),
+  newPassword: z.string().min(8),
+});
+
+router.post('/forgot-password', async (req, res) => {
+  const parsed = forgotSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Enter a valid email address' });
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const tenant = getRequestTenant() || APEX_TENANT;
+  const user = await prisma.tblUsers.findUnique({
+    where: { email },
+  });
+
+  if (!user || user.int_status === 0) {
+    return res.json({ message: GENERIC_RESET_MESSAGE });
+  }
+
+  const token = signPasswordResetToken(user, tenant);
+  const resetLink = buildResetLink(passwordResetAppOrigin(req), token);
+
+  logAdminAudit(req, {
+    actor: { id: user.user_id, name: user.name, email: user.email, role: user.role_id },
+    action: 'PASSWORD_RESET_REQUEST',
+    category: 'AUTH',
+    entityType: 'user',
+    entityId: user.user_id,
+    summary: `${user.email} requested a password reset`,
+  });
+
+  if (!isEmailConfigured()) {
+    console.error('[forgot-password] EMAIL_USER / EMAIL_PASS not set. Reset link:', resetLink);
+    if (isLocalRequest(req)) {
+      return res.json({
+        message: 'Email is not configured. Use the resetLink below (local/dev only).',
+        resetLink,
+      });
+    }
+    return res.status(503).json({
+      error: 'Password reset email is not configured. Please contact the school administrator.',
+    });
+  }
+
+  try {
+    await sendPasswordResetEmail({ to: user.email, resetLink });
+    return res.json({ message: GENERIC_RESET_MESSAGE });
+  } catch (err) {
+    console.error('[forgot-password] email failed', err);
+    console.error('[forgot-password] reset link:', err.resetLink || resetLink);
+    if (isLocalRequest(req)) {
+      return res.json({
+        message: 'Email could not be sent. Use the resetLink below (local/dev only).',
+        resetLink: err.resetLink || resetLink,
+        error: err.message,
+      });
+    }
+    return res.status(500).json({
+      error: 'Could not send the reset email. Please try again later or contact the school administrator.',
+    });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  const parsed = resetSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+  }
+
+  const { token, newPassword } = parsed.data;
+  let payload;
+  try {
+    payload = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+  }
+
+  if (payload?.typ !== RESET_TOKEN_TYP || !payload.sub) {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+  }
+
+  const requestTenant = getRequestTenant() || APEX_TENANT;
+  const tokenTenant = payload.tenant || APEX_TENANT;
+  if (tokenTenant !== requestTenant) {
+    return res.status(400).json({ error: 'Open this reset link from the same school website it was sent for.' });
+  }
+
+  const user = await prisma.tblUsers.findUnique({
+    where: { user_id: payload.sub },
+  });
+  if (!user || user.int_status === 0) {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+  }
+  if (payload.email && String(payload.email).toLowerCase() !== String(user.email).toLowerCase()) {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await prisma.tblUsers.update({
+    where: { user_id: user.user_id },
+    data: { password: passwordHash },
+  });
+
+  logAdminAudit(req, {
+    actor: { id: user.user_id, name: user.name, email: user.email, role: user.role_id },
+    action: 'PASSWORD_RESET',
+    category: 'AUTH',
+    entityType: 'user',
+    entityId: user.user_id,
+    summary: `${user.name || user.email} reset password`,
+  });
+
+  return res.json({ message: 'Password has been reset. You can sign in with your new password.' });
 });
 
 router.put('/change-password', requireAuth, async (req, res) => {

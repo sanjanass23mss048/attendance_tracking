@@ -20,6 +20,8 @@ import SettingsPage from './components/SettingsPage';
 import SupportCenterPage from './components/SupportCenterPage';
 import ReportsPage from './components/ReportsPage';
 import LoginPage from './components/LoginPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
 import ChangePasswordPage from './components/ChangePasswordPage';
 import SchoolSetupPage from './components/SchoolSetupPage';
 import UsersPage from './components/UsersPage';
@@ -91,14 +93,14 @@ import {
   createEditRequest,
   getEditContext,
 } from './services/attendanceEditRequestService.js';
-import attendanceLogo from './assets/attendance-logo.png';
+import { SchoolLogo, useBranding } from './lib/branding.jsx';
 
 function BootSplash() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-6">
-      <img
-        src={attendanceLogo}
-        alt="Presence"
+      <SchoolLogo
+        variant="full"
+        alt="School logo"
         className="h-28 w-auto max-w-[240px] object-contain sm:h-32"
       />
       <p className="text-sm text-slate-400">Starting…</p>
@@ -124,18 +126,38 @@ const EMPTY_DASH_STATS = {
 };
 
 export default function App() {
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/setup')) {
-    return (
-      <>
-        <SchoolSetupPage />
-        <AppToast />
-      </>
-    );
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname;
+    if (path.startsWith('/setup')) {
+      return (
+        <>
+          <SchoolSetupPage />
+          <AppToast />
+        </>
+      );
+    }
+    if (path.startsWith('/forgot-password')) {
+      return (
+        <>
+          <ForgotPasswordPage />
+          <AppToast />
+        </>
+      );
+    }
+    if (path.startsWith('/reset-password')) {
+      return (
+        <>
+          <ResetPasswordPage />
+          <AppToast />
+        </>
+      );
+    }
   }
   return <AttendanceApp />;
 }
 
 function AttendanceApp() {
+  const { logoSrc } = useBranding();
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState(null);
   const [requiresPasswordChange, setRequiresPasswordChangeState] = useState(() => getRequiresPasswordChange());
@@ -877,6 +899,7 @@ function AttendanceApp() {
         classLabel,
         dateLabel,
         rows,
+        logoUrl: logoSrc,
       });
       showToast('Print dialog opened — choose Save as PDF.', 'info');
     } catch (err) {

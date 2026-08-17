@@ -143,6 +143,20 @@ export async function getMe() {
   return data;
 }
 
+export async function requestPasswordReset(email) {
+  return apiFetch('/api/auth/forgot-password', {
+    method: 'POST',
+    json: { email: String(email || '').trim() },
+  });
+}
+
+export async function resetPassword({ token, newPassword }) {
+  return apiFetch('/api/auth/reset-password', {
+    method: 'POST',
+    json: { token, newPassword },
+  });
+}
+
 export async function changePassword({ currentPassword, newPassword }) {
   const data = await apiFetch('/api/auth/change-password', {
     method: 'PUT',

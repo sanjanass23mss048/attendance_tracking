@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, Lock, LogOut } from 'lucide-react';
 import { changePassword, logout } from '../services/authService.js';
 import { networkErrorMessage } from '../services/toast.js';
-import attendanceLogoMark from '../assets/attendance-logo-mark.png';
+import { SchoolLogo } from '../lib/branding.jsx';
 
 export default function ChangePasswordPage({ user, onSuccess }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -57,7 +57,7 @@ export default function ChangePasswordPage({ user, onSuccess }) {
 
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/60 bg-white/95 p-6 shadow-2xl backdrop-blur sm:p-8">
         <div className="mb-6 flex items-center gap-3">
-          <img src={attendanceLogoMark} alt="" className="h-10 w-10 rounded-xl object-contain" />
+          <SchoolLogo variant="mark" alt="" className="h-10 w-10 rounded-xl object-contain" />
           <div>
             <p className="text-sm font-semibold text-slate-900">Change password</p>
             <p className="text-xs text-slate-500">

@@ -66,6 +66,9 @@ class ApiClient {
       if (jsonBody != null) 'Content-Type': 'application/json',
       if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
     };
+    if (AppConfig.apiBase.startsWith('http')) {
+      headers['Origin'] = AppConfig.apiBase;
+    }
 
     late http.Response res;
     switch (method.toUpperCase()) {

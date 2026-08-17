@@ -17,8 +17,7 @@ import { login } from '../services/authService.js';
 import { getRememberedEmail } from '../services/api.js';
 import { isApexBrowserHost } from '../lib/tenantHost.js';
 import { networkErrorMessage } from '../services/toast.js';
-import attendanceLogo from '../assets/attendance-logo.png';
-import attendanceLogoMark from '../assets/attendance-logo-mark.png';
+import { SchoolLogo } from '../lib/branding.jsx';
 
 const SCHOOL_IMAGE =
   'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=80';
@@ -76,9 +75,9 @@ export default function LoginPage({ onSuccess }) {
 
       {/* App branding in blue zone */}
       <div className="absolute left-4 top-5 z-10 flex items-center gap-3 sm:left-8 sm:top-8">
-        <img
-          src={attendanceLogoMark}
-          alt="Presence"
+        <SchoolLogo
+          variant="mark"
+          alt="School logo"
           className="h-12 w-12 rounded-xl bg-white/95 object-contain p-1 shadow-md ring-2 ring-white/30 sm:h-14 sm:w-14"
         />
         <span className="text-base font-semibold tracking-tight text-white drop-shadow-sm sm:text-lg">
@@ -137,9 +136,9 @@ export default function LoginPage({ onSuccess }) {
       <div className="relative z-20 flex min-h-screen w-full items-center justify-center px-4 py-16 sm:px-6">
         <div className="w-full max-w-[400px] rounded-2xl bg-white px-7 py-8 shadow-[0_20px_50px_-12px_rgba(30,58,138,0.28)] ring-1 ring-black/5 sm:px-9 sm:py-9">
           <div className="mb-7 text-center">
-            <img
-              src={attendanceLogo}
-              alt="Presence"
+            <SchoolLogo
+              variant="full"
+              alt="School logo"
               className="mx-auto mb-2 h-28 w-auto max-w-[240px] object-contain sm:h-32 sm:max-w-[280px]"
             />
             <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
@@ -206,13 +205,12 @@ export default function LoginPage({ onSuccess }) {
                 />
                 Remember me
               </label>
-              <button
-                type="button"
-                onClick={() => alert('Contact admin')}
+              <a
+                href="/forgot-password"
                 className="text-xs font-medium text-[#1e3a8a] hover:underline"
               >
                 Forgot password?
-              </button>
+              </a>
             </div>
 
             {error && (

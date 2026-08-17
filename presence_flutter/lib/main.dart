@@ -14,6 +14,7 @@ import 'screens/calendar_screen.dart';
 import 'screens/classes_screen.dart';
 import 'screens/compose_notice_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/parent/parent_calendar_screen.dart';
@@ -87,13 +88,14 @@ class _PresenceAppState extends State<PresenceApp> {
         final loc = state.matchedLocation;
         final onBoot = loc == '/boot';
         final loggingIn = loc == '/login';
+        final onForgot = loc == '/forgot-password';
         final isParentPath = loc.startsWith('/parent');
 
         if (!auth.isLoggedIn) {
-          return loggingIn ? null : '/login';
+          return (loggingIn || onForgot) ? null : '/login';
         }
 
-        if (loggingIn || onBoot) {
+        if (loggingIn || onBoot || onForgot) {
           return auth.isParent ? '/parent/notices' : '/dashboard';
         }
 
@@ -116,6 +118,7 @@ class _PresenceAppState extends State<PresenceApp> {
           ),
         ),
         GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+        GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
         ShellRoute(
           builder: (context, state, child) => AppShell(child: child),
           routes: [

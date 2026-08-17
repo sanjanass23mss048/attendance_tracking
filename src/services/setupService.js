@@ -11,7 +11,13 @@ export function checkSetupSlug(slug, setupSecret) {
   });
 }
 
-export function createSchool(payload) {
+export function createSchool(payload, logoFile) {
+  if (logoFile) {
+    const form = new FormData();
+    form.append('data', JSON.stringify(payload));
+    form.append('logo', logoFile);
+    return apiFetch('/api/setup/create', { method: 'POST', body: form });
+  }
   return apiFetch('/api/setup/create', {
     method: 'POST',
     json: payload,

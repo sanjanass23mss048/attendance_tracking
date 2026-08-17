@@ -619,6 +619,21 @@ function statusBadgeHtml(label) {
   return `<span class="${cls}"><span class="badge-icon">${icon}</span>${escapeHtml(label || '—')}</span>`;
 }
 
+let pdfBrandLogoUrl = '';
+
+/** Keep PDF headers in sync with the uploaded school logo. */
+export function setPdfBrandLogoUrl(url) {
+  pdfBrandLogoUrl = String(url || '').trim();
+}
+
+function resolvePdfLogo(logoUrl) {
+  if (logoUrl) return logoUrl;
+  if (pdfBrandLogoUrl) return pdfBrandLogoUrl;
+  return typeof window !== 'undefined'
+    ? `${window.location.origin}/attendance-logo-mark.png`
+    : '/attendance-logo-mark.png';
+}
+
 /**
  * Styled attendance report matching Presence / RIOBizSols PDF mockup.
  * Opens the system print dialog — choose “Save as PDF”.
@@ -631,11 +646,7 @@ function statusBadgeHtml(label) {
  * }} opts
  */
 export function exportAttendanceReportPdf({ classLabel, dateLabel, rows = [], logoUrl }) {
-  const logo =
-    logoUrl ||
-    (typeof window !== 'undefined'
-      ? `${window.location.origin}/attendance-logo-mark.png`
-      : '/attendance-logo-mark.png');
+  const logo = resolvePdfLogo(logoUrl);
 
   const bodyRows = rows
     .map(
@@ -864,11 +875,7 @@ export function exportNominalRollPdf({
   showTeacherColumn = false,
   logoUrl,
 }) {
-  const logo =
-    logoUrl ||
-    (typeof window !== 'undefined'
-      ? `${window.location.origin}/attendance-logo-mark.png`
-      : '/attendance-logo-mark.png');
+  const logo = resolvePdfLogo(logoUrl);
 
   const multiSection =
     !sectionLabel &&
@@ -1106,11 +1113,9 @@ export function exportTablePdfReport({
   headers = [],
   rows = [],
   statusColumnIndex = -1,
+  logoUrl,
 }) {
-  const logo =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/attendance-logo-mark.png`
-      : '/attendance-logo-mark.png';
+  const logo = resolvePdfLogo(logoUrl);
 
   const statusIdx =
     statusColumnIndex >= 0
@@ -1451,11 +1456,7 @@ export function exportAcademicCalendarPdf({
   reopeningDate,
   lastWorkingDate,
 }) {
-  const logo =
-    logoUrl ||
-    (typeof window !== 'undefined'
-      ? `${window.location.origin}/attendance-logo-mark.png`
-      : '/attendance-logo-mark.png');
+  const logo = resolvePdfLogo(logoUrl);
 
   const year = Number(startYear) || resolveAcademicYearStart(new Date().getFullYear(), 5);
   const { months, totalWorkingDays } = buildAcademicYearMonths(year, events);

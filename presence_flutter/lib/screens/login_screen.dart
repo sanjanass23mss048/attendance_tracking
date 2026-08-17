@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
@@ -102,6 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                   )
                                 : const Text('Sign in'),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: loading ? null : () => context.push('/forgot-password'),
+                              child: const Text('Forgot password?'),
+                            ),
                           ),
                           const SizedBox(height: 10),
                           const Text(

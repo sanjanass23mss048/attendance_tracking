@@ -95,6 +95,9 @@ export async function apiFetch(path, options = {}) {
   if (json !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
+  if (rest.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
 
   let res;
   try {
@@ -130,7 +133,12 @@ export async function apiFetch(path, options = {}) {
     err.status = res.status;
     err.data = data;
     // Session gone — clear stored auth so the app returns to login once.
-    if (res.status === 401 && path !== '/api/auth/login') {
+    const skipAuthClear = [
+      '/api/auth/login',
+      '/api/auth/forgot-password',
+      '/api/auth/reset-password',
+    ];
+    if (res.status === 401 && !skipAuthClear.includes(path)) {
       err.isAuth = true;
       clearToken();
       clearStoredUser();

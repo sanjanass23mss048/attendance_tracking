@@ -43,7 +43,13 @@
   </head>
   <body>
     <div id="boot-splash" aria-live="polite" aria-busy="true">
-      <img src="/attendance-logo.png" alt="Presence" width="240" height="131" />
+      <img
+        src="/api/branding/logo"
+        alt="School logo"
+        width="240"
+        height="131"
+        onerror="this.onerror=null;this.src='/attendance-logo.png'"
+      />
       <p class="boot-hint">Starting…</p>
     </div>
     <div id="root"></div>

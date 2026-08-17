@@ -24,7 +24,7 @@ import {
   UserCog,
 } from 'lucide-react';
 import { isNavChildActive, navItemsForUser } from '../data/navItems';
-import attendanceLogoMark from '../assets/attendance-logo-mark.png';
+import { SchoolLogo } from '../lib/branding.jsx';
 
 const iconMap = {
   LayoutDashboard,
@@ -123,8 +123,8 @@ export default function Sidebar({
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left hover:bg-indigo-900/50"
             aria-label="Go to Dashboard"
           >
-            <img
-              src={attendanceLogoMark}
+            <SchoolLogo
+              variant="mark"
               alt=""
               className="h-10 w-10 shrink-0 rounded-lg bg-white object-contain p-0.5 ring-1 ring-white/20"
             />

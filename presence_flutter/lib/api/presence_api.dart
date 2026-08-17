@@ -24,6 +24,14 @@ class PresenceApi {
     return data;
   }
 
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    return await client.fetch(
+      '/api/auth/forgot-password',
+      method: 'POST',
+      jsonBody: {'email': email.trim()},
+    ) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> me() async {
     final data = await client.fetch('/api/me') as Map<String, dynamic>;
     if (data['user'] is Map) {
@@ -65,6 +73,31 @@ class PresenceApi {
         'sectionId': sectionId,
         'date': date,
         'marks': nonPresent,
+      },
+    ) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> attendanceEditContext({
+    required String sectionId,
+    required String date,
+  }) async {
+    final q = Uri(queryParameters: {'sectionId': sectionId, 'date': date}).query;
+    return await client.fetch('/api/attendance-edit-requests/context?$q')
+        as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createAttendanceEditRequest({
+    required String sectionId,
+    required String attendanceDate,
+    required String reason,
+  }) async {
+    return await client.fetch(
+      '/api/attendance-edit-requests',
+      method: 'POST',
+      jsonBody: {
+        'sectionId': sectionId,
+        'attendanceDate': attendanceDate,
+        'reason': reason,
       },
     ) as Map<String, dynamic>;
   }

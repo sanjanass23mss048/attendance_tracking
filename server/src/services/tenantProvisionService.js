@@ -11,6 +11,7 @@ import {
   insertTenant,
 } from './tenantRegistry.js';
 import { seedNewTenant } from './tenantSeedService.js';
+import { saveSchoolLogo } from '../lib/schoolBranding.js';
 import { ensureAttendanceStatuses } from '../lib/statusMap.js';
 import { ensureAdminAuditTables } from '../lib/ensureAdminAuditTables.js';
 import { loadAppSettings } from '../lib/appSettings.js';
@@ -103,7 +104,9 @@ export async function createSchoolTenant({
   board,
   includeKg = true,
   maxGrade = 12,
+  sectionCounts = {},
   admin,
+  logoFile,
 } = {}) {
   const name = String(schoolName || '').trim();
   if (name.length < 2) throw new Error('School name is required.');
@@ -152,9 +155,19 @@ export async function createSchoolTenant({
           schoolName: name,
           includeKg: kg,
           maxGrade: grade,
+          sectionCounts: sectionCounts || {},
           admin,
         });
       });
+      if (logoFile?.buffer) {
+        try {
+          await saveSchoolLogo(slug, logoFile.buffer, logoFile.mimetype || logoFile.mimeType, {
+            schoolName: name,
+          });
+        } catch (logoErr) {
+          console.error('[setup/create] school created but logo save failed', logoErr);
+        }
+      }
     } finally {
       await tenantPrisma.$disconnect().catch(() => {});
     }

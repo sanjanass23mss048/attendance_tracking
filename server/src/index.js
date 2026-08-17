@@ -32,6 +32,7 @@ import adminAuditRoutes from './routes/adminAudit.js';
 import setupRoutes from './routes/setup.js';
 import userRoutes from './routes/users.js';
 import appSettingsRoutes from './routes/appSettings.js';
+import brandingRoutes from './routes/branding.js';
 import { requireStaff } from './middleware/roles.js';
 import { resolveTenant } from './middleware/resolveTenant.js';
 import { ensureAttendanceStatuses } from './lib/statusMap.js';
@@ -124,6 +125,7 @@ if (!isProd) {
 }
 
 app.use('/api/setup', setupRoutes);
+app.use('/api/branding', brandingRoutes);
 app.use('/api/auth', authRoutes);
 
 app.get('/api/tenant', async (req, res) => {

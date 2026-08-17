@@ -96,6 +96,51 @@ function hostnameFromUrlLike(value) {
   }
 }
 
+/** Live school URL used in emails (never localhost — Gmail cannot open it). */
+export function passwordResetAppOrigin(req) {
+  const slug = resolveRequestTenantSlug(req);
+  const main = attendanceMainHost();
+  const configured = String(process.env.APP_PUBLIC_URL || process.env.PUBLIC_APP_ORIGIN || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (configured && /^https?:\/\//i.test(configured)) {
+    try {
+      const u = new URL(configured);
+      if (slug && slug !== APEX_TENANT) {
+        const root = u.hostname.replace(/^www\./, '');
+        u.hostname = `${slug}.${root}`;
+      }
+      return u.origin;
+    } catch {
+      // fall through to MAIN_DOMAIN
+    }
+  }
+  if (slug && slug !== APEX_TENANT) {
+    return `https://${slug}.${main}`;
+  }
+  return `https://${main}`;
+}
+
+/** Public browser origin for this request (reset-password emails, same-origin links). */
+export function requestPublicOrigin(req) {
+  const origin = firstHeaderValue(req.headers.origin);
+  if (origin && /^https?:\/\//i.test(origin)) {
+    try {
+      return new URL(origin).origin;
+    } catch {
+      return origin.replace(/\/$/, '');
+    }
+  }
+  const proto =
+    firstHeaderValue(req.headers['x-forwarded-proto']).split(',')[0] ||
+    (process.env.NODE_ENV === 'production' ? 'https' : 'http');
+  const host = requestHostname(req);
+  if (host) return `${proto}://${host.split(',')[0].trim()}`;
+  return process.env.NODE_ENV === 'production'
+    ? `https://${attendanceMainHost()}`
+    : 'http://localhost:5173';
+}
+
 export function requestHostname(req) {
   const xfHost = firstHeaderValue(req.headers['x-forwarded-host']);
   if (xfHost) return xfHost.split(',')[0].trim();

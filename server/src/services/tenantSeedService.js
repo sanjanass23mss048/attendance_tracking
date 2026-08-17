@@ -11,6 +11,11 @@ function academicYearLabel(d = new Date()) {
   return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 }
 
+export function sectionLetters(count) {
+  const n = Math.min(12, Math.max(1, Number(count) || 1));
+  return Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i));
+}
+
 export function gradesForTenant({ includeKg = true, maxGrade = 12 } = {}) {
   const grades = [];
   if (includeKg) {
@@ -29,6 +34,7 @@ export async function seedNewTenant(prisma, {
   schoolName,
   includeKg = true,
   maxGrade = 12,
+  sectionCounts = {},
   admin,
 } = {}) {
   for (const row of STATUS_DEFS) {
@@ -52,8 +58,17 @@ export async function seedNewTenant(prisma, {
   }
 
   const year = academicYearLabel();
-  const sections = ['A'];
-  for (const name of sections) {
+  const grades = gradesForTenant({ includeKg, maxGrade });
+  const countByGrade = {};
+  let maxSections = 1;
+  for (const className of grades) {
+    const n = Math.min(12, Math.max(1, Number(sectionCounts?.[className]) || 1));
+    countByGrade[className] = n;
+    if (n > maxSections) maxSections = n;
+  }
+  const allSectionLetters = sectionLetters(maxSections);
+
+  for (const name of allSectionLetters) {
     await prisma.tblSection.upsert({
       where: { Section_id: `SEC-${name}` },
       create: { Section_id: `SEC-${name}`, Section_Name: name, Int_Status: 1 },
@@ -61,7 +76,6 @@ export async function seedNewTenant(prisma, {
     });
   }
 
-  const grades = gradesForTenant({ includeKg, maxGrade });
   for (const className of grades) {
     const classId = `CLS-${className}`;
     await prisma.tblClass.upsert({
@@ -69,7 +83,7 @@ export async function seedNewTenant(prisma, {
       create: { Class_id: classId, Class_Name: className, Academic_Year: year },
       update: { Class_Name: className },
     });
-    for (const sectionName of sections) {
+    for (const sectionName of sectionLetters(countByGrade[className])) {
       const csId = `CS-${className}-${sectionName}`;
       await prisma.tblClass_Section.upsert({
         where: { Class_Section_id: csId },
@@ -144,7 +158,8 @@ export async function seedNewTenant(prisma, {
   return {
     schoolName: schoolName || null,
     grades,
-    sections,
+    sections: allSectionLetters,
+    sectionCounts: countByGrade,
     adminEmail: email,
   };
 }
