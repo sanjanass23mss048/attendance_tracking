@@ -371,6 +371,29 @@ function SectionPage({
 
   if (loading) return <LoadingBlock />;
 
+  if (report?.holiday) {
+    return (
+      <div>
+        <ReportPageHeader
+          title={`${label} Attendance Report`}
+          subtitle={`Detailed attendance for ${formatShortDate(date)}`}
+          breadcrumb={[
+            { label: 'Reports', path: { view: 'hub' } },
+            { label: 'Attendance', path: { view: 'overview' } },
+            { label: formatClassLabel(classId), path: { view: 'class', classId } },
+            { label: `Section ${sectionId}` },
+          ]}
+          onBack={() => onNavigate({ view: 'class', classId })}
+          onNavigate={onNavigate}
+        />
+        <DateRangeTabs preset={preset} date={date} onPreset={onPreset} onDate={onDate} />
+        <p className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          This date is a Sunday or calendar holiday and is excluded from attendance reports.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <ReportPageHeader
@@ -894,6 +917,7 @@ export default function AttendanceReportsApp({ onExit }) {
                 className: route.classId,
                 section: route.sectionId,
               });
+              if (r?.holiday) continue;
               points.push({
                 label: d.slice(8),
                 percent: r?.summary?.attendancePercent ?? 0,
@@ -932,6 +956,7 @@ export default function AttendanceReportsApp({ onExit }) {
                 className: route.classId,
                 section: route.sectionId,
               });
+              if (day?.holiday) continue;
               const row = (day.students || []).find(
                 (s) => String(s.studentId) === String(route.studentId)
               );

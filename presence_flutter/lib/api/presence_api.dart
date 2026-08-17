@@ -84,6 +84,18 @@ class PresenceApi {
     return await client.fetch('/api/attendance/daily?$q') as Map<String, dynamic>;
   }
 
+  Future<Set<String>> holidayDates({required String from, required String to}) async {
+    final q = Uri(queryParameters: {'from': from, 'to': to}).query;
+    final data = await client.fetch('/api/holidays?$q') as Map<String, dynamic>;
+    final out = <String>{};
+    for (final raw in (data['holidays'] as List? ?? [])) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final ymd = row['date']?.toString() ?? '';
+      if (ymd.isNotEmpty) out.add(ymd);
+    }
+    return out;
+  }
+
   Future<Map<String, dynamic>> saveDaily({
     required String sectionId,
     required String date,

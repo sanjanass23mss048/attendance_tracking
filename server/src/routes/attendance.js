@@ -23,6 +23,7 @@ import {
 } from '../services/schoolRepo.js';
 import { prisma } from '../lib/prisma.js';
 import { emitAttendanceUpdated } from '../lib/realtime.js';
+import { isNonWorkingDate } from '../lib/nonWorkingDays.js';
 import {
   isPastAttendanceDate,
   attendanceLockedMessage,
@@ -57,6 +58,15 @@ async function forbidUnlessSectionAccess(req, res, classSectionId) {
     });
     return false;
   }
+  return true;
+}
+
+async function forbidIfHolidayDate(res, dateStr, date) {
+  if (!(await isNonWorkingDate(dateStr, date))) return false;
+  res.status(400).json({
+    error: 'Attendance is not taken on Sundays or calendar holidays. Pick a working day.',
+    code: 'HOLIDAY_DATE',
+  });
   return true;
 }
 
@@ -210,6 +220,7 @@ router.put('/daily', requireAuth, async (req, res) => {
   if (!date) {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   }
+  if (await forbidIfHolidayDate(res, parsed.data.date, date)) return;
 
   const section = await findClassSectionById(parsed.data.sectionId);
   if (!section) {
@@ -399,6 +410,7 @@ router.put('/periods', requireAuth, async (req, res) => {
   if (!date) {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
   }
+  if (await forbidIfHolidayDate(res, parsed.data.date, date)) return;
 
   const section = await findClassSectionById(parsed.data.sectionId);
   if (!section) {

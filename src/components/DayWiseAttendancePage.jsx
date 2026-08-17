@@ -5,7 +5,10 @@ import {
   formatAttendanceDate,
   getStatusDisplay,
   getTodayAttendanceDate,
+  snapToWorkingAttendanceDate,
+  ATTENDANCE_HOLIDAY_PICK_MESSAGE,
 } from '../utils/attendance';
+import { isHolidayDate } from '../services/calendarService';
 import { getClasses, resolveSectionId } from '../services/classService.js';
 import { getStudents, normalizeStudent } from '../services/studentService.js';
 import {
@@ -84,6 +87,8 @@ export default function DayWiseAttendancePage() {
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dateIsHoliday, setDateIsHoliday] = useState(false);
+  const [datePickerKey, setDatePickerKey] = useState(0);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
   const reloadRef = useRef(null);
@@ -120,6 +125,30 @@ export default function DayWiseAttendancePage() {
     }
   }, [selectedClass, classesData]);
 
+  useEffect(() => {
+    let cancelled = false;
+    isHolidayDate(selectedDate)
+      .then((isHoliday) => {
+        if (!cancelled) setDateIsHoliday(isHoliday);
+      })
+      .catch(() => {
+        if (!cancelled) setDateIsHoliday(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const working = await snapToWorkingAttendanceDate(getTodayAttendanceDate());
+      if (!cancelled) setSelectedDate(working);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const classLabel = `Class ${selectedClass} - ${selectedSection}`;
   const dateLabel = formatAttendanceDate(selectedDate);
   const counts = useMemo(() => countSheetCells(sheet), [sheet]);
@@ -135,6 +164,10 @@ export default function DayWiseAttendancePage() {
   }, [saving]);
 
   const handleLoadStudents = async ({ silent = false } = {}) => {
+    if (await isHolidayDate(selectedDate)) {
+      showToast(ATTENDANCE_HOLIDAY_PICK_MESSAGE, 'error');
+      return;
+    }
     if (!silent) setLoading(true);
     try {
       const sid = await resolveSectionId(selectedClass, selectedSection);
@@ -174,6 +207,22 @@ export default function DayWiseAttendancePage() {
   };
 
   reloadRef.current = handleLoadStudents;
+
+  const handleDateChange = async (date) => {
+    if (!date || date === selectedDate) return;
+    if (await isHolidayDate(date)) {
+      showToast(ATTENDANCE_HOLIDAY_PICK_MESSAGE, 'error');
+      setDatePickerKey((n) => n + 1);
+      return;
+    }
+    setSelectedDate(date);
+    setStudentsLoaded(false);
+    setStudents([]);
+    setSectionId(null);
+    setSheet(createEmptySheet());
+    setSavedSheet(createEmptySheet());
+    setLocked(false);
+  };
 
   useEffect(() => {
     if (useMock()) return undefined;
@@ -220,6 +269,10 @@ export default function DayWiseAttendancePage() {
       return;
     }
     if (saving) return;
+    if (dateIsHoliday) {
+      showToast(ATTENDANCE_HOLIDAY_PICK_MESSAGE, 'error');
+      return;
+    }
     const marks = marksFromPeriodSheet(sheet);
     if (marks.length === 0) {
       showToast('Mark at least one period before saving.', 'error');
@@ -248,6 +301,12 @@ export default function DayWiseAttendancePage() {
 
   return (
     <div className="space-y-4">
+      {dateIsHoliday && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          <strong>{dateLabel}</strong> is a Sunday or calendar holiday. Day-wise attendance is not
+          taken on this date.
+        </div>
+      )}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-gray-100 px-5 py-4">
           <div className="flex flex-wrap items-end gap-3">
@@ -282,9 +341,10 @@ export default function DayWiseAttendancePage() {
             <div className="min-w-0 sm:min-w-[11.5rem]">
               <label className="mb-1 block text-xs text-gray-500">Date</label>
               <input
+                key={datePickerKey}
                 type="date"
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={(e) => handleDateChange(e.target.value)}
                 className="date-input w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>

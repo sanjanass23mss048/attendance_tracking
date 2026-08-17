@@ -4,6 +4,7 @@ import { apiFetch, useMock } from './api.js';
 import { getClasses, mockSectionId, resolveSectionId } from './classService.js';
 import { getDailyAttendance } from './attendanceService.js';
 import { getStudents } from './studentService.js';
+import { isHolidayDate } from './calendarService.js';
 
 function emptyCounts() {
   return { P: 0, A: 0, L: 0, H: 0, OH: 0, OF: 0 };
@@ -70,7 +71,40 @@ function mockRosterForSection(sectionId) {
   }));
 }
 
+function emptyDailyHoliday(date, extra = {}) {
+  return {
+    date,
+    holiday: true,
+    className: extra.className || '',
+    sectionName: extra.sectionName || extra.section || '',
+    label: 'Holiday — excluded from attendance',
+    showSectionColumn: false,
+    showClassColumn: false,
+    students: [],
+    summary: {
+      total: 0,
+      marked: 0,
+      present: 0,
+      absent: 0,
+      late: 0,
+      halfDay: 0,
+      odHalfDay: 0,
+      odFullDay: 0,
+      attendancePercent: 0,
+    },
+  };
+}
+
+async function workingDatesBetween(from, to) {
+  const list = eachDate(from, to);
+  const flags = await Promise.all(list.map((d) => isHolidayDate(d)));
+  return list.filter((_, i) => !flags[i]);
+}
+
 async function mockDaily({ date, sectionId, className, section }) {
+  if (await isHolidayDate(date)) {
+    return emptyDailyHoliday(date, { className, section });
+  }
   const allSections = section === 'all' || (!sectionId && className);
   if (allSections) {
     const { classes: classList } = await getClasses();
@@ -198,10 +232,7 @@ async function mockDaily({ date, sectionId, className, section }) {
 
 async function mockMonthly({ year, month, sectionId }) {
   const { from, to } = monthBounds(year, month);
-  const dates = eachDate(from, to).filter((d) => {
-    const day = new Date(`${d}T12:00:00`).getDay();
-    return day !== 0;
-  });
+  const dates = await workingDatesBetween(from, to);
 
   if (sectionId) {
     const roster = mockRosterForSection(sectionId);
@@ -330,10 +361,14 @@ async function mockClassComparison({ date, year, month }) {
       const roster = mockRosterForSection(sec.id || mockSectionId(klass.name, sec.name));
       const counts = emptyCounts();
       if (date) {
-        roster.forEach((_, idx) => tally(counts, statusForMockStudent(idx, date)));
+        if (await isHolidayDate(date)) {
+          // keep zero counts
+        } else {
+          roster.forEach((_, idx) => tally(counts, statusForMockStudent(idx, date)));
+        }
       } else {
         const { from, to } = monthBounds(year, month);
-        const dates = eachDate(from, to).filter((d) => new Date(`${d}T12:00:00`).getDay() !== 0);
+        const dates = await workingDatesBetween(from, to);
         roster.forEach((_, idx) => {
           dates.forEach((d) => tally(counts, statusForMockStudent(idx, d)));
         });

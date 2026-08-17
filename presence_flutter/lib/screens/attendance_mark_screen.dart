@@ -28,6 +28,7 @@ class AttendanceMarkScreen extends StatefulWidget {
 
 class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
   DateTime selectedDate = DateTime.now();
+  final holidayYmds = <String>{};
   List<_Student> students = [];
   final marks = <String, String>{};
   bool loading = true;
@@ -58,6 +59,55 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
   String get _classLabel => 'Class ${widget.className}-${widget.sectionName}';
 
   String get _dateLabel => DateFormat('EEE, d MMM yyyy').format(selectedDate);
+
+  DateTime get _pickerLastDate {
+    var cur = DateTime.now().add(const Duration(days: 365));
+    var hops = 0;
+    while (hops < 40 && !_isWorkingDay(cur)) {
+      cur = cur.subtract(const Duration(days: 1));
+      hops++;
+    }
+    return cur;
+  }
+
+  DateTime get _pickerFirstDate {
+    var cur = DateTime(2020, 1, 1);
+    var hops = 0;
+    while (hops < 40 && !_isWorkingDay(cur)) {
+      cur = cur.add(const Duration(days: 1));
+      hops++;
+    }
+    return cur;
+  }
+
+  bool _isWorkingDay(DateTime day) {
+    if (day.weekday == DateTime.sunday) return false;
+    return !holidayYmds.contains(dateYmd(day));
+  }
+
+  DateTime _snapToWorkingDay(DateTime day) {
+    var cur = DateTime(day.year, day.month, day.day);
+    var hops = 0;
+    while (hops < 40 && !_isWorkingDay(cur)) {
+      cur = cur.subtract(const Duration(days: 1));
+      hops++;
+    }
+    return cur;
+  }
+
+  Future<void> _loadHolidays() async {
+    final api = context.read<AuthState>().api;
+    try {
+      final set = await api.holidayDates(
+        from: dateYmd(_pickerFirstDate),
+        to: dateYmd(_pickerLastDate),
+      );
+      if (!mounted) return;
+      holidayYmds
+        ..clear()
+        ..addAll(set);
+    } catch (_) {}
+  }
 
   @override
   void initState() {
@@ -106,6 +156,12 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
     });
     try {
       final api = context.read<AuthState>().api;
+      await _loadHolidays();
+      final working = _snapToWorkingDay(selectedDate);
+      if (dateYmd(working) != date) {
+        if (!mounted) return;
+        setState(() => selectedDate = working);
+      }
       final data = await api.dailyAttendance(widget.sectionId, date);
       final list = <_Student>[];
       final map = <String, String>{};
@@ -151,11 +207,15 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
   }
 
   Future<void> _pickDate() async {
+    await _loadHolidays();
+    if (!mounted) return;
+    final initial = _snapToWorkingDay(selectedDate);
     final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initial,
+      firstDate: _pickerFirstDate,
+      lastDate: _pickerLastDate,
+      selectableDayPredicate: _isWorkingDay,
     );
     if (picked == null || !mounted) return;
     if (dateYmd(picked) == date) return;

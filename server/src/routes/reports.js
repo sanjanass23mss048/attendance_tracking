@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { parseDateOnly, toDateString } from '../lib/ids.js';
 import { getDailyMarks, getDailyMarksInRange, countAttendanceDaysForSection } from '../services/attendanceRepo.js';
+import { loadNonWorkingYmdSet, isNonWorkingDate } from '../lib/nonWorkingDays.js';
 import {
   canAccessSection,
   findClassSectionById,
@@ -77,6 +78,13 @@ const comparisonQuery = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
 });
 
+function tallyWorkingMarks(marks, nonWorking, onMark) {
+  for (const mark of marks) {
+    if (mark.date && nonWorking.has(mark.date)) continue;
+    onMark(mark);
+  }
+}
+
 function compareDailyRows(a, b) {
   const classCmp = String(a.className || '').localeCompare(String(b.className || ''));
   if (classCmp) return classCmp;
@@ -120,6 +128,30 @@ router.get('/daily', requireAuth, async (req, res) => {
   const date = parseDateOnly(parsed.data.date);
   if (!date) {
     return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  }
+
+  if (await isNonWorkingDate(parsed.data.date, date)) {
+    return res.json({
+      date: parsed.data.date,
+      holiday: true,
+      className: parsed.data.className || '',
+      sectionName: parsed.data.section || '',
+      label: 'Holiday — excluded from attendance',
+      showSectionColumn: false,
+      showClassColumn: false,
+      students: [],
+      summary: {
+        total: 0,
+        marked: 0,
+        present: 0,
+        absent: 0,
+        late: 0,
+        halfDay: 0,
+        odHalfDay: 0,
+        odFullDay: 0,
+        attendancePercent: 0,
+      },
+    });
   }
 
   const { sectionId, className, section } = parsed.data;
@@ -242,23 +274,29 @@ router.get('/monthly', requireAuth, async (req, res) => {
     if (!(await forbidUnlessSectionAccess(req, res, section.Class_Section_id))) return;
 
     const students = await listEnrollmentsForSection(section.Class_Section_id);
-    const [marks, attendanceDays] = await Promise.all([
+    const [marks, nonWorking] = await Promise.all([
       getDailyMarksInRange(
         students.map((s) => s.id),
         start,
         end
       ),
-      countAttendanceDaysForSection(section.Class_Section_id, start, end),
+      loadNonWorkingYmdSet(start, end),
     ]);
 
     const byStudent = Object.fromEntries(students.map((s) => [s.id, emptyCounts()]));
-    for (const mark of marks) {
+    tallyWorkingMarks(marks, nonWorking, (mark) => {
       const bucket = byStudent[mark.studentId];
       if (bucket) tallyStatus(bucket, mark.status);
-    }
+    });
+    const workingDays = await countAttendanceDaysForSection(
+      section.Class_Section_id,
+      start,
+      end,
+      nonWorking,
+    );
 
     const studentsOut = students.map((s) => {
-      const counts = applyImpliedPresent(byStudent[s.id], attendanceDays, 1);
+      const counts = applyImpliedPresent(byStudent[s.id], workingDays, 1);
       const marked = markedTotal(counts);
       return {
         studentId: s.id,
@@ -327,7 +365,10 @@ router.get('/monthly', requireAuth, async (req, res) => {
   }
 
   const allIds = sectionMeta.flatMap((s) => s.students.map((st) => st.id));
-  const marks = await getDailyMarksInRange(allIds, start, end);
+  const [marks, nonWorking] = await Promise.all([
+    getDailyMarksInRange(allIds, start, end),
+    loadNonWorkingYmdSet(start, end),
+  ]);
   const sectionByStudent = {};
   for (const section of sectionMeta) {
     for (const st of section.students) {
@@ -336,10 +377,10 @@ router.get('/monthly', requireAuth, async (req, res) => {
   }
 
   const countsBySection = Object.fromEntries(sectionMeta.map((s) => [s.sectionId, emptyCounts()]));
-  for (const mark of marks) {
+  tallyWorkingMarks(marks, nonWorking, (mark) => {
     const sid = sectionByStudent[mark.studentId];
     if (sid && countsBySection[sid]) tallyStatus(countsBySection[sid], mark.status);
-  }
+  });
 
   const attendanceDaysBySection = {};
   await Promise.all(
@@ -347,7 +388,8 @@ router.get('/monthly', requireAuth, async (req, res) => {
       attendanceDaysBySection[section.sectionId] = await countAttendanceDaysForSection(
         section.sectionId,
         start,
-        end
+        end,
+        nonWorking
       );
     })
   );
@@ -451,7 +493,10 @@ router.get('/class-comparison', requireAuth, async (req, res) => {
   }
 
   const allIds = sectionMeta.flatMap((s) => s.students.map((st) => st.id));
-  const marks = await getDailyMarksInRange(allIds, start, end);
+  const [marks, nonWorking] = await Promise.all([
+    getDailyMarksInRange(allIds, start, end),
+    loadNonWorkingYmdSet(start, end),
+  ]);
   const sectionByStudent = {};
   for (const section of sectionMeta) {
     for (const st of section.students) {
@@ -460,10 +505,10 @@ router.get('/class-comparison', requireAuth, async (req, res) => {
   }
 
   const countsBySection = Object.fromEntries(sectionMeta.map((s) => [s.sectionId, emptyCounts()]));
-  for (const mark of marks) {
+  tallyWorkingMarks(marks, nonWorking, (mark) => {
     const sid = sectionByStudent[mark.studentId];
     if (sid && countsBySection[sid]) tallyStatus(countsBySection[sid], mark.status);
-  }
+  });
 
   const attendanceDaysBySection = {};
   await Promise.all(
@@ -471,7 +516,8 @@ router.get('/class-comparison', requireAuth, async (req, res) => {
       attendanceDaysBySection[section.sectionId] = await countAttendanceDaysForSection(
         section.sectionId,
         start,
-        end
+        end,
+        nonWorking
       );
     })
   );

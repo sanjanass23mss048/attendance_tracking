@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { newId, parseDateOnly, toDateString } from '../lib/ids.js';
+import { sundayYmdsInRange } from '../lib/nonWorkingDays.js';
 import {
   holidayDescriptionFor,
   holidayTypeFromDescription,
@@ -96,6 +97,25 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   holidays.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+
+  if (parsed.data.from && parsed.data.to) {
+    const from = parseDateOnly(parsed.data.from);
+    const to = parseDateOnly(parsed.data.to);
+    if (from && to) {
+      for (const ymd of sundayYmdsInRange(from, to)) {
+        const key = `${ymd}|Weekly Holiday|weekly`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        holidays.push({
+          id: `sunday-${ymd}`,
+          date: ymd,
+          name: 'Weekly Holiday',
+          type: 'weekly',
+        });
+      }
+      holidays.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+    }
+  }
 
   return res.json({ holidays });
 });

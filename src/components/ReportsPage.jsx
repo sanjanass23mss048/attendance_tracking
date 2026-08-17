@@ -359,6 +359,11 @@ function DailyReportView({ onBack }) {
             <ExportButtons onCsv={exportCsv} exporting={exporting} />
           </div>
 
+          {report.holiday ? (
+            <p className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+              This date is a Sunday or calendar holiday and is excluded from attendance reports.
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               ['Present', report.summary.present, 'text-green-700'],

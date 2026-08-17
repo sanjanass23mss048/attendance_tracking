@@ -67,7 +67,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Text(report == null
+                child: Text(report?['holiday'] == true
+                    ? 'This date is a Sunday or calendar holiday and is excluded from attendance.'
+                    : report == null
                     ? 'No report data.'
                     : 'Report loaded (${report!.keys.join(', ')}).'),
               ),

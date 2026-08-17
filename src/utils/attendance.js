@@ -1,16 +1,49 @@
 import { ATTENDANCE_STATUS, PERIOD_COUNT } from '../data/mockData';
+import { isHolidayDate } from '../services/calendarService';
 
 /** School timezone — keep in sync with server SCHOOL_TIMEZONE. */
 const SCHOOL_TIMEZONE = 'Asia/Kolkata';
 
-/** Today's date as YYYY-MM-DD (for date inputs). */
+export function shiftAttendanceDate(isoDate, days) {
+  const date = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  date.setDate(date.getDate() + days);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function isSundayAttendanceDate(isoDate) {
+  const date = new Date(`${isoDate}T12:00:00`);
+  return !Number.isNaN(date.getTime()) && date.getDay() === 0;
+}
+
+/** Today's date, or the previous weekday if today is Sunday. */
 export function getTodayAttendanceDate(timeZone = SCHOOL_TIMEZONE) {
-  return new Intl.DateTimeFormat('en-CA', {
+  let iso = new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+  while (isSundayAttendanceDate(iso)) {
+    iso = shiftAttendanceDate(iso, -1);
+  }
+  return iso;
+}
+
+export const ATTENDANCE_HOLIDAY_PICK_MESSAGE =
+  'Sundays and calendar holidays cannot be selected for attendance. Pick a working day.';
+
+/** Walk backward until the date is not a Sunday or calendar holiday. */
+export async function snapToWorkingAttendanceDate(isoDate, maxHops = 40) {
+  let date = isoDate;
+  for (let i = 0; i < maxHops; i++) {
+    if (!(await isHolidayDate(date))) return date;
+    date = shiftAttendanceDate(date, -1);
+  }
+  return date;
 }
 
 /** Default attendance date = today (not a fixed demo date). */

@@ -58,6 +58,8 @@ import {
   TODAY_IDX,
   formatAttendanceDate,
   getTodayAttendanceDate,
+  snapToWorkingAttendanceDate,
+  ATTENDANCE_HOLIDAY_PICK_MESSAGE,
 } from './utils/attendance';
 import { isHolidayDate } from './services/calendarService';
 import { getNotificationsFeed, markNotificationsSeen } from './services/notificationService.js';
@@ -185,6 +187,7 @@ function AttendanceApp() {
   const [lastSentMessageCount, setLastSentMessageCount] = useState(0);
   const [lastSentStatusByStudent, setLastSentStatusByStudent] = useState(null);
   const [dateIsHoliday, setDateIsHoliday] = useState(false);
+  const [datePickerKey, setDatePickerKey] = useState(0);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isPinned, setIsPinned] = useState(() => {
@@ -464,6 +467,17 @@ function AttendanceApp() {
     };
   }, [selectedDate]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const working = await snapToWorkingAttendanceDate(getTodayAttendanceDate());
+      if (!cancelled) setSelectedDate(working);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const refreshDashboardStats = useCallback(async () => {
     try {
       const summary = await getAttendanceSummary({ date: selectedDate });
@@ -645,6 +659,10 @@ function AttendanceApp() {
   ]);
 
   const loadClass = async (classNum, section, date = selectedDate, { silent = false } = {}) => {
+    if (await isHolidayDate(date)) {
+      showToast(ATTENDANCE_HOLIDAY_PICK_MESSAGE, 'error');
+      return;
+    }
     if (!silent) setLoadingStudents(true);
     try {
       const sid = await resolveSectionId(classNum, section);
@@ -730,7 +748,7 @@ function AttendanceApp() {
     setLastSentStatusByStudent(null);
   };
 
-  const handleDateChange = (date) => {
+  const applyAttendanceDate = (date) => {
     setSelectedDate(date);
     setStudentsLoaded(false);
     setStudents([]);
@@ -741,6 +759,16 @@ function AttendanceApp() {
     setMessagesSent(false);
     setLastSentMessageCount(0);
     setLastSentStatusByStudent(null);
+  };
+
+  const handleDateChange = async (date) => {
+    if (!date || date === selectedDate) return;
+    if (await isHolidayDate(date)) {
+      showToast(ATTENDANCE_HOLIDAY_PICK_MESSAGE, 'error');
+      setDatePickerKey((n) => n + 1);
+      return;
+    }
+    applyAttendanceDate(date);
   };
 
   const persistDaily = async ({ confirmAfter = false } = {}) => {
@@ -1056,6 +1084,7 @@ function AttendanceApp() {
             onClassChange={handleClassChange}
             onSectionChange={handleSectionChange}
             onDateChange={handleDateChange}
+            dateInputKey={datePickerKey}
             onLoadStudents={handleLoadStudents}
             studentsLoadedCount={0}
             isDirty={false}
@@ -1088,6 +1117,7 @@ function AttendanceApp() {
             onClassChange={handleClassChange}
             onSectionChange={handleSectionChange}
             onDateChange={handleDateChange}
+            dateInputKey={datePickerKey}
             onLoadStudents={handleLoadStudents}
             studentsLoadedCount={students.length}
             isDirty={isDirty}
@@ -1283,7 +1313,7 @@ function AttendanceApp() {
               {dateIsHoliday && (
                 <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
                   <strong>{attendanceDateLabel}</strong> is marked as a holiday (Sunday / government /
-                  sudden). Attendance confirm is blocked for this date. Pick another working day.
+                  sudden). Attendance is not taken on this date. Pick a working day.
                 </div>
               )}
 
@@ -1333,9 +1363,10 @@ function AttendanceApp() {
                         <div className="col-span-2 min-w-0 sm:min-w-[11.5rem]">
                           <label className="mb-1 block text-xs text-gray-500">Date</label>
                           <input
+                            key={datePickerKey}
                             type="date"
                             value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
+                            onChange={(e) => handleDateChange(e.target.value)}
                             className="date-input w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:py-2"
                           />
                         </div>
@@ -1384,7 +1415,8 @@ function AttendanceApp() {
                     previewStatus={preview.status}
                     classLabel={classLabel}
                     selectedDate={selectedDate}
-                    onDateChange={setSelectedDate}
+                    onDateChange={handleDateChange}
+                    dateInputKey={datePickerKey}
                     onSubmitMessages={() => handleSendMessages()}
                     messagesSent={messagesSent}
                     sendCount={messagesToSend.length}

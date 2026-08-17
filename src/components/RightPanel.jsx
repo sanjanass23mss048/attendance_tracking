@@ -12,6 +12,7 @@ export default function RightPanel({
   classLabel,
   selectedDate,
   onDateChange,
+  dateInputKey = 0,
   onSubmitMessages,
   messagesSent,
   sendCount,
@@ -34,6 +35,7 @@ export default function RightPanel({
       <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-4 rounded-lg border border-gray-200 px-3 py-2">
           <input
+            key={dateInputKey}
             type="date"
             value={selectedDate}
             onChange={(e) => onDateChange(e.target.value)}

@@ -621,9 +621,12 @@ async function fetchApiHolidaysForDate(isoDate) {
 }
 
 export async function isHolidayDate(isoDate, stateId = DEFAULT_STATE) {
+  if (!isoDate) return false;
   if (isSundayDate(isoDate)) return true;
 
   if (!useMock()) {
+    const fromApi = await fetchApiHolidaysForDate(isoDate);
+    if (fromApi) return true;
     const apiEvents = await fetchApiCalendarEventsRange(isoDate, isoDate);
     if (apiEvents !== null) {
       return apiEvents.some(

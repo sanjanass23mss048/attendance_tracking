@@ -20,6 +20,7 @@ export default function StudentCardGrid({
   onClassChange,
   onSectionChange,
   onDateChange,
+  dateInputKey = 0,
   onLoadStudents,
   studentsLoadedCount,
   isDirty,
@@ -101,6 +102,7 @@ export default function StudentCardGrid({
           <div className="col-span-2 min-w-0 sm:col-span-1 sm:min-w-[11.5rem]">
             <label className="mb-1 block text-[10px] text-gray-500 sm:text-xs">Date</label>
             <input
+              key={dateInputKey}
               type="date"
               value={selectedDate}
               onChange={(e) => onDateChange(e.target.value)}
