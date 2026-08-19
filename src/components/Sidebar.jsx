@@ -43,6 +43,7 @@ const iconMap = {
   Library,
   ScrollText,
   UserCog,
+  Headset,
 };
 
 export default function Sidebar({
@@ -106,7 +107,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-[50] flex h-screen w-60 flex-col border-r border-indigo-900 bg-indigo-950 shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed left-0 top-0 z-[50] flex h-screen max-h-dvh w-60 flex-col overflow-hidden border-r border-indigo-900 bg-indigo-950 shadow-2xl transition-transform duration-300 ease-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         onMouseEnter={() => {
@@ -116,7 +117,7 @@ export default function Sidebar({
           if (!isMobile && !isPinned) onHoveredChange?.(false);
         }}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-indigo-800 px-3 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-indigo-800 px-3 py-4">
           <button
             type="button"
             onClick={() => handleNavigate('dashboard')}
@@ -163,7 +164,7 @@ export default function Sidebar({
           )}
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {items.map((item) => {
             const Icon = iconMap[item.icon] || BookOpen;
             const hasChildren = Boolean(item.children?.length);
@@ -213,18 +214,24 @@ export default function Sidebar({
                   <div className="ml-3 space-y-0.5 border-l border-indigo-800 pl-2">
                     {item.children.map((child) => {
                       const childActive = activePage === child.id;
+                      const ChildIcon = iconMap[child.icon];
                       return (
                         <button
                           key={child.id}
                           type="button"
                           onClick={() => handleNavigate(child.id)}
-                          className={`flex w-full rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors ${
+                          className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${
                             childActive
                               ? 'bg-indigo-500/80 text-white'
                               : 'text-indigo-300 hover:bg-indigo-900 hover:text-white'
                           }`}
                         >
-                          {child.label}
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${child.dot || 'bg-violet-400'}`}
+                            aria-hidden="true"
+                          />
+                          {ChildIcon ? <ChildIcon size={14} className="shrink-0" /> : null}
+                          <span className="min-w-0 truncate">{child.label}</span>
                         </button>
                       );
                     })}
@@ -235,7 +242,7 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="m-3 rounded-2xl border border-indigo-700/80 bg-gradient-to-br from-indigo-900 to-indigo-950 p-4 shadow-lg">
+        <div className="m-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 rounded-2xl border border-indigo-700/80 bg-gradient-to-br from-indigo-900 to-indigo-950 p-4 shadow-lg">
           <div className="mb-3 flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
               <Headset size={20} strokeWidth={2} />

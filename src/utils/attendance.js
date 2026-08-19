@@ -90,9 +90,29 @@ function summaryMarkedTotal(summary) {
 }
 
 export function getAttendancePercent(summary) {
-  const total = summaryMarkedTotal(summary);
-  if (total === 0) return 0;
-  return Math.round((summary.present / total) * 100);
+  return attendancePercentFromCounts({
+    present: summary.present,
+    absent: summary.absent,
+    late: summary.late,
+    halfDay: summary.halfDay,
+    odHalfDay: summary.odHalfDay,
+    odFullDay: summary.odFullDay,
+  });
+}
+
+/** Report attendance % — full Absent = 1 day missed, Half Day = 0.5 day missed. */
+export function attendancePercentFromCounts(counts) {
+  const present = counts.P ?? counts.present ?? 0;
+  const absent = counts.A ?? counts.absent ?? 0;
+  const late = counts.L ?? counts.late ?? 0;
+  const halfDay = counts.H ?? counts.halfDay ?? 0;
+  const odHalf = counts.OH ?? counts.odHalfDay ?? 0;
+  const odFull = counts.OF ?? counts.odFullDay ?? 0;
+  const marked = present + absent + late + halfDay + odHalf + odFull;
+  if (!marked) return 0;
+  const missed = absent + halfDay * 0.5;
+  const attending = Math.max(0, marked - missed);
+  return Math.round((attending / marked) * 1000) / 10;
 }
 
 export function getSummaryBreakdown(summary) {

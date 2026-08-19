@@ -25,6 +25,10 @@ const PAGE_TITLES = {
     subtitle: 'Bulk upload students from Excel.',
   },
   'leave-letters': { title: 'Leave Letters', subtitle: 'Upload and track student leave letters.' },
+  'tc-requests': {
+    title: 'Transfer Certificate',
+    subtitle: 'Parent request → teacher notifies management → approve (student becomes inactive).',
+  },
   classes: { title: 'Classes', subtitle: 'Class and section management.' },
   teachers: { title: 'Staff', subtitle: 'Staff directory and management.' },
   users: { title: 'Users', subtitle: 'Create Teacher and Parent login accounts.' },
@@ -61,7 +65,7 @@ const PAGE_TITLES = {
     title: 'Homework List',
     subtitle: 'Review homework assigned to your classes.',
   },
-  subjects: { title: 'Subjects', subtitle: 'Subjects used across timetable and homework.' },
+  subjects: { title: 'Subjects', subtitle: 'Manage syllabus, books and teachers for each class & section.' },
   daywise: { title: 'Day-wise Attendance', subtitle: 'Mark period-wise attendance for the selected day.' },
   reports: {
     title: 'Attendance Reports',

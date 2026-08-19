@@ -1,6 +1,6 @@
 /**
  * Seed mock daily attendance for July 2026 across all class-sections.
- * Skips Sundays. Present is implied (not stored); only A/L/H/OH/OF are written.
+ * Skips Sundays. Every status including Present is written for the full roster.
  *
  * Prerequisites:
  *   npm run db:ensure-grades
@@ -14,7 +14,7 @@ import { PrismaClient } from '@prisma/client';
 import { SCHOOL_GRADES, SCHOOL_SECTIONS } from '../../src/data/schoolGrades.js';
 import { mockDailyStatusForStudent } from '../../src/data/mockData.js';
 import { attendanceHeaderId, DAILY_SESSION, parseDateOnly } from '../src/lib/ids.js';
-import { ensureAttendanceStatuses, isPresentStatus } from '../src/lib/statusMap.js';
+import { ensureAttendanceStatuses } from '../src/lib/statusMap.js';
 
 const prisma = new PrismaClient();
 
@@ -103,7 +103,6 @@ async function main() {
         const rows = [];
         enrollments.forEach((enr, idx) => {
           const status = mockDailyStatusForStudent(idx, dateStr);
-          if (isPresentStatus(status)) return;
           rows.push({
             SAL_id: salId(Attendance_id, enr.student_class_id),
             Attendance_id,

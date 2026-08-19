@@ -11,6 +11,7 @@ import {
 import {
   codeFromStatusId,
   getStatusMap,
+  isAppStatus,
   isPresentStatus,
   normalizeAppStatus,
   statusIdFromCode,
@@ -52,7 +53,8 @@ async function deleteDailyMark(attendanceId, studentId) {
 
 function dailyStatusCode(statusId) {
   const code = codeFromStatusId(statusId) || statusId;
-  return isPresentStatus(code) ? null : code;
+  if (!code) return null;
+  return normalizeAppStatus(code);
 }
 
 function mergeDailyRow(byStudent, row) {
@@ -78,7 +80,7 @@ export async function getDailyMarks(classSectionId, date) {
     select: { student_class_id: true, Status_id: true, Session: true },
   });
 
-  // Prefer explicit daily session over null if both exist; skip stored Present (legacy or new).
+  // Prefer explicit daily session over null if both exist; every status including P is stored.
   const byStudent = new Map();
   for (const row of rows) {
     mergeDailyRow(byStudent, row);
@@ -93,14 +95,9 @@ export async function upsertDailyMarks(classSectionId, date, marks, markedBy = n
   for (const mark of marks) {
     const studentId = String(mark.studentId);
     const normalized = normalizeAppStatus(mark.status);
+    if (!isAppStatus(normalized)) continue;
 
-    if (isPresentStatus(normalized)) {
-      const deleted = await deleteDailyMark(header.Attendance_id, studentId);
-      if (deleted.count) results.push({ deleted: true, studentId });
-      continue;
-    }
-
-    const Status_id = await resolveStatusId(normalized);
+    const Status_id = await resolveStatusId(normalized, { allowPresent: true });
     const existing = await prisma.tblStudentAtt_list.findFirst({
       where: {
         Attendance_id: header.Attendance_id,

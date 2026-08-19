@@ -4,6 +4,21 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
+double attendancePercentFromCounts({
+  int present = 0,
+  int absent = 0,
+  int late = 0,
+  int halfDay = 0,
+  int odHalfDay = 0,
+  int odFullDay = 0,
+}) {
+  final marked = present + absent + late + halfDay + odHalfDay + odFullDay;
+  if (marked <= 0) return 0;
+  final missed = absent + halfDay * 0.5;
+  final attending = marked - missed;
+  return ((attending / marked) * 1000).round() / 10;
+}
+
 String formatClassLabel(String className) {
   final text = className.trim();
   if (text.isEmpty) return text;

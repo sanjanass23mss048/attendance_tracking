@@ -62,16 +62,13 @@ export function createPresentPeriodSheet(students, periodCount) {
   return sheet;
 }
 
-/** Extract daily PUT marks from grid + students.
- * Present (`P`) is omitted — the server treats missing rows as Present. */
+/** Extract daily PUT marks from grid + students (full roster, all statuses). */
 export function marksFromDailyGrid(students, grid) {
-  return (students || [])
-    .map((student, rowIdx) => {
-      const raw = grid[rowIdx]?.[TODAY_IDX];
-      const status = normalizeStatus(raw) || 'P';
-      return { studentId: String(student.id), status };
-    })
-    .filter((mark) => mark.status !== 'P');
+  return (students || []).map((student, rowIdx) => {
+    const raw = grid[rowIdx]?.[TODAY_IDX];
+    const status = normalizeStatus(raw) || 'P';
+    return { studentId: String(student.id), status };
+  });
 }
 
 /** Period sheet map: { [studentId]: { [periodId]: status } } */
@@ -197,14 +194,10 @@ export async function saveDailyAttendance(body) {
     const existing = mockDailyStore.get(key) || [];
     const byId = Object.fromEntries(existing.map((m) => [m.studentId, m]));
     for (const mark of body.marks) {
-      if (mark.status === 'P') {
-        delete byId[mark.studentId];
-      } else {
-        byId[mark.studentId] = {
-          ...(byId[mark.studentId] || { studentId: mark.studentId }),
-          status: mark.status,
-        };
-      }
+      byId[mark.studentId] = {
+        ...(byId[mark.studentId] || { studentId: mark.studentId }),
+        status: mark.status,
+      };
     }
     mockDailyStore.set(key, Object.values(byId));
     return { ok: true, date: body.date, sectionId: body.sectionId, updated: body.marks.length };

@@ -15,6 +15,7 @@ import DayWiseAttendancePage from './components/DayWiseAttendancePage';
 import StudentsPage from './components/StudentsPage';
 import StudentBulkImportPage from './components/StudentBulkImportPage';
 import LeaveLettersPage from './components/LeaveLettersPage';
+import TcRequestsPage from './components/TcRequestsPage';
 import ClassesPage from './components/ClassesPage';
 import SettingsPage from './components/SettingsPage';
 import SupportCenterPage from './components/SupportCenterPage';
@@ -165,6 +166,7 @@ function AttendanceApp() {
   const [requiresPasswordChange, setRequiresPasswordChangeState] = useState(() => getRequiresPasswordChange());
 
   const [activePage, setActivePage] = useState('dashboard');
+  const [pageFocus, setPageFocus] = useState(null);
   const [headerNotifications, setHeaderNotifications] = useState([]);
   const [notificationCount, setNotificationCount] = useState(0);
   const [activeView, setActiveView] = useState('grid');
@@ -603,9 +605,19 @@ function AttendanceApp() {
       setActivePage('dashboard');
       return;
     }
+    const opts = view && typeof view === 'object' ? view : null;
+    const attendanceView = typeof view === 'string' ? view : opts?.view;
+    if (opts?.className || opts?.sectionName) {
+      setPageFocus({
+        className: opts.className || '',
+        sectionName: opts.sectionName || '',
+      });
+    } else if (pageId === 'students' || pageId === 'classes') {
+      setPageFocus(null);
+    }
     setActivePage(pageId);
     if (pageId === 'attendance') {
-      setActiveView(view || 'grid');
+      setActiveView(attendanceView || 'grid');
     } else if (pageId === 'dashboard') {
       setActiveView('grid');
     }
@@ -1299,6 +1311,7 @@ function AttendanceApp() {
               stats={dashStats}
               error={dashStatsError}
               dateLabel={attendanceDateLabel}
+              selectedDate={selectedDate}
               onNavigate={handleNavigate}
               user={user}
               classesData={classesData}
@@ -1438,7 +1451,12 @@ function AttendanceApp() {
               />
             ) : null
           ) : activePage === 'students' ? (
-            <StudentsPage user={user} onNavigate={handleNavigate} />
+            <StudentsPage
+              user={user}
+              onNavigate={handleNavigate}
+              initialClass={pageFocus?.className}
+              initialSection={pageFocus?.sectionName}
+            />
           ) : activePage === 'student-import' ? (
             canBulkImportStudents(user) ? (
               <StudentBulkImportPage
@@ -1448,8 +1466,10 @@ function AttendanceApp() {
             ) : null
           ) : activePage === 'leave-letters' ? (
             <LeaveLettersPage />
+          ) : activePage === 'tc-requests' ? (
+            <TcRequestsPage user={user} />
           ) : activePage === 'classes' ? (
-            <ClassesPage />
+            <ClassesPage initialClassName={pageFocus?.className} />
           ) : activePage === 'teachers' ? (
             canManageTeachers(user) ? (
               <TeachersPage user={user} onAccessDenied={denyTeachersAccess} />
@@ -1489,7 +1509,7 @@ function AttendanceApp() {
           ) : activePage === 'homework-list' ? (
             <HomeworkListPage onAssign={() => setActivePage('assign-homework')} />
           ) : activePage === 'subjects' ? (
-            <SubjectsPage />
+            <SubjectsPage onNavigate={handleNavigate} />
           ) : activePage === 'reports' ? (
             <ReportsPage user={user} />
           ) : activePage === 'settings' ? (

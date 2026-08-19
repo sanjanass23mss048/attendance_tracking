@@ -9,10 +9,16 @@ import {
   parentAudienceScope,
   serializeClassSection,
 } from '../services/schoolRepo.js';
+import {
+  createRequest,
+  listForParent,
+  listOpenForStudent,
+} from '../services/tcRequestRepo.js';
+import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { listNoticesForParentScope } from '../services/noticeRepo.js';
 import { serializeCalendarEvent } from './calendar.js';
 import {
-  buildDefaultWeeklyTimetable,
+  normalizeWeeklyGrid,
   PERIOD_TIMES,
   TIMETABLE_DAYS,
 } from '../lib/defaultTimetable.js';
@@ -236,10 +242,54 @@ router.get('/timetable', async (req, res) => {
       classSectionId,
       days: TIMETABLE_DAYS,
       periods: PERIOD_TIMES,
-      grid: row?.Grid_Json || buildDefaultWeeklyTimetable(classSectionId),
+      grid: normalizeWeeklyGrid(row?.Grid_Json, classSectionId),
       updatedOn: row?.Updated_On?.toISOString?.() || null,
     },
   });
+});
+
+router.get('/tc-requests', async (req, res) => {
+  const requests = await listForParent(req.user.sub);
+  return res.json({ requests });
+});
+
+router.post('/tc-requests', async (req, res) => {
+  const studentClassId = String(req.body?.studentClassId || '').trim();
+  const reason = String(req.body?.reason || '').trim();
+  if (!studentClassId) {
+    return res.status(400).json({ error: 'studentClassId is required' });
+  }
+  const children = await listChildrenForParent(req.user.sub);
+  const child = children.find((c) => String(c.id) === studentClassId);
+  if (!child) {
+    return res.status(403).json({ error: 'This student is not linked to your account' });
+  }
+  const open = await listOpenForStudent(child.studentRecordId);
+  if (open.length) {
+    return res.status(409).json({
+      error: 'A transfer certificate request is already in progress for this student',
+      request: open[0],
+    });
+  }
+  const classLabel = [child.section?.class?.name, child.section?.name].filter(Boolean).join(' - ');
+  const created = await createRequest({
+    studentId: child.studentRecordId,
+    studentClassId: child.id,
+    classSectionId: child.sectionId,
+    studentName: child.name,
+    classLabel,
+    reason,
+    requestedBy: req.user.sub,
+  });
+  logAdminAudit(req, {
+    action: 'TC_REQUEST',
+    category: 'TC',
+    entityType: 'tc_request',
+    entityId: created?.id,
+    summary: `Parent requested TC for ${child.name}`,
+    details: { classLabel, studentClassId: child.id },
+  });
+  return res.status(201).json({ request: created });
 });
 
 export default router;

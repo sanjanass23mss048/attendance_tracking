@@ -458,6 +458,31 @@ model tblDevice_Tokens {
   @@index([user_id])
 }
 
+/// Transfer Certificate (TC) workflow: parent → teacher → management.
+model tblTc_Requests {
+  Request_id       String    @id @db.VarChar(50)
+  Student_id       String    @db.VarChar(50)
+  Student_Class_id String    @db.VarChar(50)
+  Class_Section_id String    @db.VarChar(50)
+  Student_Name     String    @db.VarChar(255)
+  Class_Label      String?   @db.VarChar(100)
+  Reason           String?   @db.Text
+  Status           String    @default("REQUESTED") @db.VarChar(20)
+  Requested_By     String    @db.VarChar(50)
+  Forwarded_By     String?   @db.VarChar(50)
+  Forwarded_On     DateTime? @db.Timestamptz(6)
+  Reviewed_By      String?   @db.VarChar(50)
+  Reviewed_On      DateTime? @db.Timestamptz(6)
+  Review_Note      String?   @db.VarChar(500)
+  Created_On       DateTime  @default(now()) @db.Timestamptz(6)
+  Int_Status       Int?      @default(1)
+
+  @@index([Status, Created_On])
+  @@index([Class_Section_id])
+  @@index([Student_id])
+  @@index([Requested_By])
+}
+
 /// Cross-cutting admin audit feed (who did what).
 model tblAdmin_Audit_Logs {
   Log_id         String   @id @db.VarChar(50)

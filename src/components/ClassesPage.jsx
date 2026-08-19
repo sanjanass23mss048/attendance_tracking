@@ -21,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { getClasses, createClass } from '../services/classService.js';
+import { getTimetable } from '../services/timetableService.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
 import { networkErrorMessage, showToast } from '../services/toast.js';
 import {
@@ -29,6 +30,9 @@ import {
   PERIOD_TIMES,
   SUBJECT_STYLES,
   TIMETABLE_DAYS,
+  isBreakSlot,
+  normalizeWeeklyGrid,
+  slotRowKey,
 } from '../data/timetableData.js';
 import { exportTablePdfReport } from '../services/reportService.js';
 import TimetableAddPeriodModal from './TimetableAddPeriodModal.jsx';
@@ -72,9 +76,9 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
               <div>Day</div>
               <div className="text-[10px] font-normal text-indigo-300">Period / Time</div>
             </th>
-            {periods.map((slot) => (
-              <th key={slot.period} className="min-w-[120px] px-2 py-3 text-center font-semibold">
-                <div className="text-base">{slot.period}</div>
+            {periods.map((slot, periodIdx) => (
+              <th key={slotRowKey(slot, periodIdx)} className="min-w-[120px] px-2 py-3 text-center font-semibold">
+                <div className="text-base">{isBreakSlot(slot) ? slot.label : slot.period}</div>
                 <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal leading-tight text-indigo-200">
                   {slot.time}
                 </div>
@@ -93,6 +97,7 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
               </td>
               {periods.map((slot, periodIdx) => {
                 const entry = grid[periodIdx]?.[dayIdx];
+                const isEmpty = !entry || (!entry.subject && !entry.teacher);
                 const openEditor = () => {
                   if (!editMode || !onCellClick) return;
                   onCellClick({
@@ -106,9 +111,18 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
                   });
                 };
 
-                if (!entry) {
+                if (isEmpty) {
+                  if (isBreakSlot(slot)) {
+                    return (
+                      <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2">
+                        <div className="rounded-xl bg-amber-50 px-2 py-4 text-center text-xs font-semibold text-amber-800">
+                          {slot.label}
+                        </div>
+                      </td>
+                    );
+                  }
                   return (
-                    <td key={`${day}-${slot.period}`} className="px-1.5 py-2">
+                    <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2">
                       <button
                         type="button"
                         disabled={!editMode}
@@ -127,7 +141,7 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
                 const Icon = SUBJECT_ICONS[entry.subject] || BookOpen;
                 const CardTag = editMode ? 'button' : 'div';
                 return (
-                  <td key={`${day}-${slot.period}`} className="px-1.5 py-2 align-top">
+                  <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2 align-top">
                     <CardTag
                       type={editMode ? 'button' : undefined}
                       onClick={editMode ? openEditor : undefined}
@@ -152,7 +166,7 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
   );
 }
 
-export default function ClassesPage() {
+export default function ClassesPage({ initialClassName } = {}) {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -160,7 +174,7 @@ export default function ClassesPage() {
   const [activeTab, setActiveTab] = useState('Timetable');
   const [sectionName, setSectionName] = useState('A');
   const [timetableGrid, setTimetableGrid] = useState(() => buildDefaultWeeklyTimetable());
-  const [periods, setPeriods] = useState(() => PERIOD_TIMES.slice(0, 7));
+  const [periods, setPeriods] = useState(() => PERIOD_TIMES);
   const [showAddPeriod, setShowAddPeriod] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editCell, setEditCell] = useState(null);
@@ -179,6 +193,14 @@ export default function ClassesPage() {
         setClasses(list);
         if (list.length) {
           setSelectedClassId((prev) => {
+            const fromDash = initialClassName
+              ? list.find((c) => String(c.name) === String(initialClassName))
+              : null;
+            if (fromDash) {
+              const firstSec = fromDash.sections?.[0]?.name;
+              if (firstSec) setSectionName(firstSec);
+              return fromDash.id;
+            }
             const next = prev && list.some((c) => c.id === prev) ? prev : list[0].id;
             const current = list.find((c) => c.id === next);
             const firstSec = current?.sections?.[0]?.name;
@@ -190,7 +212,7 @@ export default function ClassesPage() {
       })
       .catch((err) => setError(networkErrorMessage(err) || err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [initialClassName]);
 
   useEffect(() => {
     loadClasses();
@@ -239,9 +261,24 @@ export default function ClassesPage() {
   const periodCount = selectedSection?.periodCount || 8;
 
   useEffect(() => {
-    const pc = selectedSection?.periodCount || 7;
-    setPeriods(PERIOD_TIMES.slice(0, Math.min(pc, PERIOD_TIMES.length)));
-  }, [selectedClassId, selectedSection?.id, selectedSection?.periodCount]);
+    const sectionId = selectedSection?.id;
+    if (!sectionId) return undefined;
+    let cancelled = false;
+    getTimetable(sectionId)
+      .then((data) => {
+        if (cancelled) return;
+        setTimetableGrid(normalizeWeeklyGrid(data.grid));
+        setPeriods(Array.isArray(data.periods) && data.periods.length ? data.periods : PERIOD_TIMES);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          showToast(networkErrorMessage(err) || 'Could not load timetable', 'error');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSection?.id]);
 
   const nextPeriod = periods.reduce((max, p) => Math.max(max, p.period), 0) + 1;
 

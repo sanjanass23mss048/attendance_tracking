@@ -101,14 +101,13 @@ class PresenceApi {
     required String date,
     required List<Map<String, dynamic>> marks,
   }) async {
-    final nonPresent = marks.where((m) => m['status'] != null && m['status'] != 'P').toList();
     return await client.fetch(
       '/api/attendance/daily',
       method: 'PUT',
       jsonBody: {
         'sectionId': sectionId,
         'date': date,
-        'marks': nonPresent,
+        'marks': marks,
       },
     ) as Map<String, dynamic>;
   }
@@ -301,6 +300,56 @@ class PresenceApi {
         : '?${Uri(queryParameters: {'classSectionId': classSectionId}).query}';
     final data = await client.fetch('/api/parent/timetable$q') as Map<String, dynamic>;
     return Map<String, dynamic>.from((data['timetable'] as Map?) ?? {});
+  }
+
+  Future<List<dynamic>> parentTcRequests() async {
+    final data = await client.fetch('/api/parent/tc-requests') as Map<String, dynamic>;
+    return (data['requests'] as List?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> createParentTcRequest({
+    required String studentClassId,
+    String reason = '',
+  }) async {
+    return await client.fetch(
+      '/api/parent/tc-requests',
+      method: 'POST',
+      jsonBody: {
+        'studentClassId': studentClassId,
+        if (reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+    ) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> listTcRequests({String? status}) async {
+    final q = status == null || status.isEmpty
+        ? ''
+        : '?${Uri(queryParameters: {'status': status}).query}';
+    return await client.fetch('/api/tc-requests$q') as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> forwardTcRequest(String id) async {
+    return await client.fetch(
+      '/api/tc-requests/${Uri.encodeComponent(id)}/forward',
+      method: 'POST',
+      jsonBody: {},
+    ) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> approveTcRequest(String id, {String? note}) async {
+    return await client.fetch(
+      '/api/tc-requests/${Uri.encodeComponent(id)}/approve',
+      method: 'POST',
+      jsonBody: {if (note != null && note.isNotEmpty) 'note': note},
+    ) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rejectTcRequest(String id, {String? note}) async {
+    return await client.fetch(
+      '/api/tc-requests/${Uri.encodeComponent(id)}/reject',
+      method: 'POST',
+      jsonBody: {if (note != null && note.isNotEmpty) 'note': note},
+    ) as Map<String, dynamic>;
   }
 
   Future<void> registerDeviceToken(String token, {String platform = 'android'}) async {

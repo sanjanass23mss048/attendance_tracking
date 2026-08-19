@@ -102,7 +102,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         late: late,
         halfDay: halfDay,
         marked: marked,
-        attendancePercent: marked > 0 ? ((present / marked) * 1000).round() / 10 : 0,
+        attendancePercent: attendancePercentFromCounts(
+          present: present,
+          absent: absent,
+          late: late,
+          halfDay: halfDay,
+        ),
         sectionRows: entry.value,
       );
     }

@@ -22,10 +22,13 @@ import 'screens/parent/parent_diary_screen.dart';
 import 'screens/parent/parent_notice_board_screen.dart';
 import 'screens/parent/parent_profile_screen.dart';
 import 'screens/parent/parent_shell.dart';
-import 'screens/parent/parent_timetable_screen.dart';
+import 'screens/parent/parent_tc_screen.dart';
+import 'screens/tc_requests_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/parent/parent_timetable_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/staff_notice_board_screen.dart';
+import 'screens/support_screen.dart';
 import 'screens/students_screen.dart';
 import 'screens/teachers_screen.dart';
 import 'services/parent_push_service.dart';
@@ -131,8 +134,10 @@ class _PresenceAppState extends State<PresenceApp> {
             GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
             GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
             GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+            GoRoute(path: '/support', builder: (_, __) => const SupportScreen()),
             GoRoute(path: '/teachers', builder: (_, __) => const TeachersScreen()),
             GoRoute(path: '/approvals', builder: (_, __) => const ApprovalsScreen()),
+            GoRoute(path: '/tc-requests', builder: (_, __) => const TcRequestsScreen()),
             GoRoute(path: '/audit-logs', builder: (_, __) => const AuditLogsScreen()),
           ],
         ),
@@ -144,6 +149,8 @@ class _PresenceAppState extends State<PresenceApp> {
             GoRoute(path: '/parent/diary', builder: (_, __) => const ParentDiaryScreen()),
             GoRoute(path: '/parent/timetable', builder: (_, __) => const ParentTimetableScreen()),
             GoRoute(path: '/parent/calendar', builder: (_, __) => const ParentCalendarScreen()),
+            GoRoute(path: '/parent/tc', builder: (_, __) => const ParentTcScreen()),
+            GoRoute(path: '/parent/support', builder: (_, __) => const SupportScreen()),
           ],
         ),
         GoRoute(

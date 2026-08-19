@@ -18,6 +18,7 @@ class ParentShell extends StatelessWidget {
     _Dest('/parent/diary', 'Class', Icons.menu_book_outlined, Icons.menu_book),
     _Dest('/parent/timetable', 'Timetable', Icons.grid_view_outlined, Icons.grid_view),
     _Dest('/parent/calendar', 'Calendar', Icons.calendar_month_outlined, Icons.calendar_month),
+    _Dest('/parent/tc', 'TC', Icons.assignment_outlined, Icons.assignment),
   ];
 
   static const _titles = {
@@ -26,6 +27,8 @@ class ParentShell extends StatelessWidget {
     '/parent/diary': 'Class Diary',
     '/parent/timetable': 'Timetable',
     '/parent/calendar': 'Calendar',
+    '/parent/tc': 'Transfer Certificate',
+    '/parent/support': 'Help / Support',
   };
 
   @override
@@ -35,7 +38,7 @@ class ParentShell extends StatelessWidget {
     final students = context.watch<ParentStudentsState>();
     final selectedRaw = destinations.indexWhere((d) => loc.startsWith(d.path));
     final selected = selectedRaw < 0 ? 0 : selectedRaw;
-    final title = _titles[destinations[selected].path] ?? destinations[selected].label;
+    final title = _titles[loc] ?? _titles[destinations[selected].path] ?? destinations[selected].label;
 
     if (auth.isParent && !students.loaded && !students.loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -102,6 +105,27 @@ class ParentShell extends StatelessWidget {
                   ],
                 ),
               ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.headset_mic_outlined,
+                  color: loc.startsWith('/parent/support')
+                      ? PresenceColors.primaryDark
+                      : PresenceColors.muted,
+                ),
+                title: Text(
+                  'Help / Support',
+                  style: TextStyle(
+                    fontWeight:
+                        loc.startsWith('/parent/support') ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                selected: loc.startsWith('/parent/support'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/parent/support');
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.logout, color: PresenceColors.muted),
                 title: const Text('Log out'),
@@ -117,7 +141,7 @@ class ParentShell extends StatelessWidget {
       body: child,
       bottomNavigationBar: PresenceBottomNav(
         tabs: [
-          for (final d in destinations) (path: d.path, label: d.label, icon: d.icon),
+          for (final d in destinations.take(5)) (path: d.path, label: d.label, icon: d.icon),
         ],
         location: loc,
         onSelect: (path) => context.go(path),

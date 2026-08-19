@@ -5,6 +5,7 @@ import { getClasses, mockSectionId, resolveSectionId } from './classService.js';
 import { getDailyAttendance } from './attendanceService.js';
 import { getStudents } from './studentService.js';
 import { isHolidayDate } from './calendarService.js';
+import { attendancePercentFromCounts } from '../utils/attendance.js';
 
 function emptyCounts() {
   return { P: 0, A: 0, L: 0, H: 0, OH: 0, OF: 0 };
@@ -20,9 +21,7 @@ function markedTotal(counts) {
 }
 
 function attendancePercent(counts) {
-  const marked = markedTotal(counts);
-  if (!marked) return 0;
-  return Math.round((counts.P / marked) * 1000) / 10;
+  return attendancePercentFromCounts(counts);
 }
 
 function parseYmd(value) {

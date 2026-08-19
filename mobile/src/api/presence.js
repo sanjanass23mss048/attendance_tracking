@@ -33,7 +33,7 @@ export async function getDailyAttendance(sectionId, date) {
 }
 
 /**
- * Save daily marks. Present (`P`) can be omitted — server treats missing as Present.
+ * Save daily marks — full roster with every status (P, A, L, H, OH, OF).
  * @param {{ sectionId: string, date: string, marks: { studentId: string, status: string }[] }} payload
  */
 export async function saveDailyAttendance({ sectionId, date, marks }) {
@@ -42,7 +42,7 @@ export async function saveDailyAttendance({ sectionId, date, marks }) {
     json: {
       sectionId,
       date,
-      marks: (marks || []).filter((m) => m.status && m.status !== 'P'),
+      marks: marks || [],
     },
   });
 }

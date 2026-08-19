@@ -27,6 +27,7 @@ import teacherNotificationRoutes from './routes/teacherNotifications.js';
 import noticeRoutes from './routes/notices.js';
 import diaryRoutes from './routes/diary.js';
 import timetableRoutes from './routes/timetable.js';
+import tcRequestRoutes from './routes/tcRequests.js';
 import parentRoutes from './routes/parent.js';
 import adminAuditRoutes from './routes/adminAudit.js';
 import setupRoutes from './routes/setup.js';
@@ -41,6 +42,7 @@ import { logFcmStartupStatus } from './lib/fcm.js';
 import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
 import { ensureAdminAuditTables } from './lib/ensureAdminAuditTables.js';
+import { ensureTcRequestTables } from './lib/ensureTcRequestTables.js';
 import { ensureTenantRegistry } from './lib/ensureTenantRegistry.js';
 import { loadAppSettings } from './lib/appSettings.js';
 import { getRequestTenant } from './lib/tenantContext.js';
@@ -179,6 +181,7 @@ app.use('/api/webhooks/whatsapp', whatsappWebhookRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/diary', diaryRoutes);
 app.use('/api/timetable', timetableRoutes);
+app.use('/api/tc-requests', requireAuth, tcRequestRoutes);
 app.use('/api/parent', parentRoutes);
 app.use('/api/admin/audit-logs', adminAuditRoutes);
 app.use('/api/settings', appSettingsRoutes);
@@ -215,6 +218,7 @@ ensureUploadDir()
   .then(() => ensureStudentImportTables())
   .then(() => ensureTeacherNotificationTables())
     .then(() => ensureAdminAuditTables())
+  .then(() => ensureTcRequestTables())
     .then(() => loadAppSettings())
     .then(() => {
     console.log('Tenant registry ensured');
@@ -222,6 +226,7 @@ ensureUploadDir()
     console.log('Student import tables ensured');
     console.log('Teacher notification tables ensured');
     console.log('Admin audit tables ensured');
+    console.log('TC request tables ensured');
     console.log('App settings table ensured (SMS / WhatsApp / FCM from DB)');
   })
   .catch((err) => {

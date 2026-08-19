@@ -28,8 +28,10 @@ class AppShell extends StatelessWidget {
     '/reports': 'Attendance Reports',
     '/notifications': 'Notifications',
     '/settings': 'Settings',
+    '/support': 'Help / Support',
     '/teachers': 'Staff',
     '/approvals': 'Edit Approvals',
+    '/tc-requests': 'Transfer Certificate',
     '/audit-logs': 'Audit Logs',
   };
 
@@ -120,6 +122,26 @@ class AppShell extends StatelessWidget {
                       ),
                   ],
                 ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.headset_mic_outlined,
+                  color: loc.startsWith('/support')
+                      ? PresenceColors.primaryDark
+                      : PresenceColors.muted,
+                ),
+                title: Text(
+                  'Help / Support',
+                  style: TextStyle(
+                    fontWeight: loc.startsWith('/support') ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                selected: loc.startsWith('/support'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.go('/support');
+                },
               ),
             ],
           ),

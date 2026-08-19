@@ -2,16 +2,27 @@
 
 export const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+/** Fixed school day slots — 8 teaching periods with short break and lunch. */
 export const PERIOD_TIMES = [
-  { period: 1, time: '08:00 AM - 08:40 AM' },
-  { period: 2, time: '08:40 AM - 09:20 AM' },
-  { period: 3, time: '09:20 AM - 10:00 AM' },
-  { period: 4, time: '10:20 AM - 11:00 AM' },
-  { period: 5, time: '11:00 AM - 11:40 AM' },
-  { period: 6, time: '11:40 AM - 12:20 PM' },
-  { period: 7, time: '01:00 PM - 01:40 PM' },
-  { period: 8, time: '01:40 PM - 02:20 PM' },
+  { period: 1, time: '08:45 AM - 09:30 AM', kind: 'period' },
+  { period: 2, time: '09:30 AM - 10:15 AM', kind: 'period' },
+  { period: 3, time: '10:15 AM - 11:00 AM', kind: 'period' },
+  { period: null, time: '11:00 AM - 11:15 AM', kind: 'break', label: 'Short Break' },
+  { period: 4, time: '11:15 AM - 12:00 PM', kind: 'period' },
+  { period: 5, time: '12:00 PM - 12:45 PM', kind: 'period' },
+  { period: null, time: '12:45 PM - 01:30 PM', kind: 'break', label: 'Lunch Break' },
+  { period: 6, time: '01:30 PM - 02:15 PM', kind: 'period' },
+  { period: 7, time: '02:15 PM - 03:00 PM', kind: 'period' },
+  { period: 8, time: '03:00 PM - 03:45 PM', kind: 'period' },
 ];
+
+export function isBreakSlot(slot) {
+  return slot?.kind === 'break';
+}
+
+export function slotRowKey(slot, index) {
+  return isBreakSlot(slot) ? `break-${slot.label}-${index}` : `period-${slot.period}`;
+}
 
 export const SUBJECT_STYLES = {
   English: 'bg-sky-100 text-sky-900 border-sky-200',
@@ -28,6 +39,60 @@ export const SUBJECT_STYLES = {
 
 function cell(subject, teacher) {
   return { subject, teacher };
+}
+
+function breakRow() {
+  return TIMETABLE_DAYS.map(() => null);
+}
+
+function withBreakRows(teachingRows) {
+  return [
+    teachingRows[0],
+    teachingRows[1],
+    teachingRows[2],
+    breakRow(),
+    teachingRows[3],
+    teachingRows[4],
+    breakRow(),
+    teachingRows[5],
+    teachingRows[6],
+    teachingRows[7],
+  ];
+}
+
+function emptyCell() {
+  return { subject: '', teacher: '' };
+}
+
+function emptyTeachingRow() {
+  return TIMETABLE_DAYS.map(() => emptyCell());
+}
+
+function cloneRow(row) {
+  if (!Array.isArray(row)) return emptyTeachingRow();
+  return TIMETABLE_DAYS.map((_, d) => {
+    const cell = row[d];
+    if (!cell || typeof cell !== 'object') return emptyCell();
+    return { subject: cell.subject || '', teacher: cell.teacher || '' };
+  });
+}
+
+/**
+ * Align a stored grid to the fixed PERIOD_TIMES layout (breaks included).
+ * Older 8-row grids (no break rows) are expanded.
+ */
+export function normalizeWeeklyGrid(grid) {
+  if (!Array.isArray(grid) || grid.length === 0) return buildEmptyWeeklyTimetable();
+  if (grid.length === PERIOD_TIMES.length) {
+    return PERIOD_TIMES.map((slot, i) => (isBreakSlot(slot) ? breakRow() : cloneRow(grid[i])));
+  }
+  const teaching = Array.from({ length: 8 }, (_, i) => cloneRow(grid[i]));
+  return withBreakRows(teaching);
+}
+
+/** Empty weekly grid for all teaching periods (break rows stay null). */
+export function buildEmptyWeeklyTimetable() {
+  return withBreakRows(Array.from({ length: 8 }, () => emptyTeachingRow()));
 }
 
 /** Default Class 1-A style weekly grid: [periodIndex][dayIndex] */
@@ -50,7 +115,7 @@ export function buildDefaultWeeklyTimetable() {
     // P8
     [cell('Library', 'Kavita Rao'), cell('Drawing', 'Meera Joshi'), cell('Games', 'Vikram Singh'), cell('Drawing', 'Meera Joshi'), cell('Science', 'Deepa Iyer'), cell('Social', 'Amit Khanna')],
   ];
-  return pattern;
+  return withBreakRows(pattern);
 }
 
 export const DEFAULT_TEACHERS = [

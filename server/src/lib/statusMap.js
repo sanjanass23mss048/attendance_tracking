@@ -24,7 +24,7 @@ export function isAppStatus(code) {
   return ALLOWED.has(normalizeAppStatus(code));
 }
 
-/** Present is implied by absence of a stored daily mark (Status_id P is not persisted). */
+/** Present (`P`) is stored like every other daily status. */
 export function isPresentStatus(code) {
   const normalized = normalizeAppStatus(code);
   return !normalized || normalized === 'P';

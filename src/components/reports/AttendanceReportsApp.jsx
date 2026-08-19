@@ -25,7 +25,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { formatClassLabel, compareClassNames } from '../../data/schoolGrades.js';
-import { getTodayAttendanceDate } from '../../utils/attendance.js';
+import { getTodayAttendanceDate, attendancePercentFromCounts } from '../../utils/attendance.js';
 import { getAttendanceSummary } from '../../services/attendanceService.js';
 import {
   getClassComparison,
@@ -104,8 +104,14 @@ function aggregateStandards(rows) {
   return Array.from(map.values())
     .map((g) => ({
       ...g,
-      attendancePercent:
-        g.marked > 0 ? Math.round((g.present / g.marked) * 1000) / 10 : 0,
+      attendancePercent: attendancePercentFromCounts({
+        present: g.present,
+        absent: g.absent,
+        late: g.late,
+        halfDay: g.halfDay,
+        odHalfDay: g.odHalfDay,
+        odFullDay: g.odFullDay,
+      }),
     }))
     .sort((a, b) => compareClassNames(a.className, b.className));
 }
@@ -272,6 +278,8 @@ function ClassPage({ classId, date, sections, onNavigate, loading }) {
       absent: 0,
       late: 0,
       halfDay: 0,
+      odHalfDay: 0,
+      odFullDay: 0,
       marked: 0,
     };
     for (const s of sections) {
@@ -280,9 +288,18 @@ function ClassPage({ classId, date, sections, onNavigate, loading }) {
       t.absent += s.absent || 0;
       t.late += s.late || 0;
       t.halfDay += s.halfDay || 0;
+      t.odHalfDay += s.odHalfDay || 0;
+      t.odFullDay += s.odFullDay || 0;
       t.marked += s.marked || 0;
     }
-    t.attendancePercent = t.marked ? Math.round((t.present / t.marked) * 1000) / 10 : 0;
+    t.attendancePercent = attendancePercentFromCounts({
+      present: t.present,
+      absent: t.absent,
+      late: t.late,
+      halfDay: t.halfDay,
+      odHalfDay: t.odHalfDay,
+      odFullDay: t.odFullDay,
+    });
     return t;
   }, [sections]);
 
@@ -770,10 +787,13 @@ function StudentPage({ studentId, classId, sectionId, monthly, history, onNaviga
   const absent = student?.absent ?? 0;
   const late = student?.late ?? 0;
   const halfDay = student?.halfDay ?? 0;
-  const workingDays = present + absent + late + halfDay || monthly?.totals?.workingDays || 0;
+  const odHalfDay = student?.odHalfDay ?? 0;
+  const odFullDay = student?.odFullDay ?? 0;
+  const workingDays =
+    present + absent + late + halfDay + odHalfDay + odFullDay || monthly?.totals?.workingDays || 0;
   const pct =
     student?.attendancePercent ??
-    (workingDays ? Math.round((present / workingDays) * 1000) / 10 : 0);
+    attendancePercentFromCounts({ present, absent, late, halfDay, odHalfDay, odFullDay });
 
   const calendarDays = useMemo(() => {
     const days = [];

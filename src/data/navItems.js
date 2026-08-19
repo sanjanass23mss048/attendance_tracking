@@ -13,53 +13,57 @@ export const STAFF_MANAGER_ROLES = EDIT_APPROVER_ROLES;
 
 export const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-  { id: 'attendance', label: 'Attendance', icon: 'ClipboardCheck' },
   {
-    id: 'edit-approvals',
-    label: 'Edit Approvals',
-    icon: 'Shield',
-    roles: EDIT_APPROVER_ROLES,
-  },
-  { id: 'students', label: 'Students', icon: 'Users' },
-  { id: 'send-notification', label: 'Send Notification', icon: 'Megaphone' },
-  {
-    id: 'homework',
-    label: 'Homework',
-    icon: 'BookMarked',
+    id: 'attendance-group',
+    label: 'Attendance',
+    icon: 'ClipboardCheck',
     children: [
-      { id: 'assign-homework', label: 'Assign Homework' },
-      { id: 'homework-list', label: 'Homework List' },
+      { id: 'attendance', label: 'Mark Attendance', icon: 'ClipboardCheck', dot: 'bg-violet-400' },
+      {
+        id: 'edit-approvals',
+        label: 'Edit Approvals',
+        icon: 'Shield',
+        roles: EDIT_APPROVER_ROLES,
+        dot: 'bg-amber-400',
+      },
+      { id: 'leave-letters', label: 'Leave Letters', icon: 'FileText', dot: 'bg-sky-400' },
     ],
   },
   {
-    id: 'timetable-nav',
-    label: 'Timetable',
-    icon: 'CalendarClock',
+    id: 'students-group',
+    label: 'Students',
+    icon: 'Users',
+    children: [
+      { id: 'students', label: 'Student Directory', icon: 'Users', dot: 'bg-violet-400' },
+      { id: 'classes', label: 'Classes & Sections', icon: 'BookOpen', dot: 'bg-emerald-400' },
+    ],
   },
-  { id: 'leave-letters', label: 'Leave Letters', icon: 'FileText' },
-  { id: 'calendar', label: 'Academic Calendar', icon: 'CalendarDays' },
-  { id: 'classes', label: 'Classes', icon: 'BookOpen' },
-  { id: 'subjects', label: 'Subjects', icon: 'Library' },
   {
-    id: 'teachers',
-    label: 'Staff',
+    id: 'academics',
+    label: 'Academics',
+    icon: 'Library',
+    children: [
+      { id: 'timetable-nav', label: 'Timetable', icon: 'CalendarClock', dot: 'bg-violet-400' },
+      { id: 'subjects', label: 'Subjects', icon: 'Library', dot: 'bg-sky-400' },
+      { id: 'assign-homework', label: 'Assign Homework', icon: 'BookMarked', dot: 'bg-amber-400' },
+      { id: 'homework-list', label: 'Homework List', icon: 'BookMarked', dot: 'bg-rose-400' },
+      { id: 'calendar', label: 'Academic Calendar', icon: 'CalendarDays', dot: 'bg-emerald-400' },
+    ],
+  },
+  { id: 'send-notification', label: 'Communication', icon: 'Megaphone' },
+  {
+    id: 'staff-management',
+    label: 'Staff Management',
     icon: 'GraduationCap',
-    roles: STAFF_MANAGER_ROLES,
-  },
-  {
-    id: 'users',
-    label: 'Users',
-    icon: 'UserCog',
-    roles: STAFF_MANAGER_ROLES,
-  },
-  {
-    id: 'audit-logs',
-    label: 'Audit Logs',
-    icon: 'ScrollText',
-    roles: ['ADMIN'],
+    children: [
+      { id: 'teachers', label: 'Staff', icon: 'GraduationCap', roles: STAFF_MANAGER_ROLES, dot: 'bg-violet-400' },
+      { id: 'users', label: 'Users', icon: 'UserCog', roles: STAFF_MANAGER_ROLES, dot: 'bg-sky-400' },
+      { id: 'audit-logs', label: 'Audit Logs', icon: 'ScrollText', roles: ['ADMIN'], dot: 'bg-amber-400' },
+    ],
   },
   { id: 'reports', label: 'Reports', icon: 'BarChart3' },
   { id: 'settings', label: 'Settings', icon: 'Settings' },
+  { id: 'support', label: 'Help & Support', icon: 'Headset' },
 ];
 
 function hasLeadershipRole(user) {
@@ -103,11 +107,20 @@ export function canViewAuditLogs(user) {
 }
 
 export function navItemsForUser(user) {
-  return navItems.filter((item) => canAccessNavItem(item, user));
+  return navItems
+    .map((item) => {
+      if (!item.children?.length) {
+        return canAccessNavItem(item, user) ? item : null;
+      }
+      const children = item.children.filter((child) => canAccessNavItem(child, user));
+      if (!children.length) return null;
+      return { ...item, children };
+    })
+    .filter(Boolean);
 }
 
 /** Whether a nav id belongs under a parent group (for active highlighting). */
 export function isNavChildActive(item, activePage) {
   if (!item?.children?.length) return activePage === item.id;
-  return item.children.some((c) => c.id === activePage) || activePage === item.id;
+  return item.children.some((c) => c.id === activePage);
 }

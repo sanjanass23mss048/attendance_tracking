@@ -10,6 +10,7 @@ import {
   listClassesForUser,
   listEnrollmentsForSection,
 } from '../services/schoolRepo.js';
+import { attendancePercentFromCounts } from '../lib/attendancePercent.js';
 
 const router = Router();
 
@@ -36,16 +37,14 @@ function markedTotal(counts) {
 }
 
 function attendancePercent(counts) {
-  const marked = markedTotal(counts);
-  if (!marked) return 0;
-  return Math.round((counts.P / marked) * 1000) / 10;
+  return attendancePercentFromCounts(counts);
 }
 
-/** Present is not stored — fill P from attendance days minus non-present tallies. */
+/** Fill Present for attendance days that have no stored mark (legacy sparse rows). */
 function applyImpliedPresent(counts, attendanceDays, studentCount = 1) {
-  const nonPresent = counts.A + counts.L + counts.H + counts.OH + counts.OF;
   const capacity = Math.max(0, Number(attendanceDays) || 0) * Math.max(0, Number(studentCount) || 0);
-  counts.P = Math.max(0, capacity - nonPresent);
+  const recorded = markedTotal(counts);
+  counts.P += Math.max(0, capacity - recorded);
   return counts;
 }
 
@@ -95,7 +94,7 @@ function compareDailyRows(a, b) {
   return String(a.name || '').localeCompare(String(b.name || ''));
 }
 
-/** Present is not stored — missing mark displays and tallies as Present. */
+/** Missing mark displays as Present for legacy rows saved before full-roster storage. */
 function dailyStatusOrPresent(stored) {
   return stored || 'P';
 }

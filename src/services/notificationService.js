@@ -1,4 +1,5 @@
 import { getMyEditRequests, getPendingEditRequests } from './attendanceEditRequestService.js';
+import { listTcRequests } from './tcRequestService.js';
 import { getScheduledEvents } from './calendarService.js';
 import { formatAttendanceDate, getTodayAttendanceDate } from '../utils/attendance.js';
 import { useMock } from './api.js';
@@ -63,9 +64,10 @@ export async function getNotificationsFeed() {
 
   if (!useMock()) {
     try {
-      const [mine, pending] = await Promise.all([
+      const [mine, pending, tc] = await Promise.all([
         getMyEditRequests().catch(() => ({ requests: [] })),
         getPendingEditRequests().catch(() => ({ requests: [] })),
+        listTcRequests().catch(() => ({ requests: [], canReview: false })),
       ]);
 
       const seenReq = new Set();
@@ -82,6 +84,32 @@ export async function getNotificationsFeed() {
           page: 'edit-approvals',
           tone: 'amber',
         });
+      }
+
+      const canReviewTc = Boolean(tc.canReview);
+      for (const req of tc.requests || []) {
+        const status = String(req.status || '').toUpperCase();
+        if (status === 'REQUESTED') {
+          items.push({
+            id: `tc-requested-${req.id}`,
+            category: 'approval',
+            title: 'TC request from parent',
+            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — notify management.`,
+            time: 'Pending',
+            page: 'tc-requests',
+            tone: 'sky',
+          });
+        } else if (status === 'FORWARDED' && canReviewTc) {
+          items.push({
+            id: `tc-forwarded-${req.id}`,
+            category: 'approval',
+            title: 'TC waiting for management',
+            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — approve to set student inactive.`,
+            time: 'Pending',
+            page: 'tc-requests',
+            tone: 'amber',
+          });
+        }
       }
 
       for (const req of mine.requests || []) {

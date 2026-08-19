@@ -15,13 +15,18 @@ import {
   Trophy,
 } from 'lucide-react';
 import { getClasses } from '../services/classService.js';
+import { getTimetable } from '../services/timetableService.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
 import {
   buildDefaultWeeklyTimetable,
   PERIOD_TIMES,
   SUBJECT_STYLES,
   TIMETABLE_DAYS,
+  isBreakSlot,
+  normalizeWeeklyGrid,
+  slotRowKey,
 } from '../data/timetableData.js';
+import { networkErrorMessage, showToast } from '../services/toast.js';
 import { exportTablePdfReport } from '../services/reportService.js';
 import TimetableAddPeriodModal from './TimetableAddPeriodModal.jsx';
 
@@ -57,9 +62,9 @@ function TimetableGrid({ periods, grid }) {
               <div>Day</div>
               <div className="text-[10px] font-normal text-indigo-300">Period / Time</div>
             </th>
-            {periods.map((slot) => (
-              <th key={slot.period} className="min-w-[130px] px-2 py-3 text-center font-semibold">
-                <div className="text-base">{slot.period}</div>
+            {periods.map((slot, periodIdx) => (
+              <th key={slotRowKey(slot, periodIdx)} className="min-w-[130px] px-2 py-3 text-center font-semibold">
+                <div className="text-base">{isBreakSlot(slot) ? slot.label : slot.period}</div>
                 <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal leading-tight text-indigo-200">
                   {slot.time}
                 </div>
@@ -78,9 +83,19 @@ function TimetableGrid({ periods, grid }) {
               </td>
               {periods.map((slot, periodIdx) => {
                 const entry = grid[periodIdx]?.[dayIdx];
-                if (!entry) {
+                const isEmpty = !entry || (!entry.subject && !entry.teacher);
+                if (isEmpty) {
+                  if (isBreakSlot(slot)) {
+                    return (
+                      <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2">
+                        <div className="rounded-xl bg-amber-50 px-2 py-4 text-center text-xs font-semibold text-amber-800">
+                          {slot.label}
+                        </div>
+                      </td>
+                    );
+                  }
                   return (
-                    <td key={`${day}-${slot.period}`} className="px-1.5 py-2">
+                    <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2">
                       <div className="rounded-xl border border-dashed border-gray-200 px-2 py-4 text-center text-xs text-gray-400">
                         —
                       </div>
@@ -88,7 +103,7 @@ function TimetableGrid({ periods, grid }) {
                   );
                 }
                 return (
-                  <td key={`${day}-${slot.period}`} className="px-1.5 py-2 align-top">
+                  <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2 align-top">
                     <div
                       className={`rounded-xl border px-2.5 py-2.5 shadow-sm ${subjectClass(entry.subject)}`}
                     >
@@ -116,7 +131,7 @@ export default function WeeklyTimetablePage() {
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [sectionName, setSectionName] = useState('A');
   const [timetableGrid, setTimetableGrid] = useState(() => buildDefaultWeeklyTimetable());
-  const [periods, setPeriods] = useState(() => PERIOD_TIMES.slice(0, 7));
+  const [periods, setPeriods] = useState(() => PERIOD_TIMES);
   const [showAddPeriod, setShowAddPeriod] = useState(false);
 
   useEffect(() => {
@@ -128,8 +143,7 @@ export default function WeeklyTimetablePage() {
           setSelectedClassId(list[0].id);
           const firstSec = list[0].sections?.[0]?.name;
           if (firstSec) setSectionName(firstSec);
-          const pc = list[0].sections?.[0]?.periodCount || 7;
-          setPeriods(PERIOD_TIMES.slice(0, Math.min(pc, PERIOD_TIMES.length)));
+          setPeriods(PERIOD_TIMES);
         }
       })
       .catch((err) => setError(err.message))
@@ -143,6 +157,26 @@ export default function WeeklyTimetablePage() {
 
   const sections = selectedClass?.sections || [];
   const selectedSection = sections.find((s) => s.name === sectionName) || sections[0];
+
+  useEffect(() => {
+    const sectionId = selectedSection?.id;
+    if (!sectionId) return undefined;
+    let cancelled = false;
+    getTimetable(sectionId)
+      .then((data) => {
+        if (cancelled) return;
+        setTimetableGrid(normalizeWeeklyGrid(data.grid));
+        setPeriods(Array.isArray(data.periods) && data.periods.length ? data.periods : PERIOD_TIMES);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          showToast(networkErrorMessage(err) || 'Could not load timetable', 'error');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSection?.id]);
 
   const classSectionOptions = useMemo(() => {
     const opts = [];
@@ -170,8 +204,7 @@ export default function WeeklyTimetablePage() {
     if (!opt) return;
     setSelectedClassId(opt.classId);
     setSectionName(opt.sectionName);
-    const base = PERIOD_TIMES.slice(0, Math.min(opt.periodCount, PERIOD_TIMES.length));
-    setPeriods(base.length ? base : PERIOD_TIMES.slice(0, 7));
+    setPeriods(PERIOD_TIMES);
   };
 
   const handleAddPeriod = (slot) => {

@@ -98,7 +98,7 @@ function selectClass() {
   return inputClass();
 }
 
-export default function StudentsPage({ user = null, onNavigate } = {}) {
+export default function StudentsPage({ user = null, onNavigate, initialClass, initialSection } = {}) {
   const canImport = canBulkImportStudents(user);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState('1');
@@ -175,12 +175,19 @@ export default function StudentsPage({ user = null, onNavigate } = {}) {
       .then((data) => {
         setClasses(data.classes || []);
         if (data.classes?.[0]) {
-          setSelectedClass(data.classes[0].name);
-          setSelectedSection(data.classes[0].sections?.[0]?.name || 'A');
+          const preferred =
+            initialClass &&
+            data.classes.find((c) => String(c.name) === String(initialClass));
+          const klass = preferred || data.classes[0];
+          setSelectedClass(klass.name);
+          const wantSec =
+            initialSection &&
+            klass.sections?.find((s) => String(s.name) === String(initialSection));
+          setSelectedSection(wantSec?.name || klass.sections?.[0]?.name || 'A');
         }
       })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [initialClass, initialSection]);
 
   useEffect(() => {
     let cancelled = false;

@@ -16,12 +16,24 @@ import {
   TIMETABLE_DAYS,
   PERIOD_TIMES,
   SUBJECT_STYLES,
+  DEFAULT_TEACHERS,
   buildDefaultWeeklyTimetable,
+  buildEmptyWeeklyTimetable,
+  normalizeWeeklyGrid,
+  isBreakSlot,
+  slotRowKey,
 } from '../data/timetableData.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
-import { showToast } from '../services/toast.js';
+import { getTeachers } from '../services/teacherService.js';
+import { getTimetable, saveTimetable } from '../services/timetableService.js';
+import { networkErrorMessage, showToast } from '../services/toast.js';
 
 const SUBJECTS = Object.keys(SUBJECT_STYLES);
+const DEFAULT_TEACHER_NAMES = DEFAULT_TEACHERS.map((t) => t.name);
+
+function teacherForSubject(subject) {
+  return DEFAULT_TEACHERS.find((t) => t.subject === subject)?.name || '';
+}
 
 /** Matches parent portal: Class timetable + Exam (tests included under Exam). */
 const TYPE_CARDS = [
@@ -161,6 +173,7 @@ export default function ManageTimetablesPanel({
   const [classKey, setClassKey] = useState('');
   const [selectedDay, setSelectedDay] = useState(0);
   const [grid, setGrid] = useState(() => buildDefaultWeeklyTimetable());
+  const [staffTeachers, setStaffTeachers] = useState(DEFAULT_TEACHER_NAMES);
 
   const [examName, setExamName] = useState('Quarterly Examination');
   const [examYear, setExamYear] = useState('2026-2027');
@@ -184,6 +197,10 @@ export default function ManageTimetablesPanel({
   const [addToCalendar, setAddToCalendar] = useState(true);
   const [sendPush, setSendPush] = useState(false);
   const [examPreview, setExamPreview] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const selectedSection = sectionOptions.find((o) => o.key === classKey);
+  const classSectionId = selectedSection?.sectionId || '';
 
   useEffect(() => {
     if (!sectionOptions.length) return;
@@ -191,7 +208,59 @@ export default function ManageTimetablesPanel({
     setExamClassKeys((prev) => (prev.length ? prev : [sectionOptions[0].key]));
   }, [sectionOptions]);
 
-  const selectedClass = sectionOptions.find((o) => o.key === classKey);
+  useEffect(() => {
+    if (!classSectionId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getTimetable(classSectionId);
+        if (!cancelled) setGrid(normalizeWeeklyGrid(data.grid));
+      } catch (err) {
+        if (!cancelled) {
+          showToast(networkErrorMessage(err) || 'Could not load timetable', 'error');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [classSectionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getTeachers({ staffType: 'teaching' });
+        const names = (data.teachers || [])
+          .map((t) => t.name)
+          .filter(Boolean);
+        if (!cancelled && names.length) {
+          setStaffTeachers([...new Set([...DEFAULT_TEACHER_NAMES, ...names])]);
+        }
+      } catch {
+        /* keep default teacher list */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const teacherOptions = useMemo(() => {
+    const fromGrid = grid.flat().map((c) => c?.teacher).filter(Boolean);
+    return [...new Set([...staffTeachers, ...fromGrid])];
+  }, [grid, staffTeachers]);
+
+  const updateCell = (periodIndex, patch) => {
+    setGrid((prev) => {
+      const copy = prev.map((row) => row.map((c) => (c ? { ...c } : c)));
+      copy[periodIndex][selectedDay] = {
+        ...(copy[periodIndex][selectedDay] || { subject: '', teacher: '' }),
+        ...patch,
+      };
+      return copy;
+    });
+  };
 
   const examConflicts = useMemo(() => {
     const warnings = [];
@@ -240,15 +309,32 @@ export default function ManageTimetablesPanel({
     );
   };
 
-  const publish = (kind) => {
+  const publish = async (kind) => {
     if (kind === 'exam' && examConflicts.length) {
       showToast('Resolve conflict warnings before publishing', 'error');
       return;
     }
-    showToast(
-      kind === 'exam' ? 'Exam / test timetable published' : 'Regular timetable saved',
-      'success'
-    );
+    if (kind === 'exam') {
+      showToast('Exam / test timetable published', 'success');
+      return;
+    }
+    if (!classSectionId) {
+      showToast('Select a class to save the timetable', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const data = await saveTimetable(classSectionId, grid, {
+        className: selectedSection?.className,
+        sectionName: selectedSection?.sectionName,
+      });
+      setGrid(normalizeWeeklyGrid(data.grid));
+      showToast('Regular timetable saved', 'success');
+    } catch (err) {
+      showToast(networkErrorMessage(err) || 'Could not save timetable', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isTestName = /test/i.test(examName);
@@ -335,45 +421,68 @@ export default function ManageTimetablesPanel({
             <table className="min-w-full text-left text-sm">
               <thead className="bg-indigo-50 text-indigo-900">
                 <tr>
-                  <th className="px-3 py-2.5 text-xs font-semibold">Period</th>
                   <th className="px-3 py-2.5 text-xs font-semibold">Time</th>
                   <th className="px-3 py-2.5 text-xs font-semibold">Subject</th>
+                  <th className="px-3 py-2.5 text-xs font-semibold">Teacher</th>
                 </tr>
               </thead>
               <tbody>
-                {PERIOD_TIMES.map((p, pi) => {
+                {PERIOD_TIMES.map((slot, pi) => {
                   const cell = grid[pi]?.[selectedDay];
-                  const isLunch = pi === 3;
+                  const isBreak = isBreakSlot(slot);
                   return (
-                    <tr key={p.period} className="border-t border-gray-100">
-                      <td className="px-3 py-2.5 font-semibold text-gray-700">P{p.period}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-500">{p.time}</td>
+                    <tr key={slotRowKey(slot, pi)} className="border-t border-gray-100">
+                      <td className="px-3 py-2.5 text-xs font-medium text-gray-700">{slot.time}</td>
                       <td className="px-3 py-2.5">
-                        {isLunch ? (
+                        {isBreak ? (
                           <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
-                            Lunch Break
+                            {slot.label}
                           </span>
                         ) : (
                           <select
-                            value={cell?.subject || 'English'}
+                            value={cell?.subject || ''}
                             onChange={(e) => {
                               const nextSub = e.target.value;
-                              setGrid((prev) => {
-                                const copy = prev.map((row) => row.map((c) => ({ ...c })));
-                                copy[pi][selectedDay] = {
-                                  subject: nextSub,
-                                  teacher: cell?.teacher || '',
-                                };
-                                return copy;
+                              updateCell(pi, {
+                                subject: nextSub,
+                                teacher: nextSub
+                                  ? teacherForSubject(nextSub) || cell?.teacher || ''
+                                  : '',
                               });
                             }}
-                            className={`rounded-lg border px-2 py-1 text-xs font-semibold ${subjectChipClass(cell?.subject)}`}
+                            className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                              cell?.subject
+                                ? subjectChipClass(cell.subject)
+                                : 'border-gray-200 bg-white text-gray-500'
+                            }`}
                           >
+                            <option value="">Select subject</option>
                             {SUBJECTS.map((s) => (
                               <option key={s} value={s}>
                                 {s === 'Maths' ? 'Mathematics' : s}
                               </option>
                             ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {isBreak ? (
+                          <span className="text-xs text-gray-400">—</span>
+                        ) : (
+                          <select
+                            value={cell?.teacher || ''}
+                            onChange={(e) => updateCell(pi, { teacher: e.target.value })}
+                            className="w-full min-w-[9rem] rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-800 focus:border-indigo-500 focus:outline-none"
+                          >
+                            <option value="">Select teacher</option>
+                            {teacherOptions.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                            {cell?.teacher && !teacherOptions.includes(cell.teacher) ? (
+                              <option value={cell.teacher}>{cell.teacher}</option>
+                            ) : null}
                           </select>
                         )}
                       </td>
@@ -384,32 +493,24 @@ export default function ManageTimetablesPanel({
             </table>
           </div>
 
-          <p className="text-xs text-gray-500">
-            Editing for <strong>{selectedClass?.label || '-'}</strong> ·{' '}
-            {TIMETABLE_DAYS[selectedDay]}
-          </p>
-
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setGrid(buildDefaultWeeklyTimetable())}
+              onClick={() => {
+                setGrid(buildEmptyWeeklyTimetable());
+                showToast('Timetable cleared', 'info');
+              }}
               className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Reset
             </button>
             <button
               type="button"
-              onClick={() => showToast(`Preview · ${selectedClass?.label || 'class'}`, 'info')}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-800"
-            >
-              <Eye size={16} /> Preview
-            </button>
-            <button
-              type="button"
               onClick={() => publish('regular')}
-              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
+              disabled={saving || !classSectionId}
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
             >
-              Save Timetable
+              {saving ? 'Saving…' : 'Save Timetable'}
             </button>
           </div>
         </div>

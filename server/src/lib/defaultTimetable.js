@@ -2,9 +2,28 @@ function cell(subject, teacher) {
   return { subject, teacher };
 }
 
+function breakRow() {
+  return TIMETABLE_DAYS.map(() => null);
+}
+
+function withBreakRows(teachingRows) {
+  return [
+    teachingRows[0],
+    teachingRows[1],
+    teachingRows[2],
+    breakRow(),
+    teachingRows[3],
+    teachingRows[4],
+    breakRow(),
+    teachingRows[5],
+    teachingRows[6],
+    teachingRows[7],
+  ];
+}
+
 /** Primary (Classes 1–9) weekly grid: [periodIndex][dayIndex] Mon–Sat. */
 export function buildPrimaryWeeklyTimetable() {
-  return [
+  return withBreakRows([
     [
       cell('English', 'Neha Sharma'),
       cell('Maths', 'Rakesh Verma'),
@@ -69,12 +88,12 @@ export function buildPrimaryWeeklyTimetable() {
       cell('Science', 'Deepa Iyer'),
       cell('Social', 'Amit Khanna'),
     ],
-  ];
+  ]);
 }
 
 /** Senior secondary (Classes 10–12) weekly grid. */
 export function buildSeniorWeeklyTimetable() {
-  return [
+  return withBreakRows([
     [
       cell('Physics', 'Dr. Anil Kapoor'),
       cell('Mathematics', 'Rakesh Verma'),
@@ -139,7 +158,7 @@ export function buildSeniorWeeklyTimetable() {
       cell('Assembly / Club', 'Priya Nair'),
       cell('Self Study', '—'),
     ],
-  ];
+  ]);
 }
 
 function gradeFromClassName(raw) {
@@ -166,12 +185,39 @@ export function buildDefaultWeeklyTimetable(classHint) {
 export const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const PERIOD_TIMES = [
-  { period: 1, time: '08:00 AM - 08:40 AM' },
-  { period: 2, time: '08:40 AM - 09:20 AM' },
-  { period: 3, time: '09:20 AM - 10:00 AM' },
-  { period: 4, time: '10:20 AM - 11:00 AM' },
-  { period: 5, time: '11:00 AM - 11:40 AM' },
-  { period: 6, time: '11:40 AM - 12:20 PM' },
-  { period: 7, time: '01:00 PM - 01:40 PM' },
-  { period: 8, time: '01:40 PM - 02:20 PM' },
+  { period: 1, time: '08:45 AM - 09:30 AM', kind: 'period' },
+  { period: 2, time: '09:30 AM - 10:15 AM', kind: 'period' },
+  { period: 3, time: '10:15 AM - 11:00 AM', kind: 'period' },
+  { period: null, time: '11:00 AM - 11:15 AM', kind: 'break', label: 'Short Break' },
+  { period: 4, time: '11:15 AM - 12:00 PM', kind: 'period' },
+  { period: 5, time: '12:00 PM - 12:45 PM', kind: 'period' },
+  { period: null, time: '12:45 PM - 01:30 PM', kind: 'break', label: 'Lunch Break' },
+  { period: 6, time: '01:30 PM - 02:15 PM', kind: 'period' },
+  { period: 7, time: '02:15 PM - 03:00 PM', kind: 'period' },
+  { period: 8, time: '03:00 PM - 03:45 PM', kind: 'period' },
 ];
+
+export function isBreakSlot(slot) {
+  return slot?.kind === 'break';
+}
+
+function cloneRow(row) {
+  if (!Array.isArray(row)) return TIMETABLE_DAYS.map(() => null);
+  return TIMETABLE_DAYS.map((_, d) => {
+    const cell = row[d];
+    if (!cell || typeof cell !== 'object') return null;
+    return { subject: cell.subject || '', teacher: cell.teacher || '' };
+  });
+}
+
+/** Align a stored grid to PERIOD_TIMES (inserts break rows for older 8-period saves). */
+export function normalizeWeeklyGrid(grid, classHint) {
+  if (!Array.isArray(grid) || grid.length === 0) {
+    return buildDefaultWeeklyTimetable(classHint);
+  }
+  if (grid.length === PERIOD_TIMES.length) {
+    return PERIOD_TIMES.map((slot, i) => (isBreakSlot(slot) ? breakRow() : cloneRow(grid[i])));
+  }
+  const teaching = Array.from({ length: 8 }, (_, i) => cloneRow(grid[i]));
+  return withBreakRows(teaching);
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -142,6 +143,15 @@ class _ChildDetailSection extends StatelessWidget {
                   const Divider(height: 1, indent: 60, endIndent: 16),
               ],
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => context.go('/parent/tc'),
+            icon: const Icon(Icons.assignment_outlined),
+            label: const Text('Request Transfer Certificate'),
           ),
         ),
       ],

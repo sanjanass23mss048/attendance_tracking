@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { DEFAULT_PERIOD_COUNT, parseDateOnly } from '../lib/ids.js';
+import { attendancePercentFromCounts } from '../lib/attendancePercent.js';
 import { isAppStatus } from '../lib/statusMap.js';
 import {
   getDailyMarks,
@@ -158,7 +159,7 @@ router.get('/summary', requireAuth, async (req, res) => {
   ]);
 
   const marked = counts.marked;
-  const attendancePercent = marked ? Math.round((counts.P / marked) * 100) : 0;
+  const attendancePercent = attendancePercentFromCounts(counts);
 
   return res.json({
     date: dateStr,
@@ -204,7 +205,7 @@ router.get('/daily', requireAuth, async (req, res) => {
       studentId: s.id,
       rollNo: s.rollNo,
       name: s.name,
-      status: byStudent.get(s.id) ?? null,
+      status: byStudent.get(s.id) ?? 'P',
     })),
     sentMessages,
   });
@@ -240,8 +241,7 @@ router.put('/daily', requireAuth, async (req, res) => {
     }
   }
 
-  // Expand to full section roster. Present is implied by deleting any stored mark;
-  // only non-P statuses are persisted.
+  // Expand to full section roster; every status (P, A, L, H, OH, OF) is persisted.
   const enrollments = await listEnrollmentsForSection(section.Class_Section_id);
   const byId = new Map(
     parsed.data.marks.map((m) => [String(m.studentId), m.status])
