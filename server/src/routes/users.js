@@ -24,7 +24,7 @@ const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8).optional(),
-  role: z.enum(['TEACHER', 'PARENT', 'ADMIN']),
+  role: z.enum(['TEACHER', 'ADMIN', 'INCHARGE']),
   phone: z.string().optional().nullable(),
 });
 function serializeAppUser(user) {
@@ -40,7 +40,7 @@ function serializeAppUser(user) {
 
 async function ensureRole(roleId) {
   const id = String(roleId).toUpperCase();
-  const labels = { ADMIN: 'Admin', TEACHER: 'Teacher', PARENT: 'Parent' };
+  const labels = { ADMIN: 'Admin', INCHARGE: 'Incharge', TEACHER: 'Teacher', PARENT: 'Parent' };
   const existing = await prisma.tblRoles.findUnique({ where: { Role_id: id } });
   if (existing) return existing;
   return prisma.tblRoles.create({

@@ -29,6 +29,7 @@ RUN npx prisma generate \
 
 COPY server/src ./src
 COPY server/public ./public
+COPY server/assets ./assets
 COPY --from=frontend /app/dist /app/dist
 
 ENV NODE_ENV=production

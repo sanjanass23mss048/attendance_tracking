@@ -163,6 +163,7 @@ export default function AcademicCalendarPage() {
   const defaultYear = 2026;
   const defaultMonth = 6; // July — matches mockup
 
+  const [classGroup, setClassGroup] = useState('upto9');
   const [viewMode, setViewMode] = useState('calendar');
   const [month, setMonth] = useState(defaultMonth);
   const [year, setYear] = useState(defaultYear);
@@ -182,6 +183,7 @@ export default function AcademicCalendarPage() {
     type: 'event',
     customType: '',
     subtitle: '',
+    applicableTo: 'All Classes',
   });
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [eventSubmitted, setEventSubmitted] = useState(false);
@@ -243,9 +245,26 @@ export default function AcademicCalendarPage() {
 
   const monthCells = useMemo(() => buildMonthDays(year, month), [year, month]);
 
+  const classGroupFilter = (event) => {
+    const a = (event.applicableTo || 'All Classes').toLowerCase();
+    if (a === 'all classes' || !a) return true;
+    if (classGroup === 'upto9') return a.includes('up to') || a.includes('9');
+    return a.includes('10') || a.includes('above');
+  };
+
+  const filteredEvents = useMemo(
+    () => events.filter(classGroupFilter),
+    [events, classGroup]
+  );
+
+  const filteredScheduled = useMemo(
+    () => scheduledEvents.filter(classGroupFilter),
+    [scheduledEvents, classGroup]
+  );
+
   const eventsByDay = useMemo(() => {
     const map = {};
-    events.forEach((event) => {
+    filteredEvents.forEach((event) => {
       if (!map[event.day]) map[event.day] = [];
       map[event.day].push(event);
     });
@@ -263,11 +282,11 @@ export default function AcademicCalendarPage() {
       });
     });
     return map;
-  }, [events]);
+  }, [filteredEvents]);
 
   const monthStats = useMemo(() => {
-    const sunday = events.filter((e) => e.source === 'sunday').length;
-    const schoolHoliday = events.filter(
+    const sunday = filteredEvents.filter((e) => e.source === 'sunday').length;
+    const schoolHoliday = filteredEvents.filter(
       (e) =>
         e.source !== 'sunday' &&
         (e.type === 'holiday' || e.type === 'sudden') &&
@@ -279,31 +298,31 @@ export default function AcademicCalendarPage() {
           e.source === 'govt' ||
           e.source === 'nager')
     ).length;
-    const exam = events.filter((e) => e.type === 'exam').length;
-    const eventCount = events.filter((e) => e.type === 'event').length;
-    const important = events.filter((e) => e.type === 'important').length;
+    const exam = filteredEvents.filter((e) => e.type === 'exam').length;
+    const eventCount = filteredEvents.filter((e) => e.type === 'event').length;
+    const important = filteredEvents.filter((e) => e.type === 'important').length;
     return { sunday, schoolHoliday, exam, eventCount, important };
-  }, [events]);
+  }, [filteredEvents]);
 
   const upcomingInMonth = useMemo(
     () =>
-      events
+      filteredEvents
         .filter((e) => e.source !== 'sunday' && e.type !== 'holiday')
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 6),
-    [events]
+    [filteredEvents]
   );
 
   const mobileEvents = useMemo(() => {
     const todayIso = new Date().toISOString().slice(0, 10);
-    const list = events
+    const list = filteredEvents
       .filter((e) => e.source !== 'sunday')
       .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
     if (mobileListTab === 'upcoming') {
       return list.filter((e) => !e.date || e.date >= todayIso).slice(0, 12);
     }
     return list;
-  }, [events, mobileListTab]);
+  }, [filteredEvents, mobileListTab]);
 
   const changeMonth = (delta) => {
     const next = new Date(year, month + delta, 1);
@@ -333,6 +352,7 @@ export default function AcademicCalendarPage() {
       type: 'event',
       customType: '',
       subtitle: '',
+      applicableTo: 'All Classes',
     });
     setEventSubmitted(false);
     setError('');
@@ -424,6 +444,7 @@ export default function AcademicCalendarPage() {
         date: eventForm.date,
         type: resolvedType,
         subtitle: eventForm.subtitle.trim(),
+        applicableTo: eventForm.applicableTo || 'All Classes',
       });
       setEventSubmitted(true);
       const [y, m] = eventForm.date.split('-').map(Number);
@@ -511,6 +532,17 @@ export default function AcademicCalendarPage() {
               <Calendar size={18} />
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm border border-gray-200">
+          <select
+            value={classGroup}
+            onChange={(e) => setClassGroup(e.target.value)}
+            className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 py-2 px-3 text-sm font-semibold text-emerald-900"
+          >
+            <option value="upto9">Up to Class 9</option>
+            <option value="above9">Class 10 &amp; above</option>
+          </select>
         </div>
 
         <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
@@ -820,6 +852,18 @@ export default function AcademicCalendarPage() {
                 <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400" />
               </div>
 
+              <div className="relative">
+                <select
+                  value={classGroup}
+                  onChange={(e) => setClassGroup(e.target.value)}
+                  className="appearance-none rounded-lg border border-emerald-200 bg-emerald-50 py-2 pl-3 pr-8 text-sm font-semibold text-emerald-900"
+                >
+                  <option value="upto9">Up to Class 9</option>
+                  <option value="above9">Class 10 &amp; above</option>
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400" />
+              </div>
+
               <span className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900">
                 AY {academicStartYear}–{String(academicStartYear + 1).slice(-2)}
               </span>
@@ -1032,11 +1076,11 @@ export default function AcademicCalendarPage() {
 
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <h3 className="mb-3 text-sm font-bold text-gray-900">Upcoming Events</h3>
-            {upcomingInMonth.length === 0 && scheduledEvents.length === 0 ? (
+            {upcomingInMonth.length === 0 && filteredScheduled.length === 0 ? (
               <p className="text-xs text-gray-400">No upcoming events this month.</p>
             ) : (
               <ul className="space-y-2.5">
-                {(upcomingInMonth.length > 0 ? upcomingInMonth : scheduledEvents).map((event) => {
+                {(upcomingInMonth.length > 0 ? upcomingInMonth : filteredScheduled).map((event) => {
                   const style = EVENT_TYPES[event.type] || EVENT_TYPES.other;
                   return (
                     <li key={event.id} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
@@ -1194,6 +1238,20 @@ export default function AcademicCalendarPage() {
                   />
                 </div>
               )}
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">Applicable To</label>
+                <select
+                  value={eventForm.applicableTo}
+                  onChange={(e) =>
+                    setEventForm((prev) => ({ ...prev, applicableTo: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <option value="All Classes">All Classes</option>
+                  <option value="Up to Class 9">Up to Class 9</option>
+                  <option value="Class 10 and above">Class 10 and above</option>
+                </select>
+              </div>
               <div>
                 <label className="mb-1 block text-xs text-gray-500">Subtitle / notes (optional)</label>
                 <input

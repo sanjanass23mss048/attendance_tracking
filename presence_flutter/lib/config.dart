@@ -3,7 +3,7 @@ class AppConfig {
   static const appName = 'Presence';
   static const apiBase = String.fromEnvironment(
     'API_BASE',
-    defaultValue: 'https://attendance.rioassetmanagement.net',
+    defaultValue: 'https://www.rioassetmanagement.info',
   );
 
   static const staffManagerRoles = {

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Camera,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -891,12 +890,6 @@ export default function StudentsPage({ user = null, onNavigate, initialClass, in
 
           <form onSubmit={handleSaveStudent} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6">
-                <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-white text-gray-400 ring-1 ring-gray-200">
-                  <Camera size={22} />
-                </span>
-                <p className="text-xs text-gray-500">Photo placeholder</p>
-              </div>
 
               {drawer === 'add' && (
                 <div className="grid grid-cols-2 gap-3">

@@ -14,7 +14,7 @@ import { seedNewTenant } from './tenantSeedService.js';
 import { saveSchoolLogo } from '../lib/schoolBranding.js';
 import { ensureAttendanceStatuses } from '../lib/statusMap.js';
 import { ensureAdminAuditTables } from '../lib/ensureAdminAuditTables.js';
-import { loadAppSettings } from '../lib/appSettings.js';
+import { ALERT_SETTING_KEYS, loadAppSettings, saveAppSettings } from '../lib/appSettings.js';
 import { ensureStudentImportTables } from '../lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from '../lib/ensureTeacherNotificationTables.js';
 import { tenantAls } from '../lib/tenantContext.js';
@@ -107,6 +107,8 @@ export async function createSchoolTenant({
   sectionCounts = {},
   admin,
   logoFile,
+  alertChannel = 'sms',
+  alertRecipient = 'father',
 } = {}) {
   const name = String(schoolName || '').trim();
   if (name.length < 2) throw new Error('School name is required.');
@@ -151,6 +153,10 @@ export async function createSchoolTenant({
         await ensureTeacherNotificationTables();
         await ensureAdminAuditTables();
         await loadAppSettings();
+        await saveAppSettings({
+          [ALERT_SETTING_KEYS.CHANNEL]: alertChannel || 'sms',
+          [ALERT_SETTING_KEYS.RECIPIENT]: alertRecipient || 'father',
+        });
         await seedNewTenant(tenantPrisma, {
           schoolName: name,
           includeKg: kg,

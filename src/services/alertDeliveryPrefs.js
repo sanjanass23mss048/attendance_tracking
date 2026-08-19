@@ -2,6 +2,7 @@ import {
   ALERT_CHANNELS,
   ALERT_RECIPIENTS,
 } from '../components/AlertDeliveryOptions';
+import { apiFetch } from './api.js';
 
 const STORAGE_KEY = 'presence_alert_delivery_prefs_v3';
 
@@ -48,4 +49,20 @@ export function setAlertDeliveryPrefs(next = {}) {
     // ignore quota / private mode
   }
   return prefs;
+}
+
+/** Load school defaults into localStorage so send-alert uses them. */
+export async function hydrateAlertDeliveryPrefs() {
+  const data = await apiFetch('/api/settings/alert-delivery');
+  if (!data?.configured) return getAlertDeliveryPrefs();
+  return setAlertDeliveryPrefs(data);
+}
+
+export async function persistAlertDeliveryPrefs(next = {}) {
+  const prefs = setAlertDeliveryPrefs(next);
+  const data = await apiFetch('/api/settings/alert-delivery', {
+    method: 'PUT',
+    json: prefs,
+  });
+  return setAlertDeliveryPrefs(data);
 }

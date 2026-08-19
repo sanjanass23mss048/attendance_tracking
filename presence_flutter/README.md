@@ -2,7 +2,7 @@
 
 Full native Android/iOS app for **Presence**, talking to the same API as the website:
 
-`https://attendance.rioassetmanagement.net`
+`https://www.rioassetmanagement.info`
 
 This is **not** a WebView of the browser UI. It reimplements school workflows in Flutter
 (login, dashboard, attendance mark + parent SMS, classes, students, calendar, reports, etc.).

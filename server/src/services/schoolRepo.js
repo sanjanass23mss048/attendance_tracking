@@ -136,38 +136,76 @@ function academicYearLabel(d = new Date()) {
   return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 }
 
+const FIXED_CLASS_NAMES = ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+function normalizeClassName(value) {
+  const text = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^CLASS\s+/i, '');
+  return text;
+}
+
 /**
  * Create a class and link one or more sections (e.g. A, B).
  * Reuses existing tblSection rows when the section label already exists.
  */
 export async function createClassWithSections({ className, sectionNames, academicYear } = {}) {
-  const name = String(className || '').trim();
+  const normalized = normalizeClassName(className);
+  const name = FIXED_CLASS_NAMES.find((item) => item === normalized) || normalized;
   if (!name) throw new Error('Class name is required.');
-
-  const sections = [...new Set((sectionNames?.length ? sectionNames : ['A']).map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
-  if (!sections.length) throw new Error('At least one section is required.');
-
-  const existingByName = await prisma.tblClass.findFirst({ where: { Class_Name: name } });
-  if (existingByName) {
-    const err = new Error(`Class “${name}” already exists.`);
-    err.code = 'CLASS_EXISTS';
+  if (!FIXED_CLASS_NAMES.includes(name)) {
+    const err = new Error('Only fixed classes LKG, UKG and Classes 1 to 12 are allowed.');
+    err.code = 'CLASS_INVALID';
     throw err;
   }
 
-  const classId = `CLS-${name}`.slice(0, 50);
-  const idTaken = await prisma.tblClass.findUnique({ where: { Class_id: classId } });
-  const finalClassId = idTaken ? newId('CLS-') : classId;
-  const year = String(academicYear || '').trim() || academicYearLabel();
+  const sections = [
+    ...new Set(
+      (sectionNames?.length ? sectionNames : ['A'])
+        .map((s) => String(s).trim().toUpperCase())
+        .filter(Boolean)
+    ),
+  ];
+  if (!sections.length) throw new Error('At least one section is required.');
 
-  await prisma.tblClass.create({
-    data: {
-      Class_id: finalClassId,
-      Class_Name: name,
-      Academic_Year: year,
-    },
-  });
+  const existingByName = await prisma.tblClass.findFirst({ where: { Class_Name: name } });
+  let finalClassId = existingByName?.Class_id || null;
+  let action = 'updated';
 
-  for (const sectionName of sections) {
+  if (!existingByName) {
+    const classId = `CLS-${name}`.slice(0, 50);
+    const idTaken = await prisma.tblClass.findUnique({ where: { Class_id: classId } });
+    finalClassId = idTaken ? newId('CLS-') : classId;
+    const year = String(academicYear || '').trim() || academicYearLabel();
+
+    await prisma.tblClass.create({
+      data: {
+        Class_id: finalClassId,
+        Class_Name: name,
+        Academic_Year: year,
+      },
+    });
+    action = 'created';
+  }
+
+  const existingLinks = finalClassId
+    ? await prisma.tblClass_Section.findMany({
+        where: { Class_id: finalClassId, int_status: 1 },
+        include: { tblSection: true },
+      })
+    : [];
+  const existingSectionNames = new Set(
+    existingLinks.map((row) => String(row.tblSection?.Section_Name || '').trim().toUpperCase()).filter(Boolean)
+  );
+  const newSectionNames = sections.filter((sectionName) => !existingSectionNames.has(sectionName));
+  if (!newSectionNames.length) {
+    const err = new Error(`All selected sections already exist for ${name}.`);
+    err.code = 'SECTION_EXISTS';
+    throw err;
+  }
+
+  for (const sectionName of newSectionNames) {
     const sectionId = `SEC-${sectionName}`.slice(0, 50);
     await prisma.tblSection.upsert({
       where: { Section_id: sectionId },
@@ -190,7 +228,8 @@ export async function createClassWithSections({ className, sectionNames, academi
   }
 
   const all = await listClassesWithSections();
-  return all.find((c) => c.id === finalClassId) || null;
+  const klass = all.find((c) => c.id === finalClassId) || null;
+  return klass ? { ...klass, action, addedSections: newSectionNames } : null;
 }
 
 /** Roles that can see / manage every class-section. */

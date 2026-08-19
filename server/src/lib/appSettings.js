@@ -61,7 +61,31 @@ export const APP_SETTING_GROUPS = [
   },
 ];
 
-export const MANAGED_SETTING_KEYS = APP_SETTING_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
+export const ALERT_SETTING_KEYS = {
+  CHANNEL: 'ABSENCE_ALERT_CHANNEL',
+  RECIPIENT: 'ABSENCE_ALERT_RECIPIENT',
+};
+
+export const ALERT_CHANNEL_VALUES = ['whatsapp', 'sms', 'whatsapp_sms'];
+export const ALERT_RECIPIENT_VALUES = ['father', 'mother', 'both'];
+
+export const MANAGED_SETTING_KEYS = [
+  ...APP_SETTING_GROUPS.flatMap((g) => g.fields.map((f) => f.key)),
+  ALERT_SETTING_KEYS.CHANNEL,
+  ALERT_SETTING_KEYS.RECIPIENT,
+];
+
+export function parseAlertDeliveryPrefs(map = {}) {
+  const storedChannel = map[ALERT_SETTING_KEYS.CHANNEL];
+  const storedRecipient = map[ALERT_SETTING_KEYS.RECIPIENT];
+  const hasChannel = ALERT_CHANNEL_VALUES.includes(storedChannel);
+  const hasRecipient = ALERT_RECIPIENT_VALUES.includes(storedRecipient);
+  return {
+    channel: hasChannel ? storedChannel : 'sms',
+    recipient: hasRecipient ? storedRecipient : 'father',
+    configured: hasChannel || hasRecipient,
+  };
+}
 
 const SECRET_KEYS = new Set(
   APP_SETTING_GROUPS.flatMap((g) => g.fields.filter((f) => f.secret).map((f) => f.key))

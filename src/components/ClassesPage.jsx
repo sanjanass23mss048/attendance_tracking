@@ -11,6 +11,7 @@ import {
   Library,
   Maximize2,
   Minimize2,
+  Minus,
   Monitor,
   Palette,
   Pencil,
@@ -22,7 +23,7 @@ import {
 } from 'lucide-react';
 import { getClasses, createClass } from '../services/classService.js';
 import { getTimetable } from '../services/timetableService.js';
-import { formatClassLabel } from '../data/schoolGrades.js';
+import { formatClassLabel, SCHOOL_GRADES } from '../data/schoolGrades.js';
 import { networkErrorMessage, showToast } from '../services/toast.js';
 import {
   buildDefaultWeeklyTimetable,
@@ -39,6 +40,57 @@ import TimetableAddPeriodModal from './TimetableAddPeriodModal.jsx';
 import TimetableEditCellModal from './TimetableEditCellModal.jsx';
 
 const TABS = ['Sections', 'Class Strength', 'Teachers Assigned', 'Timetable'];
+const MIN_SECTIONS = 0;
+const MAX_SECTIONS = 12;
+const SECTION_LETTERS = 'ABCDEFGHIJKL';
+
+function lettersForCount(count) {
+  const n = Math.min(MAX_SECTIONS, Math.max(0, Number(count) || 0));
+  if (n <= 0) return '';
+  return SECTION_LETTERS.slice(0, n).split('').join(', ');
+}
+
+function sectionSubtitle({ klass, count, minCount }) {
+  if (count <= 0 && minCount <= 0) return 'Not set up';
+  if (klass) {
+    if (count > minCount) {
+      const label = lettersForCount(count);
+      return label ? `${label} · adding sections` : 'Adding sections';
+    }
+    const label = lettersForCount(minCount || count);
+    return label || 'No sections yet';
+  }
+  const label = lettersForCount(count);
+  return label ? `${label} · will create class` : 'Not set up';
+}
+
+function normalizeClassKey(name) {
+  return String(name || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^CLASS\s+/i, '');
+}
+
+function classByName(classes, className) {
+  const key = normalizeClassKey(className);
+  return classes.find((c) => normalizeClassKey(c.name) === key) || null;
+}
+
+function buildSectionCounts(classes) {
+  const out = {};
+  for (const name of SCHOOL_GRADES) {
+    const klass = classByName(classes, name);
+    out[name] = klass?.sections?.length || 0;
+  }
+  return out;
+}
+
+function resolveSectionCount(sectionCounts, className, klass) {
+  const minCount = klass?.sections?.length || 0;
+  const stored = sectionCounts[className];
+  if (stored === undefined || stored === null) return minCount;
+  return Math.max(minCount, stored);
+}
 
 const SUBJECT_ICONS = {
   English: BookOpen,
@@ -181,8 +233,7 @@ export default function ClassesPage({ initialClassName } = {}) {
   const timetablePanelRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showAddClass, setShowAddClass] = useState(false);
-  const [newClassName, setNewClassName] = useState('');
-  const [newSections, setNewSections] = useState('A');
+  const [sectionCounts, setSectionCounts] = useState(() => buildSectionCounts([]));
   const [savingClass, setSavingClass] = useState(false);
 
   const loadClasses = useCallback(() => {
@@ -255,7 +306,6 @@ export default function ClassesPage({ initialClassName } = {}) {
     () => classes.find((c) => c.id === selectedClassId) || classes[0],
     [classes, selectedClassId]
   );
-
   const sections = selectedClass?.sections || [];
   const selectedSection = sections.find((s) => s.name === sectionName) || sections[0];
   const periodCount = selectedSection?.periodCount || 8;
@@ -349,32 +399,65 @@ export default function ClassesPage({ initialClassName } = {}) {
   );
   const classStudentCount = (sections || []).reduce((n, s) => n + (s.studentCount || 0), 0);
 
-  const handleAddClass = async (e) => {
+  const openSectionManager = () => {
+    setSectionCounts(buildSectionCounts(classes));
+    setShowAddClass(true);
+  };
+
+  const setSectionsFor = (className, next) => {
+    const klass = classByName(classes, className);
+    const floor = klass?.sections?.length || 0;
+    const n = Math.min(MAX_SECTIONS, Math.max(floor, Number(next) || floor));
+    setSectionCounts((prev) => ({ ...prev, [className]: n }));
+  };
+
+  const activateMissingClass = (className) => {
+    setSectionCounts((prev) => ({ ...prev, [className]: Math.max(1, prev[className] || 0) }));
+  };
+
+  const handleSaveSections = async (e) => {
     e.preventDefault();
-    const className = newClassName.trim();
-    if (!className) {
-      showToast('Enter a class name.', 'error');
+    const updates = [];
+
+    for (const className of SCHOOL_GRADES) {
+      const desired = resolveSectionCount(sectionCounts, className, klass);
+      const klass = classByName(classes, className);
+      const current = klass?.sections?.length || 0;
+      if (desired <= current) continue;
+
+      const existingNames = new Set((klass?.sections || []).map((s) => String(s.name || '').toUpperCase()));
+      const allDesired = SECTION_LETTERS.slice(0, desired).split('');
+      const sectionNames = klass
+        ? allDesired.filter((label) => !existingNames.has(label))
+        : allDesired;
+      if (!sectionNames.length) continue;
+      updates.push({ className, sectionNames, klass });
+    }
+
+    if (!updates.length) {
+      showToast('No section changes to save.', 'info');
       return;
     }
-    const sectionNames = newSections
-      .split(/[,;/]+/)
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
+
     setSavingClass(true);
     try {
-      const result = await createClass({ className, sectionNames });
-      const created = result.class;
-      setShowAddClass(false);
-      setNewClassName('');
-      setNewSections('A');
-      await loadClasses();
-      if (created?.id) {
-        setSelectedClassId(created.id);
-        setSectionName(created.sections?.[0]?.name || 'A');
+      let lastCreated = null;
+      for (const item of updates) {
+        const result = await createClass({
+          className: item.className,
+          sectionNames: item.sectionNames,
+        });
+        lastCreated = result.class || lastCreated;
       }
-      showToast(`Class ${formatClassLabel(className)} created.`, 'success');
+      setShowAddClass(false);
+      await loadClasses();
+      if (lastCreated?.id) {
+        setSelectedClassId(lastCreated.id);
+        setSectionName(lastCreated.addedSections?.[0] || lastCreated.sections?.[0]?.name || 'A');
+      }
+      showToast('Class sections updated.', 'success');
     } catch (err) {
-      showToast(networkErrorMessage(err) || 'Could not create class', 'error');
+      showToast(networkErrorMessage(err) || 'Could not update class sections', 'error');
     } finally {
       setSavingClass(false);
     }
@@ -420,11 +503,7 @@ export default function ClassesPage({ initialClassName } = {}) {
         </button>
         <button
           type="button"
-          onClick={() => {
-            setNewClassName('');
-            setNewSections('A');
-            setShowAddClass(true);
-          }}
+          onClick={openSectionManager}
           className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           <Plus size={16} />
@@ -435,14 +514,19 @@ export default function ClassesPage({ initialClassName } = {}) {
       {showAddClass && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form
-            onSubmit={handleAddClass}
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+            onSubmit={handleSaveSections}
+            className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
           >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
-                <Plus className="h-4 w-4 text-indigo-600" />
-                Add class
-              </h3>
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                  <Plus className="h-4 w-4 text-indigo-600" />
+                  Manage class sections
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  Set section counts for each class. Letters are assigned in order (1 = A, 2 = A+B, …).
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowAddClass(false)}
@@ -451,29 +535,49 @@ export default function ClassesPage({ initialClassName } = {}) {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600">Class name</span>
-                <input
-                  required
-                  value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                  placeholder="e.g. 10, LKG, Nursery"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600">Sections</span>
-                <input
-                  value={newSections}
-                  onChange={(e) => setNewSections(e.target.value)}
-                  placeholder="A or A, B, C"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">Comma-separated section labels. Default is A.</p>
-              </label>
+
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-y border-indigo-100 bg-indigo-50/70">
+              <div className="flex shrink-0 items-center justify-between border-b border-indigo-100 px-4 py-2.5">
+                <p className="text-sm font-semibold text-indigo-950">Classes</p>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-700">Sections</p>
+              </div>
+              <ul className="max-h-[calc(90vh-12rem)] min-h-0 flex-1 divide-y divide-indigo-100/80 overflow-y-auto overscroll-contain bg-white pb-2">
+                {SCHOOL_GRADES.map((className) => {
+                  const klass = classByName(classes, className);
+                  const minCount = klass?.sections?.length || 0;
+                  const count = resolveSectionCount(sectionCounts, className, klass);
+                  const showAddFirst = count <= 0 && minCount <= 0;
+                  return (
+                    <li key={className} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">{formatClassLabel(className)}</p>
+                        <p className="text-xs text-slate-500">
+                          {sectionSubtitle({ klass, count, minCount })}
+                        </p>
+                      </div>
+                      {showAddFirst ? (
+                        <button
+                          type="button"
+                          onClick={() => activateMissingClass(className)}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                        >
+                          <Plus size={14} />
+                          Add
+                        </button>
+                      ) : (
+                        <SectionStepper
+                          value={count}
+                          min={minCount}
+                          onChange={(next) => setSectionsFor(className, next)}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
+
+            <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 px-5 py-4">
               <button
                 type="button"
                 onClick={() => setShowAddClass(false)}
@@ -486,7 +590,7 @@ export default function ClassesPage({ initialClassName } = {}) {
                 disabled={savingClass}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {savingClass ? 'Creating…' : 'Create class'}
+                {savingClass ? 'Saving…' : 'Save sections'}
               </button>
             </div>
           </form>
@@ -748,6 +852,71 @@ export default function ClassesPage({ initialClassName } = {}) {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionStepper({ value, onChange, min = MIN_SECTIONS }) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = (raw) => {
+    const parsed = parseInt(String(raw), 10);
+    const next = Number.isFinite(parsed)
+      ? Math.min(MAX_SECTIONS, Math.max(min, parsed))
+      : value;
+    onChange(next);
+    setDraft(String(next));
+  };
+
+  return (
+    <div className="flex shrink-0 flex-col items-center">
+      <span className="mb-1 text-[11px] font-medium text-slate-500">sections</span>
+      <div className="inline-flex items-center overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+        <button
+          type="button"
+          aria-label="Fewer sections"
+          disabled={value <= min}
+          onClick={() => onChange(value - 1)}
+          className="flex h-9 w-9 items-center justify-center text-slate-700 hover:bg-slate-50 disabled:text-slate-300"
+        >
+          <Minus className="h-4 w-4" strokeWidth={2.4} />
+        </button>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          aria-label="Number of sections"
+          value={draft}
+          onChange={(e) => {
+            const next = e.target.value.replace(/[^\d]/g, '').slice(0, 2);
+            setDraft(next);
+            if (next === '') return;
+            const parsed = parseInt(next, 10);
+            if (Number.isFinite(parsed) && parsed >= min && parsed <= MAX_SECTIONS) {
+              onChange(parsed);
+            }
+          }}
+          onFocus={(e) => e.target.select()}
+          onBlur={() => commit(draft)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          className="h-9 w-8 border-0 bg-transparent p-0 text-center text-sm font-semibold tabular-nums text-slate-900 outline-none focus:ring-0"
+        />
+        <button
+          type="button"
+          aria-label="More sections"
+          disabled={value >= MAX_SECTIONS}
+          onClick={() => onChange(value + 1)}
+          className="flex h-9 w-9 items-center justify-center text-slate-700 hover:bg-slate-50 disabled:text-slate-300"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.4} />
+        </button>
       </div>
     </div>
   );
