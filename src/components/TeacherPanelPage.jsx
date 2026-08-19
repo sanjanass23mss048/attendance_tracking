@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
-  Layers,
-  School,
   Upload,
-  UserRound,
-  Users,
 } from 'lucide-react';
 import { getClasses } from '../services/classService.js';
 import { saveHomeworkAssignment } from '../services/homeworkService.js';
@@ -13,13 +9,6 @@ import { SUBJECT_STYLES } from '../data/timetableData.js';
 import { showToast } from '../services/toast.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
 import ManageTimetablesPanel from './ManageTimetablesPanel.jsx';
-
-const RECIPIENTS = [
-  { id: 'ENTIRE_CLASS', label: 'Entire Class', icon: Users },
-  { id: 'SPECIFIC_STUDENTS', label: 'Specific Students', icon: UserRound },
-  { id: 'CLASS_GROUP', label: 'Class Group', icon: Layers },
-  { id: 'ALL_STUDENTS', label: 'All Students', icon: School },
-];
 
 const SUBJECTS = Object.keys(SUBJECT_STYLES);
 
@@ -56,7 +45,6 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
   const [classes, setClasses] = useState([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
 
-  const [recipientType, setRecipientType] = useState('ENTIRE_CLASS');
   const [classSectionKey, setClassSectionKey] = useState('');
   const [subject, setSubject] = useState('Maths');
   const [title, setTitle] = useState('');
@@ -117,7 +105,6 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
   const selectedHw = sectionOptions.find((o) => o.key === classSectionKey);
 
   const clearHomework = () => {
-    setRecipientType('ENTIRE_CLASS');
     setSubject('Maths');
     setTitle('');
     setDueDate(addDaysIso(todayIso(), 2));
@@ -156,7 +143,9 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
     reader.readAsDataURL(file);
   };
 
-  const assignHomework = () => {
+  const [saving, setSaving] = useState(false);
+
+  const assignHomework = async () => {
     if (!selectedHw) {
       showToast('Select a class / section', 'error');
       return;
@@ -169,29 +158,35 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
       showToast('Enter description / instructions', 'error');
       return;
     }
-    saveHomeworkAssignment({
-      recipientType,
-      classLabel: selectedHw.label,
-      className: selectedHw.className,
-      sectionName: selectedHw.sectionName,
-      sectionId: selectedHw.sectionId,
-      subject,
-      title: title.trim(),
-      dueDate,
-      description: description.trim(),
-      notifyParents,
-      attachmentName: attachmentName || null,
-      attachmentSize: attachmentSize || null,
-      attachmentMime: attachmentMime || null,
-      attachmentDataUrl: attachmentDataUrl || null,
-    });
-    showToast(
-      notifyParents
-        ? 'Homework assigned — parents will be notified'
-        : 'Homework assigned',
-      'success'
-    );
-    clearHomework();
+    setSaving(true);
+    try {
+      await saveHomeworkAssignment({
+        classLabel: selectedHw.label,
+        className: selectedHw.className,
+        sectionName: selectedHw.sectionName,
+        sectionId: selectedHw.sectionId,
+        subject,
+        title: title.trim(),
+        dueDate,
+        description: description.trim(),
+        notifyParents,
+        attachmentName: attachmentName || null,
+        attachmentSize: attachmentSize || null,
+        attachmentMime: attachmentMime || null,
+        attachmentDataUrl: attachmentDataUrl || null,
+      });
+      showToast(
+        notifyParents
+          ? 'Homework assigned — parents will be notified'
+          : 'Homework assigned',
+        'success'
+      );
+      clearHomework();
+    } catch (err) {
+      showToast(err.message || 'Failed to assign homework', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const timetableMode =
@@ -199,45 +194,14 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
 
   return (
     <div className="space-y-4">
-      <div
-        className={`grid grid-cols-1 gap-5 ${
-          showHomework && !timetableOnly ? 'xl:grid-cols-2' : ''
-        }`}
-      >
+      <div className="grid grid-cols-1 gap-5">
         {showHomework ? (
-          <section className="rounded-2xl border border-indigo-200 bg-white p-5 shadow-sm ring-1 ring-indigo-100 sm:p-6">
+          <section className="mx-auto w-full max-w-2xl rounded-2xl border border-indigo-200 bg-white p-5 shadow-sm ring-1 ring-indigo-100 sm:p-6">
             <h2 className="mb-5 text-lg font-bold text-gray-900">Assign Homework</h2>
-
-            <div className="mb-5">
-              <p className="mb-2 flex items-center text-sm font-semibold text-gray-800">
-                <StepBadge n={1} /> Select Recipients
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {RECIPIENTS.map((opt) => {
-                  const Icon = opt.icon;
-                  const active = recipientType === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setRecipientType(opt.id)}
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-sm font-semibold transition ${
-                        active
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <Icon size={16} className={active ? 'text-indigo-600' : 'text-gray-400'} />
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
 
             <div className="mb-4">
               <p className="mb-2 flex items-center text-sm font-semibold text-gray-800">
-                <StepBadge n={2} /> Select Class / Section
+                <StepBadge n={1} /> Select Class / Section
               </p>
               <select
                 value={classSectionKey}
@@ -262,7 +226,7 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
 
             <div className="mb-4">
               <p className="mb-2 flex items-center text-sm font-semibold text-gray-800">
-                <StepBadge n={3} /> Subject
+                <StepBadge n={2} /> Subject
               </p>
               <select
                 value={subject}
@@ -279,7 +243,7 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
 
             <div className="mb-4">
               <p className="mb-2 flex items-center text-sm font-semibold text-gray-800">
-                <StepBadge n={4} /> Homework Details
+                <StepBadge n={3} /> Homework Details
               </p>
               <label className="mb-1 block text-xs font-medium text-gray-500">Title</label>
               <input
@@ -350,19 +314,22 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
               <button
                 type="button"
                 onClick={assignHomework}
-                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                disabled={saving}
+                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-60"
               >
-                Assign Homework
+                {saving ? 'Saving…' : 'Assign Homework'}
               </button>
             </div>
           </section>
         ) : null}
 
-        <ManageTimetablesPanel
-          mode={timetableMode}
-          sectionOptions={sectionOptions}
-          loadingClasses={loadingClasses}
-        />
+        {!showHomework && (
+          <ManageTimetablesPanel
+            mode={timetableMode}
+            sectionOptions={sectionOptions}
+            loadingClasses={loadingClasses}
+          />
+        )}
       </div>
     </div>
   );

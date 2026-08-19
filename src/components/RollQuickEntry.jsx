@@ -36,6 +36,7 @@ export default function RollQuickEntry({
         <label className="mb-1 block text-xs font-medium text-gray-500">
           Enter Roll Number
         </label>
+        <p className="mb-2 text-xs text-gray-400">Example: 3, 8</p>
         <input
           type="text"
           inputMode="numeric"
@@ -48,7 +49,7 @@ export default function RollQuickEntry({
             }
           }}
           disabled={showConfirmed}
-          placeholder="e.g. 4"
+          placeholder="Roll number(s)"
           className="mb-3 w-full rounded-xl border border-gray-200 px-4 py-3.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-gray-50"
         />
 

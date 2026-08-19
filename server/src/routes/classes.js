@@ -40,19 +40,28 @@ router.post('/', requireAuth, managers, async (req, res) => {
       academicYear: parsed.data.academicYear?.trim() || null,
     });
     logAdminAudit(req, {
-      action: 'CLASS_CREATE',
+      action: klass?.action === 'created' ? 'CLASS_CREATE' : 'CLASS_UPDATE',
       category: 'STUDENT',
       entityType: 'class',
       entityId: klass?.id,
-      summary: `Created class ${klass?.name || parsed.data.className}`,
+      summary:
+        klass?.action === 'created'
+          ? `Created class ${klass?.name || parsed.data.className}`
+          : `Added sections to class ${klass?.name || parsed.data.className}`,
       details: {
         className: klass?.name,
         sections: (klass?.sections || []).map((s) => s.name),
+        addedSections: klass?.addedSections || [],
       },
     });
     return res.status(201).json({ class: klass });
   } catch (err) {
-    if (err?.code === 'CLASS_EXISTS') {
+    if (
+      err?.code === 'CLASS_EXISTS' ||
+      err?.code === 'CLASS_INVALID' ||
+      err?.code === 'CLASS_CREATE_RESTRICTED' ||
+      err?.code === 'SECTION_EXISTS'
+    ) {
       return res.status(409).json({ error: err.message });
     }
     throw err;

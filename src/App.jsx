@@ -181,7 +181,7 @@ function AttendanceApp() {
   const [grid, setGrid] = useState(() => emptyGrid());
   const [savedGrid, setSavedGrid] = useState(() => emptyGrid());
   const [searchQuery, setSearchQuery] = useState('');
-  const [rollInput, setRollInput] = useState('3, 8');
+  const [rollInput, setRollInput] = useState('');
   const [showConfirmed, setShowConfirmed] = useState(false);
   const [messagesSent, setMessagesSent] = useState(false);
   const [lastSentMessageCount, setLastSentMessageCount] = useState(0);
@@ -1182,6 +1182,25 @@ function AttendanceApp() {
           </div>
         );
       case 'summary':
+        if (!studentsLoaded) {
+          return (
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center shadow-sm">
+              <p className="text-sm font-medium text-gray-800">No attendance loaded yet</p>
+              <p className="mt-2 text-sm text-gray-500">
+                Choose class, section, and date above, then click <strong>Load Students</strong> to
+                view that section&apos;s summary.
+              </p>
+              <button
+                type="button"
+                onClick={handleLoadStudents}
+                disabled={loadingStudents}
+                className="mt-5 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {loadingStudents ? 'Loading…' : 'Load Students'}
+              </button>
+            </div>
+          );
+        }
         return (
           <SummaryView
             summaryBreakdown={summaryBreakdown}
@@ -1210,7 +1229,7 @@ function AttendanceApp() {
     }
   };
 
-  const showClassSelector = ['roll', 'list'].includes(activeView);
+  const showClassSelector = ['roll', 'list', 'summary'].includes(activeView);
   const isAttendancePage = activePage === 'attendance';
   const sidebarPage = activePage === 'student-import' ? 'students' : isAttendancePage ? 'attendance' : activePage;
 

@@ -1,7 +1,15 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
 import { newId, parseDateOnly, splitFullName, toDateString } from '../lib/ids.js';
 import { saveFile, readFile, absolutePath } from '../lib/storage.js';
+
+const TEMPLATE_FILE_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../assets/student-import-template.xlsx'
+);
 
 export const IMPORT_STATUSES = {
   VALIDATING: 'VALIDATING',
@@ -53,6 +61,7 @@ const HEADER_ALIASES = {
     "father's number",
     'father mobile',
     'father phone',
+    'fatherphone',
   ],
   motherMobile: [
     "mother's no",
@@ -63,6 +72,7 @@ const HEADER_ALIASES = {
     "mother's number",
     'mother mobile',
     'mother phone',
+    'motherphone',
   ],
   admissionNo: [
     'admission number',
@@ -80,13 +90,27 @@ const HEADER_ALIASES = {
     'parent mobile number',
     'parent mobile',
     'parent phone',
+    'guardian phone',
+    'guardian number',
+    'guardian no',
     'mobile',
     'mobile number',
     'phone',
     'phone number',
     'contact',
   ],
-  address: ['address', 'residential address', 'home address'],
+  address: [
+    'address',
+    'residential address',
+    'home address',
+    'door no/street',
+    'door no / street',
+    'door no',
+    'street',
+  ],
+  city: ['city', 'city/district', 'city / district', 'district', 'town/taluk', 'town / taluk', 'town', 'taluk'],
+  state: ['state'],
+  pinCode: ['pin', 'pincode', 'pin code', 'postal code', 'zip'],
 };
 
 const REQUIRED_FIELD_KEYS = ['className', 'sectionName', 'rollNo', 'name'];
@@ -135,6 +159,9 @@ function rowPayloadFromMappedColumns(excelRow, columnMap) {
     parentName: '',
     parentMobile: '',
     address: '',
+    city: '',
+    state: '',
+    pinCode: '',
   };
   for (const [field, col] of Object.entries(columnMap)) {
     payload[field] = normalizeText(cellToString(excelRow.getCell(col).value));
@@ -277,32 +304,13 @@ export async function writeImportAudit(event) {
 }
 
 export async function buildTemplateBuffer() {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Presence';
-  const ws = wb.addWorksheet('Students');
-  ws.columns = TEMPLATE_HEADERS.map((h) => ({
-    header: h,
-    width: Math.max(14, h.length + 2),
-  }));
-  ws.getRow(1).font = { bold: true };
-  // Minimal class-register sample
-  ws.addRow(['LKG', 'A', '1', 'Diya Sharma']);
-  ws.addRow(['LKG', 'A', '2', 'Aarav Kumar']);
-  ws.addRow(['LKG', 'A', '3', 'Ananya Iyer']);
-  const notes = wb.addWorksheet('Notes');
-  notes.getCell('A1').value =
-    'Required: Class, Section, Roll Number, Student Name.';
-  notes.getCell('A2').value =
-    "Optional: Father's Name, Mother's Name, Email-Id, Blood Group, Father's No, Mother's No.";
-  notes.getCell('A3').value =
-    'Column order can vary. Common headers like Roll No / Std / Sec are accepted.';
-  notes.getCell('A4').value =
-    'Do not invent new Class/Section names — they must already exist in Presence.';
-  notes.getCell('A5').value =
-    "Phone numbers should be 10 digits. Email-Id is the parent/guardian email.";
-  notes.getColumn(1).width = 100;
-  const buf = await wb.xlsx.writeBuffer();
-  return Buffer.from(buf);
+  try {
+    return await fs.promises.readFile(TEMPLATE_FILE_PATH);
+  } catch (err) {
+    const wrapped = new Error('Could not read student import template file');
+    wrapped.cause = err;
+    throw wrapped;
+  }
 }
 
 /** Build a template-compatible workbook from draft row objects (chit OCR / manual). */
@@ -449,13 +457,17 @@ export async function validateWorkbookBuffer(buffer) {
     if (raw.parentEmail && !EMAIL_RE.test(raw.parentEmail)) {
       errors.push('Invalid email.');
     }
-    const fatherPhone = normalizePhone(raw.fatherMobile || raw.parentMobile);
+    const fatherPhone = normalizePhone(raw.fatherMobile);
     const motherPhone = normalizePhone(raw.motherMobile);
-    if ((raw.fatherMobile || raw.parentMobile) && !isValidPhone(fatherPhone)) {
+    const guardianPhone = normalizePhone(raw.parentMobile);
+    if (raw.fatherMobile && !isValidPhone(fatherPhone)) {
       errors.push("Invalid father's number.");
     }
     if (raw.motherMobile && !isValidPhone(motherPhone)) {
       errors.push("Invalid mother's number.");
+    }
+    if (raw.parentMobile && !isValidPhone(guardianPhone)) {
+      errors.push('Invalid guardian number.');
     }
 
     let section = null;
@@ -515,15 +527,18 @@ export async function validateWorkbookBuffer(buffer) {
       dob: dobParsed.display || '',
       className: normalizeClassName(raw.className),
       sectionName: normalizeSectionName(raw.sectionName),
-      fatherName: raw.fatherName || raw.parentName,
+      fatherName: raw.fatherName,
       motherName: raw.motherName,
-      parentName: raw.fatherName || raw.parentName,
-      fatherMobile: fatherPhone || raw.fatherMobile || raw.parentMobile,
+      parentName: raw.parentName,
+      fatherMobile: fatherPhone || raw.fatherMobile,
       motherMobile: motherPhone || raw.motherMobile,
-      parentMobile: fatherPhone || motherPhone || raw.fatherMobile || raw.parentMobile,
+      parentMobile: fatherPhone || motherPhone || guardianPhone || raw.parentMobile,
       parentEmail: raw.parentEmail.toLowerCase(),
       bloodGroup: raw.bloodGroup,
       address: raw.address,
+      city: raw.city,
+      state: raw.state,
+      pinCode: raw.pinCode,
       sectionId,
       academicYear: section?.tblClass?.Academic_Year || null,
     });
@@ -705,7 +720,17 @@ async function insertStudentRow(row, userId) {
         Mother_Name: row.motherName || null,
         Father_Number: row.fatherMobile || row.parentMobile || null,
         Mother_Number: row.motherMobile || null,
+        Guardian_Name: row.parentName && row.parentName !== row.fatherName ? row.parentName : null,
+        Guardian_Number:
+          row.parentMobile &&
+          row.parentMobile !== row.fatherMobile &&
+          row.parentMobile !== row.motherMobile
+            ? row.parentMobile
+            : null,
         Address_Line_1: row.address || null,
+        City: row.city || null,
+        State: row.state || null,
+        Pin_Code: row.pinCode || null,
         Country: 'Indian',
         Int_Status: 1,
         Created_By: userId,

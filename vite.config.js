@@ -53,6 +53,15 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       allowedHosts: true,
+      watch: {
+        ignored: [
+          '**/presence_flutter/**',
+          '**/mobile/**',
+          '**/android/**',
+          '**/build/**',
+          '**/.gradle/**',
+        ],
+      },
       proxy: {
         // Keep the browser Host (test.localhost) so the API can switch school DBs.
         '/api': {

@@ -5,9 +5,17 @@ import { createUser, getUsers } from '../services/userService.js';
 import { networkErrorMessage, showToast } from '../services/toast.js';
 
 const ROLE_OPTIONS = [
+  { id: 'ADMIN', label: 'Admin' },
+  { id: 'INCHARGE', label: 'Incharge' },
   { id: 'TEACHER', label: 'Teacher' },
-  { id: 'PARENT', label: 'Parent' },
 ];
+
+const ROLE_LABELS = {
+  ADMIN: 'Admin',
+  INCHARGE: 'Incharge',
+  TEACHER: 'Teacher',
+  PARENT: 'Parent',
+};
 
 const emptyForm = () => ({
   name: '',
@@ -19,6 +27,7 @@ const emptyForm = () => ({
 function roleBadge(role) {
   const r = String(role || '').toUpperCase();
   if (r === 'ADMIN') return 'bg-indigo-50 text-indigo-800 ring-indigo-200';
+  if (r === 'INCHARGE') return 'bg-violet-50 text-violet-800 ring-violet-200';
   if (r === 'TEACHER') return 'bg-emerald-50 text-emerald-800 ring-emerald-200';
   if (r === 'PARENT') return 'bg-amber-50 text-amber-800 ring-amber-200';
   return 'bg-slate-100 text-slate-700 ring-slate-200';
@@ -75,7 +84,7 @@ export default function UsersPage({ user, onAccessDenied }) {
         role: form.role,
         phone: form.phone.trim() || undefined,
       });
-      const roleLabel = form.role === 'PARENT' ? 'Parent' : form.role === 'ADMIN' ? 'Admin' : 'Teacher';
+      const roleLabel = ROLE_LABELS[form.role] || 'User';
       showToast(`${roleLabel} account created with default password Initial1.`, 'success');
       setForm(emptyForm());
       setShowForm(false);
@@ -95,7 +104,7 @@ export default function UsersPage({ user, onAccessDenied }) {
         <div>
           <h2 className="text-lg font-bold text-gray-900">Users</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Create Teacher and Parent login accounts for this school. Students are added separately.
+            Create Admin, Incharge, and Teacher login accounts. Parent accounts are created automatically when students are imported.
           </p>
         </div>
         <button
@@ -128,6 +137,7 @@ export default function UsersPage({ user, onAccessDenied }) {
         >
           <option value="ALL">All roles</option>
           <option value="ADMIN">Admin</option>
+          <option value="INCHARGE">Incharge</option>
           <option value="TEACHER">Teacher</option>
           <option value="PARENT">Parent</option>
         </select>
@@ -209,9 +219,12 @@ export default function UsersPage({ user, onAccessDenied }) {
               </label>
               <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
                 New accounts use the default password <strong>Initial1</strong>.
-                {form.role === 'TEACHER' || form.role === 'ADMIN' ? (
-                  <> Teachers and admins must change it on first login.</>
+                {form.role === 'TEACHER' || form.role === 'ADMIN' || form.role === 'INCHARGE' ? (
+                  <> Staff accounts must change it on first login.</>
                 ) : null}
+                <span className="mt-1 block text-indigo-800/80">
+                  Parent logins are not created here — they are added during student import using father/mother contact details.
+                </span>
               </div>
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-gray-600">Role</span>

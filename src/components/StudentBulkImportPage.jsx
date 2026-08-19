@@ -454,7 +454,7 @@ export default function StudentBulkImportPage({ user, onBack }) {
                 Excel workflow
               </h2>
               <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-gray-600">
-                <li>Download the school-style Excel template (Class, Section, Roll, Name, then parent details)</li>
+                <li>Download the school Excel template (Class, Section, Roll, Name, then family and contact columns)</li>
                 <li>Fill one row per student — or upload a school sheet with those columns</li>
                 <li>Validate — review Successful / Failed / Duplicate tabs</li>
                 <li>Import only valid students</li>
@@ -690,8 +690,9 @@ export default function StudentBulkImportPage({ user, onBack }) {
             {sourceMode === 'excel' ? (
               <>
                 <li>
-                  Required: <strong>Class, Section, Roll Number, Student Name</strong>. Optional:{' '}
-                  <strong>Father's Name, Mother's Name, Email-Id, Blood Group, Father's No, Mother's No</strong>.
+                  Required: <strong>Class, Section, Roll Number, Student Name</strong>. Optional columns include{' '}
+                  <strong>DOB, Gender, Blood Group, Father Name, Mother Name, Email, Father phone, Mother Phone</strong>{' '}
+                  and address fields. Parent logins use father/mother phone numbers.
                 </li>
                 <li>Headers like Roll No / Std / Sec are accepted (any order).</li>
                 <li>Class and section must already exist in Presence.</li>
