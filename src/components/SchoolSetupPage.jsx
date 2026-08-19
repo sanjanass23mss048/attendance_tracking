@@ -9,6 +9,7 @@ import {
   ImagePlus,
   Loader2,
   Lock,
+  MessageSquare,
   Minus,
   Plus,
   School,
@@ -19,6 +20,12 @@ import { checkSetupSlug, createSchool, getSetupMeta } from '../services/setupSer
 import { networkErrorMessage } from '../services/toast.js';
 import { formatClassLabel } from '../data/schoolGrades.js';
 import attendanceLogoMark from '../assets/attendance-logo-mark.png';
+import AlertDeliveryOptions, {
+  ALERT_CHANNELS,
+  ALERT_RECIPIENTS,
+  alertChannelLabel,
+  alertRecipientLabel,
+} from './AlertDeliveryOptions.jsx';
 
 const MIN_SECTIONS = 1;
 const MAX_SECTIONS = 12;
@@ -33,7 +40,8 @@ const STEPS = [
   { id: 0, title: 'School', description: 'Name, subdomain, and location' },
   { id: 1, title: 'Grades', description: 'Which classes to seed' },
   { id: 2, title: 'Admin', description: 'First administrator account' },
-  { id: 3, title: 'Review', description: 'Confirm and create' },
+  { id: 3, title: 'Alerts', description: 'Absence alert delivery' },
+  { id: 4, title: 'Review', description: 'Confirm and create' },
 ];
 
 function slugify(name) {
@@ -73,6 +81,8 @@ export default function SchoolSetupPage() {
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPhone, setAdminPhone] = useState('');
+  const [alertChannel, setAlertChannel] = useState(ALERT_CHANNELS.SMS);
+  const [alertRecipient, setAlertRecipient] = useState(ALERT_RECIPIENTS.FATHER);
   const [checkingSlug, setCheckingSlug] = useState(false);
   const [slugStatus, setSlugStatus] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -206,6 +216,8 @@ export default function SchoolSetupPage() {
             email: adminEmail.trim(),
             phone: adminPhone.trim() || undefined,
           },
+          alertChannel,
+          alertRecipient,
         },
         logoFile
       );
@@ -267,14 +279,14 @@ export default function SchoolSetupPage() {
         </div>
 
         <div className="rounded-2xl border border-white/60 bg-white/95 p-5 shadow-2xl backdrop-blur sm:p-8">
-          <ol className="mb-6 grid grid-cols-4 gap-2">
+          <ol className="mb-6 grid grid-cols-5 gap-1.5 sm:gap-2">
             {STEPS.map((s) => {
               const active = s.id === step;
               const done = s.id < step;
               return (
                 <li key={s.id} className="min-w-0">
                   <div
-                    className={`flex items-center gap-2 rounded-xl px-2 py-2 text-xs font-semibold sm:px-3 ${
+                    className={`flex items-center gap-2 rounded-xl px-1.5 py-2 text-xs font-semibold sm:px-3 ${
                       active
                         ? 'bg-indigo-600 text-white'
                         : done
@@ -518,6 +530,25 @@ export default function SchoolSetupPage() {
           {step === 3 && (
             <div className="space-y-4">
               <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+                <MessageSquare className="h-5 w-5 text-indigo-600" />
+                Absence alert delivery
+              </h1>
+              <p className="text-sm text-slate-600">
+                These defaults are used when sending parent absence alerts from Attendance. You can
+                change them later in Settings.
+              </p>
+              <AlertDeliveryOptions
+                channel={alertChannel}
+                recipient={alertRecipient}
+                onChannelChange={setAlertChannel}
+                onRecipientChange={setAlertRecipient}
+              />
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
                 <Building2 className="h-5 w-5 text-indigo-600" />
                 Review
               </h1>
@@ -532,6 +563,14 @@ export default function SchoolSetupPage() {
                 <ReviewRow label="City / board" value={[city, board].filter(Boolean).join(' · ') || '—'} />
                 <ReviewRow label="Grades" value={gradesReviewValue} />
                 <ReviewRow label="Admin" value={`${adminName} · ${adminEmail}`} />
+                <ReviewRow
+                  label="Alert channel"
+                  value={alertChannelLabel(alertChannel)}
+                />
+                <ReviewRow
+                  label="Alert to"
+                  value={alertRecipientLabel(alertRecipient)}
+                />
                 <ReviewRow label="Initial password" value={initialPassword} />
                 <ReviewRow label="Roles seeded" value="Admin, Teacher, Parent" />
               </dl>
@@ -556,7 +595,7 @@ export default function SchoolSetupPage() {
             >
               <ChevronLeft className="h-4 w-4" /> Back
             </button>
-            {step < 3 ? (
+            {step < STEPS.length - 1 ? (
               <button
                 type="button"
                 onClick={goNext}
@@ -586,7 +625,7 @@ export default function SchoolSetupPage() {
 function ReviewRow({ label, value }) {
   return (
     <div className="flex gap-4 px-4 py-3 text-sm">
-      <dt className="w-28 shrink-0 font-medium text-slate-500">{label}</dt>
+      <dt className="w-32 shrink-0 font-medium text-slate-500">{label}</dt>
       <dd className="min-w-0 font-semibold text-slate-900">{value}</dd>
     </div>
   );

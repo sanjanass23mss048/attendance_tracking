@@ -38,7 +38,7 @@ import SubjectsPage from './components/SubjectsPage';
 import RightPanel from './components/RightPanel';
 import AppToast from './components/AppToast';
 import MobileBottomNav from './components/MobileBottomNav';
-import { getAlertDeliveryPrefs } from './services/alertDeliveryPrefs';
+import { getAlertDeliveryPrefs, hydrateAlertDeliveryPrefs } from './services/alertDeliveryPrefs';
 import {
   cloneGrid,
   countTodaySummary,
@@ -364,6 +364,11 @@ function AttendanceApp() {
     window.addEventListener('presence:auth-expired', onExpired);
     return () => window.removeEventListener('presence:auth-expired', onExpired);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    hydrateAlertDeliveryPrefs().catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;

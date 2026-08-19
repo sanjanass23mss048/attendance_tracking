@@ -40,6 +40,8 @@ const createSchema = z.object({
     email: z.string().email(),
     phone: z.string().optional().nullable(),
   }),
+  alertChannel: z.enum(['whatsapp', 'sms', 'whatsapp_sms']).optional().default('sms'),
+  alertRecipient: z.enum(['father', 'mother', 'both']).optional().default('father'),
 });
 
 const logoUpload = multer({

@@ -69,6 +69,14 @@ const RECIPIENT_OPTIONS = [
   },
 ];
 
+export function alertChannelLabel(id) {
+  return CHANNEL_OPTIONS.find((opt) => opt.id === id)?.label || 'SMS';
+}
+
+export function alertRecipientLabel(id) {
+  return RECIPIENT_OPTIONS.find((opt) => opt.id === id)?.label || 'Father Only';
+}
+
 /**
  * Channel + parent recipient pickers for absence alerts.
  * Single-select cards for both sections.

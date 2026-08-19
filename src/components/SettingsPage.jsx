@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImagePlus, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import AlertDeliveryOptions from './AlertDeliveryOptions';
 import {
   getAlertDeliveryPrefs,
-  setAlertDeliveryPrefs,
+  hydrateAlertDeliveryPrefs,
+  persistAlertDeliveryPrefs,
 } from '../services/alertDeliveryPrefs';
 import { showToast } from '../services/toast';
 import { uploadSchoolLogo, useBranding } from '../lib/branding.jsx';
@@ -28,10 +29,28 @@ export default function SettingsPage({ user, onLogout }) {
   const { markSrc, refresh } = useBranding();
   const canEditLogo = canManageUsers(user);
 
-  const updatePrefs = (partial) => {
-    const next = setAlertDeliveryPrefs({ ...prefs, ...partial });
+  useEffect(() => {
+    let cancelled = false;
+    hydrateAlertDeliveryPrefs()
+      .then((next) => {
+        if (!cancelled) setPrefs(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updatePrefs = async (partial) => {
+    const next = { ...prefs, ...partial };
     setPrefs(next);
-    showToast('Alert preferences saved', 'success');
+    try {
+      const saved = await persistAlertDeliveryPrefs(next);
+      setPrefs(saved);
+      showToast('Alert preferences saved', 'success');
+    } catch (err) {
+      showToast(err.message || 'Could not save alert preferences', 'error');
+    }
   };
 
   const onLogoChosen = async (file) => {

@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRoles } from '../middleware/roles.js';
-import { loadAppSettings, saveAppSettings, serializeSettingsForAdmin } from '../lib/appSettings.js';
+import {
+  ALERT_CHANNEL_VALUES,
+  ALERT_RECIPIENT_VALUES,
+  ALERT_SETTING_KEYS,
+  loadAppSettings,
+  parseAlertDeliveryPrefs,
+  saveAppSettings,
+  serializeSettingsForAdmin,
+} from '../lib/appSettings.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 
 const router = Router();
@@ -13,6 +21,36 @@ const editors = requireRoles(
   'HEADMASTER',
   'INCHARGE'
 );
+
+router.get('/alert-delivery', requireAuth, async (_req, res) => {
+  try {
+    const map = await loadAppSettings({ force: true });
+    return res.json(parseAlertDeliveryPrefs(map));
+  } catch (err) {
+    console.error('alert-delivery get', err);
+    return res.status(500).json({ error: 'Could not load alert preferences' });
+  }
+});
+
+router.put('/alert-delivery', requireAuth, async (req, res) => {
+  try {
+    const channel = ALERT_CHANNEL_VALUES.includes(req.body?.channel) ? req.body.channel : 'sms';
+    const recipient = ALERT_RECIPIENT_VALUES.includes(req.body?.recipient)
+      ? req.body.recipient
+      : 'father';
+    await saveAppSettings(
+      {
+        [ALERT_SETTING_KEYS.CHANNEL]: channel,
+        [ALERT_SETTING_KEYS.RECIPIENT]: recipient,
+      },
+      req.user?.sub || null
+    );
+    return res.json({ ok: true, channel, recipient });
+  } catch (err) {
+    console.error('alert-delivery put', err);
+    return res.status(500).json({ error: 'Could not save alert preferences' });
+  }
+});
 
 router.get('/', requireAuth, editors, async (_req, res) => {
   try {
