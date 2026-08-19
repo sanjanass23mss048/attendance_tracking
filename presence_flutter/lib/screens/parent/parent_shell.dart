@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../state/auth_state.dart';
 import '../../state/parent_students_state.dart';
 import '../../theme.dart';
+import '../../widgets/mobile_ui.dart';
 import '../widgets/student_identity_chip.dart';
 
 class ParentShell extends StatelessWidget {
@@ -114,86 +115,12 @@ class ParentShell extends StatelessWidget {
         ),
       ),
       body: child,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
-            child: Row(
-              children: [
-                for (var i = 0; i < destinations.length; i++)
-                  Expanded(
-                    child: _NavItem(
-                      dest: destinations[i],
-                      selected: selected == i,
-                      onTap: () => context.go(destinations[i].path),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.dest,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _Dest dest;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? PresenceColors.primaryDark : PresenceColors.muted;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(selected ? dest.activeIcon : dest.icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              dest.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              height: 3,
-              width: selected ? 22 : 0,
-              decoration: BoxDecoration(
-                color: PresenceColors.accent,
-                borderRadius: BorderRadius.circular(99),
-              ),
-            ),
-          ],
-        ),
+      bottomNavigationBar: PresenceBottomNav(
+        tabs: [
+          for (final d in destinations) (path: d.path, label: d.label, icon: d.icon),
+        ],
+        location: loc,
+        onSelect: (path) => context.go(path),
       ),
     );
   }
