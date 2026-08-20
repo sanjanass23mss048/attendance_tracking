@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_BASE || '';
+import { apiFetch } from './api.js';
+
 const STORAGE_KEY = 'presence_homework_assignments_v1';
 
 export function listHomeworkAssignments() {
@@ -46,19 +47,11 @@ export async function saveHomeworkAssignment(entry) {
     attachmentUrl: entry.attachmentDataUrl || null,
   };
 
-  const res = await fetch(`${API_BASE}/api/notices`, {
+  const data = await apiFetch('/api/notices', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(payload),
+    json: payload,
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Failed to save homework (${res.status})`);
-  }
-
   const localEntry = saveHomeworkAssignmentLocal(entry);
-  const data = await res.json();
   return { ...data, localEntry };
 }
