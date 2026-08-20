@@ -2,7 +2,7 @@
 
 This uses **Capacitor**. The phone opens your live site:
 
-`https://attendance.rioassetmanagement.net`
+`https://www.rioassetmanagement.info` (legacy wrap target also: `https://attendance.rioassetmanagement.net`)
 
 So the app UI matches the website (sidebar, reports, attendance, etc.).
 

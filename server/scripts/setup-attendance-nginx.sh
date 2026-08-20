@@ -61,11 +61,13 @@ docker exec alm_nginx nginx -s reload
 echo NGINX_RELOADED
 
 cd /opt/attendance-tracking
-sed -i 's|^CLIENT_ORIGIN=.*|CLIENT_ORIGIN="https://rioassetmanagement.info"|' server/.env
+sed -i 's|^CLIENT_ORIGIN=.*|CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"|' server/.env
 grep '^CLIENT_ORIGIN=' server/.env || true
 grep -q '^MAIN_DOMAIN=' server/.env || echo 'MAIN_DOMAIN=rioassetmanagement.info' >> server/.env
 grep '^MAIN_DOMAIN=' server/.env
 docker-compose -f docker-compose.prod.yml up -d
 sleep 2
-curl -sk -m 5 -H 'Host: rioassetmanagement.info' https://127.0.0.1/health
+curl -sk -m 8 https://www.rioassetmanagement.info/health || true
+echo
+curl -sk -m 5 -H 'Host: www.rioassetmanagement.info' https://127.0.0.1/health
 echo

@@ -1,17 +1,18 @@
-# Deploy Bright Future Attendance (UI + API on one Node process)
+# Deploy Presence (UI + API on one Node process)
 
-One process serves the Vite `dist/` UI and Express `/api` + Socket.IO.
-Point `DATABASE_URL` at the existing **Attendence** Postgres (do not wipe it).
+**Standing instruction for every production deploy:** ship this app so users open **https://www.rioassetmanagement.info** (include `www`). Do not advertise only `attendance.rioassetmanagement.net` or the VPS IP as the public URL.
 
-## Browser URL (instead of localhost:5173)
+| Host | Role |
+|------|------|
+| **https://www.rioassetmanagement.info** | Canonical production URL (use this) |
+| https://rioassetmanagement.info | Apex; same app (keep working; do not require users to use this) |
+| `{slug}.rioassetmanagement.info` | School tenant subdomains |
+| https://attendance.rioassetmanagement.net | Legacy hostname; still proxied to the same container |
+| http://103.192.199.178:4001 | Direct container port (ops / fallback, not the public URL) |
 
-After deploy, open:
+Health: **https://www.rioassetmanagement.info/health**
 
-**http://103.192.199.178:4000**
-
-(or `http://YOUR_VPS_IP:4000`, or your domain if nginx terminates TLS on 80/443)
-
-Health check: `http://103.192.199.178:4000/health`
+One process serves the Vite `dist/` UI and Express `/api` + Socket.IO. Point `DATABASE_URL` at the existing **Attendence** Postgres (do not wipe it).
 
 ---
 
@@ -21,10 +22,53 @@ Health check: `http://103.192.199.178:4000/health`
 |----------|---------|
 | `Dockerfile` | Multi-stage: build frontend, run Node server |
 | `docker-compose.prod.yml` | Run `api` service; uses external Postgres |
+| `scripts/redeploy-vps.sh` | On-VPS extract + rebuild; sets CORS including www |
+| `server/scripts/setup-attendance-nginx.sh` | Insert/reload nginx vhost for `*.rioassetmanagement.info` |
 | `server/src/index.js` | Serves `dist/` in production + SPA fallback |
 | `vite.config.js` | Dev proxy for `/api` + `/socket.io` |
-| Client `VITE_API_URL` | Empty in prod → same-origin `/api` |
-| `server/.env.example` | `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `CLIENT_ORIGIN` |
+| Client `VITE_API_URL` | Empty in prod — same-origin `/api` |
+| `server/.env.example` | `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `CLIENT_ORIGIN`, `MAIN_DOMAIN` |
+
+Typical ship path from a Windows machine (tarball, not GitHub Actions):
+
+```bash
+# from the repo root, after packing a tarball to /tmp/attendance-deploy.tgz on the VPS:
+ssh root@103.192.199.178 "bash /opt/attendance-tracking/scripts/redeploy-vps.sh"
+```
+
+Then verify **https://www.rioassetmanagement.info** and `/health`.
+
+---
+
+## VPS nginx (already live)
+
+Nginx container `alm_nginx` terminates TLS on 80/443.
+
+- **`.info` (this app):** `/root/alm-main/nginx/rioassetmanagement.info.conf` mounted as `/etc/nginx/conf.d/rioassetmanagement.info.conf`
+  - `server_name rioassetmanagement.info www.rioassetmanagement.info *.rioassetmanagement.info`
+  - `proxy_pass http://172.17.0.1:4001` (host port mapped to the attendance container)
+  - TLS: `/etc/nginx/ssl/fullchain-info.pem` + `privkey-info.pem`
+- **`.net` (ALM + legacy attendance host):** `/root/alm-main/nginx/nginx-ssl.conf` → `conf.d/default.conf`
+  - `attendance.rioassetmanagement.net` also proxies to `172.17.0.1:4001`
+  - Do **not** put `rioassetmanagement.info` names on the ALM `*.rioassetmanagement.net` block
+
+HTTP on `.info` redirects to HTTPS. After changing nginx:
+
+```bash
+docker exec alm_nginx nginx -t && docker exec alm_nginx nginx -s reload
+```
+
+If the `.info` vhost is missing, run `server/scripts/setup-attendance-nginx.sh` on the VPS (it inserts a matching server block and reloads nginx). Do not remove the working `.net` attendance server_name.
+
+`CLIENT_ORIGIN` on the VPS must include the canonical host (and keep legacy hosts so existing clients keep working):
+
+```env
+CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"
+MAIN_DOMAIN=rioassetmanagement.info
+APP_PUBLIC_URL=https://www.rioassetmanagement.info
+```
+
+`MAIN_DOMAIN` stays `rioassetmanagement.info` (no `www`) so tenant hosts remain `{slug}.rioassetmanagement.info`. `www` is reserved and treated as the apex tenant.
 
 ---
 
@@ -35,13 +79,10 @@ Health check: `http://103.192.199.178:4000/health`
 From your machine (with SSH key set up):
 
 ```bash
-# once: ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-# then: ssh-copy-id root@103.192.199.178
-
 scp -r "d:\attendance tracking" root@103.192.199.178:/opt/attendance-tracking
 ```
 
-Or clone from git if the repo is remote.
+Prefer a tarball over recursive scp of `node_modules`. Or clone from git if the repo is remote.
 
 ### 2. Configure `server/.env` on the VPS
 
@@ -54,15 +95,16 @@ nano server/.env
 Set at least:
 
 ```env
-DATABASE_URL="postgresql://USER:PASSWORD@127.0.0.1:5432/Attendence"
+DATABASE_URL="postgresql://USER:PASSWORD@host.docker.internal:5432/Attendence"
 JWT_SECRET="a-long-random-secret"
 PORT=4000
 NODE_ENV=production
-CLIENT_ORIGIN="http://103.192.199.178:4000"
+CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"
+MAIN_DOMAIN=rioassetmanagement.info
+APP_PUBLIC_URL=https://www.rioassetmanagement.info
 ```
 
-If Postgres is on the same host, use `127.0.0.1` (or the Docker host gateway).  
-If Postgres only listens on the public IP, use that host — **do not** change/wipe the Attendence DB.
+If Postgres is on the same host, Docker uses `host.docker.internal` (see `scripts/redeploy-vps.sh`). **Do not** change/wipe the Attendence DB.
 
 ### 3. Build and run
 
@@ -70,30 +112,17 @@ If Postgres only listens on the public IP, use that host — **do not** change/w
 cd /opt/attendance-tracking
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml ps
-curl -s http://127.0.0.1:4000/health
+curl -s http://127.0.0.1:4001/health
+curl -sk https://www.rioassetmanagement.info/health
 ```
 
-Open **http://103.192.199.178:4000** in a browser.
+Open **https://www.rioassetmanagement.info** in a browser.
 
-### 4. Optional: nginx on port 80
+Host port is **4001** → container 4000 (compose maps `"4001:4000"`).
 
-```nginx
-server {
-  listen 80;
-  server_name 103.192.199.178;
+### 4. nginx on 80/443
 
-  location / {
-    proxy_pass http://127.0.0.1:4000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-}
-```
-
-Then set `CLIENT_ORIGIN=http://103.192.199.178` and browse **http://103.192.199.178**.
+See **VPS nginx** above. After nginx is in place, browse **https://www.rioassetmanagement.info**, not `:4001`.
 
 ---
 
@@ -106,15 +135,9 @@ npm run build
 cd server && npm ci && npx prisma generate
 # ensure server/.env has NODE_ENV=production and DATABASE_URL
 npm start
-# or: NODE_ENV=production node src/index.js
 ```
 
-Keep it up with systemd or pm2:
-
-```bash
-cd /opt/attendance-tracking/server
-pm2 start src/index.js --name attendance --env production
-```
+Keep it up with systemd or pm2. Still put nginx in front so the public URL is HTTPS on www.
 
 ---
 
@@ -140,13 +163,6 @@ npm run dev
 
 ---
 
-# Deploy status from this environment
-
-- SSH to `103.192.199.178`: **blocked** (no SSH keys; `Permission denied`)
-- Docker / vercel / railway / flyctl / gh: **not installed** here
-
-Artifacts above are ready; run section **A** on the VPS after adding an SSH key or logging in via panel console.
-
 ## Firewall
 
-Ensure TCP **4000** (or **80** if using nginx) is open on the VPS security group / `ufw`.
+Ensure TCP **80** and **443** are open (nginx). Port **4001** is optional for direct ops access.

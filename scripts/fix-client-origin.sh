@@ -4,7 +4,7 @@ ENV=/opt/attendance-tracking/server/.env
 python3 -c "
 from pathlib import Path
 p = Path('/opt/attendance-tracking/server/.env')
-val = 'CLIENT_ORIGIN=\"https://attendance.rioassetmanagement.net,http://103.192.199.178:4001\"'
+val = 'CLIENT_ORIGIN=\"https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001\"'
 lines = p.read_text().splitlines()
 out, found = [], False
 for line in lines:

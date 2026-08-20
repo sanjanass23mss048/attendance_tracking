@@ -1,5 +1,5 @@
-# Production: one Node app (UI + API) → existing Attendence Postgres on the VPS.
-# Does NOT start Postgres. Put secrets in server/.env (never commit them).
+# Production: one Node app (UI + API). Canonical public URL: https://www.rioassetmanagement.info
+# Uses existing Attendence Postgres on the VPS. Does NOT start Postgres. Put secrets in server/.env (never commit them).
 
 services:
   api:

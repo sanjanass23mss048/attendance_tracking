@@ -8,7 +8,7 @@ cp /tmp/attendance.env.backup /opt/attendance-tracking/server/.env
 
 # Ensure docker can reach host Postgres
 sed -i 's#@127.0.0.1:5432/#@host.docker.internal:5432/#g' /opt/attendance-tracking/server/.env
-# Prefer HTTPS domain (+ IP fallback) for CORS / Socket.IO
+# Prefer canonical www host (+ apex, legacy .net, IP fallback) for CORS / Socket.IO
 grep -q 'CLIENT_ORIGIN=' /opt/attendance-tracking/server/.env \
   && sed -i 's#^CLIENT_ORIGIN=.*#CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"#' /opt/attendance-tracking/server/.env
 sed -i 's#^NODE_ENV=.*#NODE_ENV=production#' /opt/attendance-tracking/server/.env
@@ -19,6 +19,11 @@ if ! grep -q '^TENANT_DATABASE_URL=' /opt/attendance-tracking/server/.env; then
   TENANT_VAL=$(echo "$DB_VAL" | sed 's|/Attendence|/Attendence_Tenants|')
   echo "TENANT_DATABASE_URL=\"$TENANT_VAL\"" >> /opt/attendance-tracking/server/.env
 fi
+# Canonical public URL for emails / reset links
+grep -q '^APP_PUBLIC_URL=' /opt/attendance-tracking/server/.env \
+  && sed -i 's#^APP_PUBLIC_URL=.*#APP_PUBLIC_URL=https://www.rioassetmanagement.info#' /opt/attendance-tracking/server/.env \
+  || echo 'APP_PUBLIC_URL=https://www.rioassetmanagement.info' >> /opt/attendance-tracking/server/.env
+
 grep -q '^MAIN_DOMAIN=' /opt/attendance-tracking/server/.env \
   || echo 'MAIN_DOMAIN=rioassetmanagement.info' >> /opt/attendance-tracking/server/.env
 

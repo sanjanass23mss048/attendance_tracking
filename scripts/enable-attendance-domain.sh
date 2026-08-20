@@ -72,13 +72,15 @@ docker exec alm_nginx nginx -s reload
 echo NGINX_RELOADED
 
 ENV_FILE=/opt/attendance-tracking/server/.env
-sed -i 's|^CLIENT_ORIGIN=.*|CLIENT_ORIGIN="https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"|' "$ENV_FILE"
+sed -i 's|^CLIENT_ORIGIN=.*|CLIENT_ORIGIN="https://www.rioassetmanagement.info,https://rioassetmanagement.info,https://attendance.rioassetmanagement.net,http://103.192.199.178:4001"|' "$ENV_FILE"
 grep '^CLIENT_ORIGIN=' "$ENV_FILE"
 
 docker restart bright-future-attendance
 sleep 6
 
 echo "=== health ==="
+curl -sk -m 10 https://www.rioassetmanagement.info/health || true
+echo
 curl -sk -m 10 https://attendance.rioassetmanagement.net/health || true
 echo
 curl -sk -m 10 -o /dev/null -w "https_root:%{http_code}\n" https://attendance.rioassetmanagement.net/
