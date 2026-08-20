@@ -196,6 +196,7 @@ export default function AcademicCalendarPage() {
   const [holidayState, setHolidayState] = useState(getDefaultHolidayState());
   const [selectedDay, setSelectedDay] = useState(null);
   const [exportNotice, setExportNotice] = useState('');
+  const [holidayNotice, setHolidayNotice] = useState('');
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [previewMeta, setPreviewMeta] = useState(null);
@@ -470,14 +471,32 @@ export default function AcademicCalendarPage() {
     }
     setSaving(true);
     setError('');
+    setHolidayNotice('');
     try {
-      await createSuddenHoliday({
+      const { whatsapp } = await createSuddenHoliday({
         date: holidayForm.date,
         dateTo: holidayForm.dateTo || holidayForm.date,
         reason: holidayForm.reason.trim(),
         applicableTo: holidayForm.applicableTo,
         message: holidayForm.message,
       });
+      if (whatsapp?.mock) {
+        setHolidayNotice('Holiday saved locally (mock mode). WhatsApp is not sent.');
+      } else if (whatsapp && whatsapp.attempted === 0) {
+        setHolidayNotice('Holiday saved, but no parent phone numbers were found to message.');
+      } else if (whatsapp && whatsapp.skipped && whatsapp.skipped === whatsapp.attempted) {
+        setHolidayNotice(
+          'Holiday saved, but WhatsApp was skipped (token not configured, or template sudden_holiday is not approved yet).'
+        );
+      } else if (whatsapp && whatsapp.failed) {
+        setHolidayNotice(
+          `Holiday saved. WhatsApp: ${whatsapp.sent || 0} sent, ${whatsapp.failed} failed, ${whatsapp.skipped || 0} skipped.${whatsapp.error ? ` Meta: ${whatsapp.error}` : ' Confirm sudden_holiday is Approved and parent numbers are allowed recipients for this WhatsApp phone.'}`
+        );
+      } else if (whatsapp && whatsapp.sent) {
+        setHolidayNotice(`Holiday saved. WhatsApp sent to ${whatsapp.sent} parent number(s).`);
+      } else {
+        setHolidayNotice('Holiday saved.');
+      }
       setFormSubmitted(true);
       const [y, m] = holidayForm.date.split('-').map(Number);
       setYear(y);
@@ -502,6 +521,11 @@ export default function AcademicCalendarPage() {
       {exportNotice ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {exportNotice}
+        </div>
+      ) : null}
+      {holidayNotice ? (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          {holidayNotice}
         </div>
       ) : null}
 

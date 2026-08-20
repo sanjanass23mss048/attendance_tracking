@@ -558,14 +558,18 @@ export async function createSuddenHoliday(payload) {
   });
   writeSchoolScheduled(scheduled);
 
-  if (!useMock()) {
-    await apiFetch('/api/calendar/events', {
+  let whatsapp = null;
+  if (useMock()) {
+    whatsapp = { attempted: 0, sent: 0, failed: 0, skipped: 0, mock: true };
+  } else {
+    const data = await apiFetch('/api/calendar/events', {
       method: 'POST',
       json: toApiEventPayload(event),
     });
+    whatsapp = data?.whatsapp || null;
   }
 
-  return mapEvent(event);
+  return { event: mapEvent(event), whatsapp };
 }
 
 export async function createCalendarEvent(payload) {

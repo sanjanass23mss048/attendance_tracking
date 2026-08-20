@@ -79,6 +79,7 @@ async function notifySuddenHolidayWhatsApp({ reason, fromDate, toDate, applicabl
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let error = null;
   const chunk = 6;
   for (let i = 0; i < phones.length; i += chunk) {
     const part = phones.slice(i, i + chunk);
@@ -88,10 +89,13 @@ async function notifySuddenHolidayWhatsApp({ reason, fromDate, toDate, applicabl
     for (const r of results) {
       if (r.skipped) skipped += 1;
       else if (r.ok) sent += 1;
-      else failed += 1;
+      else {
+        failed += 1;
+        if (!error && r.error) error = r.error;
+      }
     }
   }
-  return { attempted: phones.length, sent, failed, skipped };
+  return { attempted: phones.length, sent, failed, skipped, error };
 }
 
 export async function upsertCalendarEvent(input) {

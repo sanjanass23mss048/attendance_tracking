@@ -32,7 +32,12 @@ async function postMessage(payload) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     console.error('[whatsapp] send failed', data);
-    throw new Error(data?.error?.message || 'WhatsApp send failed');
+    const meta = data?.error || {};
+    const detail = [meta.message, meta.error_user_msg, meta.error_data?.details]
+      .filter(Boolean)
+      .join(' — ');
+    const code = meta.code != null ? ` (#${meta.code})` : '';
+    throw new Error((detail || 'WhatsApp send failed') + code);
   }
   return data;
 }
@@ -375,11 +380,20 @@ export async function sendOtpWhatsApp({ toPhone, otp }) {
 }
 
 /**
- * sudden_holiday body:
+ * Meta template `sudden_holiday` (English / Utility), body:
  *   Dear Parent,
  *   Due to {{1}}, the school will remain closed on *{{2}}*.
  *   Regards, RIOBizSols
+ * Header "St.Joseph" is static — do not send a header component.
+ * {{1}} = reason (e.g. Rain)  {{2}} = dates (e.g. 28-07-2026 & 29-07-2026)
  */
+function holidayLangs() {
+  const preferred =
+    env('WHATSAPP_HOLIDAY_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
+  const langs = [preferred, preferred === 'en_US' ? 'en' : null].filter(Boolean);
+  return [...new Set(langs)];
+}
+
 export async function sendSuddenHolidayWhatsApp({ toPhone, reason, dates }) {
   if (!configured()) {
     return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
@@ -392,30 +406,44 @@ export async function sendSuddenHolidayWhatsApp({ toPhone, reason, dates }) {
   if (!to) {
     return waResult({ ok: false, to: '', error: 'Missing phone number' });
   }
-  const languageCode = waLang();
-  try {
-    const data = await postMessage({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'template',
-      template: {
-        name: templateName,
-        language: { code: languageCode },
-        components: [
-          {
-            type: 'body',
-            parameters: textParams([reason || 'unforeseen circumstances', dates || '—']),
-          },
-        ],
-      },
-    });
-    return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
-  } catch (err) {
-    console.error('[whatsapp] sudden holiday failed', err);
-    return waResult({
-      ok: false,
-      to,
-      error: err.message || 'WhatsApp holiday send failed',
-    });
+  const body = textParams([
+    String(reason || 'unforeseen circumstances').replace(/\s+/g, ' ').trim() || 'unforeseen circumstances',
+    String(dates || '—').replace(/\*/g, '').trim() || '—',
+  ]);
+  const headerText =
+    env('WHATSAPP_HOLIDAY_HEADER') || env('SCHOOL_NAME') || 'St.Joseph';
+  const header = {
+    type: 'header',
+    parameters: textParams([headerText]),
+  };
+  let lastError = 'WhatsApp holiday send failed';
+  for (const languageCode of holidayLangs()) {
+    try {
+      const data = await postMessage({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [
+            header,
+            {
+              type: 'body',
+              parameters: body,
+            },
+          ],
+        },
+      });
+      return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+    } catch (err) {
+      lastError = err.message || lastError;
+      console.error('[whatsapp] sudden holiday failed', languageCode, err);
+    }
   }
+  return waResult({
+    ok: false,
+    to,
+    error: lastError,
+  });
 }

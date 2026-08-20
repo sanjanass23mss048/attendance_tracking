@@ -17,7 +17,6 @@ import {
   Megaphone,
   Percent,
   Shield,
-  TrendingUp,
   UserCheck,
   Users,
   UserX,
@@ -664,7 +663,6 @@ export default function DashboardPage({
   );
 
   const markedRows = classRows.filter((r) => Number(r.marked || 0) > 0);
-  const unmarkedCount = Math.max(0, classRows.length - markedRows.length);
   const takenPct = classRows.length ? pctOf(markedRows.length, classRows.length) : 0;
   const overallPct = Number(stats.attendancePercent || 0);
   const totalStudents = Number(stats.totalStudents || 0);
@@ -987,34 +985,6 @@ export default function DashboardPage({
             <span className="text-[11px] font-semibold text-gray-800">{action.label}</span>
           </button>
         ))}
-      </div>
-
-      <div className="grid gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm sm:grid-cols-2 lg:grid-cols-5">
-        <div>
-          <p className="text-xs text-gray-500">Attendance today</p>
-          <p className="font-bold text-gray-900">{overallPct}%</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Half day / OD</p>
-          <p className="font-bold text-gray-900">
-            {stats.halfDayToday ?? 0} H · {stats.odHalfDayToday ?? 0} OH · {stats.odFullDayToday ?? 0} OF
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Classes not marked</p>
-          <p className="inline-flex items-center gap-1 font-bold text-red-600">
-            <TrendingUp size={14} className="rotate-180" />
-            {unmarkedCount}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Drill-down</p>
-          <p className="font-bold text-gray-900">Class → Section → Students</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Attendance taken</p>
-          <p className="font-bold text-gray-900">{takenPct}% till now</p>
-        </div>
       </div>
     </div>
   );
