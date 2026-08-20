@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Baby,
   BarChart2,
   Bell,
   BookOpen,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
   Clock,
   Download,
   FileText,
-  GraduationCap,
   LoaderCircle,
   Megaphone,
+  Pencil,
   Percent,
   Shield,
   UserCheck,
@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 import { formatClassLabel, compareClassNames } from '../data/schoolGrades.js';
 import { canApproveEditRequests } from '../data/navItems.js';
-import { getScheduledEvents } from '../services/calendarService.js';
 import {
   downloadCsv,
   escapeCsv,
@@ -55,47 +54,8 @@ const FULL_ACCESS_ROLES = new Set([
   'HOD',
 ]);
 
-const ROLE_LABELS = {
-  INCHARGE: 'Attendance In-charge',
-  TEACHER: 'Teacher',
-  ADMIN: 'Administrator',
-  HOD: 'HOD',
-  VICE_PRINCIPAL: 'Vice Principal',
-  PRINCIPAL: 'Principal',
-};
-
-const CLASS_CARD_STYLES = [
-  { wrap: 'bg-violet-50 border-violet-100', icon: 'bg-violet-600', pct: 'text-violet-800 bg-white' },
-  { wrap: 'bg-sky-50 border-sky-100', icon: 'bg-sky-600', pct: 'text-sky-800 bg-white' },
-  { wrap: 'bg-emerald-50 border-emerald-100', icon: 'bg-emerald-600', pct: 'text-emerald-800 bg-white' },
-  { wrap: 'bg-amber-50 border-amber-100', icon: 'bg-amber-500', pct: 'text-amber-800 bg-white' },
-  { wrap: 'bg-rose-50 border-rose-100', icon: 'bg-rose-500', pct: 'text-rose-800 bg-white' },
-  { wrap: 'bg-indigo-50 border-indigo-100', icon: 'bg-indigo-600', pct: 'text-indigo-800 bg-white' },
-];
-
-const EVENT_TAG = {
-  holiday: 'bg-amber-100 text-amber-800',
-  sudden: 'bg-rose-100 text-rose-800',
-  exam: 'bg-violet-100 text-violet-800',
-  event: 'bg-sky-100 text-sky-800',
-};
-
-function greetingForHour(date = new Date()) {
-  const h = date.getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
 function sectionKey(className, sectionName) {
   return `${String(className ?? '').trim().toUpperCase()}-${String(sectionName ?? '').trim().toUpperCase()}`;
-}
-
-function classIcon(className) {
-  const n = String(className || '').toUpperCase();
-  if (n === 'LKG' || n === 'UKG') return Baby;
-  if (/^\d+$/.test(n) && Number(n) >= 9) return GraduationCap;
-  return BookOpen;
 }
 
 function pctOf(part, whole) {
@@ -113,15 +73,6 @@ function allowedSectionKeys(user, classesData) {
     }
   }
   return keys;
-}
-
-function eventChip(dateStr) {
-  const d = new Date(`${dateStr}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return { day: '—', month: '—' };
-  return {
-    day: String(d.getDate()).padStart(2, '0'),
-    month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
-  };
 }
 
 function emptyGroup(className) {
@@ -510,15 +461,135 @@ function SectionDrillPage({ classId, sectionId, date, report, loading, onNavigat
   );
 }
 
-function MetricCard({ label, value, sub, icon: Icon, iconWrap, bar, onClick, active }) {
+function academicYearLabel(isoDate) {
+  const d = isoDate ? new Date(`${isoDate}T12:00:00`) : new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  if (m >= 3) return `Academic Year ${y}-${String(y + 1).slice(-2)}`;
+  return `Academic Year ${y - 1}-${String(y).slice(-2)}`;
+}
+
+function formatHeaderDate(isoDate, dateLabel) {
+  if (isoDate && /^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    const d = new Date(`${isoDate}T12:00:00`);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    }
+  }
+  if (dateLabel) return dateLabel.replace(/^Today\s*[•·]\s*/i, '');
+  return new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+const QUICK_ACTION_DEFS = [
+  {
+    id: 'attendance',
+    label: 'Mark Attendance',
+    description: 'Take daily or period attendance quickly.',
+    icon: ClipboardCheck,
+    iconBg: 'bg-violet-600',
+    arrowBg: 'bg-violet-600 hover:bg-violet-700',
+  },
+  {
+    id: 'students',
+    label: 'Students',
+    description: 'View and manage student information.',
+    icon: Users,
+    iconBg: 'bg-sky-600',
+    arrowBg: 'bg-sky-600 hover:bg-sky-700',
+  },
+  {
+    id: 'leave-letters',
+    label: 'Leave Letters',
+    description: 'Generate and manage leave letters.',
+    icon: FileText,
+    iconBg: 'bg-emerald-600',
+    arrowBg: 'bg-emerald-600 hover:bg-emerald-700',
+  },
+  {
+    id: 'edit-approvals',
+    label: 'Edit Approvals',
+    description: 'Review and approve attendance edits.',
+    icon: Shield,
+    iconBg: 'bg-amber-500',
+    arrowBg: 'bg-amber-500 hover:bg-amber-600',
+    roles: true,
+  },
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    description: 'View academic and holiday calendar.',
+    icon: CalendarDays,
+    iconBg: 'bg-pink-500',
+    arrowBg: 'bg-pink-500 hover:bg-pink-600',
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    description: 'Explore attendance reports and analytics.',
+    icon: BarChart2,
+    iconBg: 'bg-indigo-700',
+    arrowBg: 'bg-indigo-700 hover:bg-indigo-800',
+  },
+  {
+    id: 'send-notification',
+    label: 'Notify',
+    description: 'Send messages to students & parents.',
+    icon: Megaphone,
+    iconBg: 'bg-orange-500',
+    arrowBg: 'bg-orange-500 hover:bg-orange-600',
+  },
+  {
+    id: 'notifications',
+    label: 'Notices',
+    description: 'Create and publish school notices.',
+    icon: Bell,
+    iconBg: 'bg-teal-600',
+    arrowBg: 'bg-teal-600 hover:bg-teal-700',
+  },
+];
+
+function QuickActionCard({ action, onNavigate }) {
+  const Icon = action.icon;
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate?.(action.id, action.id === 'attendance' ? 'grid' : undefined)}
+      className="flex min-h-[11.5rem] flex-col rounded-2xl border border-violet-100/80 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <span className={`inline-flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm ${action.iconBg}`}>
+        <Icon size={20} />
+      </span>
+      <p className="mt-4 text-sm font-bold text-gray-900">{action.label}</p>
+      <p className="mt-1 flex-1 text-xs leading-relaxed text-gray-500">{action.description}</p>
+      <span
+        className={`mt-4 inline-flex h-9 w-9 items-center justify-center self-center rounded-full text-white ${action.arrowBg}`}
+        aria-hidden="true"
+      >
+        <ChevronRight size={18} />
+      </span>
+    </button>
+  );
+}
+
+function OverviewStat({ label, value, sub, icon: Icon, iconWrap, onClick }) {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`rounded-2xl border bg-white p-4 text-left shadow-sm ${
-        onClick ? 'cursor-pointer hover:border-violet-300 hover:shadow-md' : 'border-gray-200'
-      } ${active ? 'border-violet-500 ring-2 ring-violet-200' : 'border-gray-200'}`}
+      className={`rounded-2xl border border-gray-100 bg-gray-50/80 p-4 text-left ${
+        onClick ? 'cursor-pointer hover:border-violet-200 hover:bg-violet-50/50' : ''
+      }`}
     >
       <div className="flex items-start gap-3">
         <span className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconWrap}`}>
@@ -526,15 +597,10 @@ function MetricCard({ label, value, sub, icon: Icon, iconWrap, bar, onClick, act
         </span>
         <div className="min-w-0">
           <p className="text-xs font-medium text-gray-500">{label}</p>
-          <p className="truncate text-2xl font-bold leading-tight text-gray-900">{value}</p>
-          {sub ? <p className="mt-0.5 truncate text-[11px] text-gray-500">{sub}</p> : null}
+          <p className="mt-0.5 text-xl font-bold text-gray-900">{value}</p>
+          {sub ? <p className="mt-0.5 text-[11px] font-medium text-gray-500">{sub}</p> : null}
         </div>
       </div>
-      {bar != null ? (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
-          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.min(100, Math.max(0, bar))}%` }} />
-        </div>
-      ) : null}
     </Tag>
   );
 }
@@ -550,7 +616,6 @@ export default function DashboardPage({
 }) {
   const allowed = useMemo(() => allowedSectionKeys(user, classesData), [user, classesData]);
   const [classRows, setClassRows] = useState([]);
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [drill, setDrill] = useState({ view: 'home' });
   const [sectionReport, setSectionReport] = useState(null);
   const [sectionLoading, setSectionLoading] = useState(false);
@@ -593,20 +658,6 @@ export default function DashboardPage({
       cancelled = true;
     };
   }, [selectedDate, allowed, classesData]);
-
-  useEffect(() => {
-    let cancelled = false;
-    getScheduledEvents(6)
-      .then((events) => {
-        if (!cancelled) setUpcomingEvents(events || []);
-      })
-      .catch(() => {
-        if (!cancelled) setUpcomingEvents([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (drill.view !== 'section' || !drill.classId || !drill.sectionId) {
@@ -663,28 +714,23 @@ export default function DashboardPage({
   );
 
   const markedRows = classRows.filter((r) => Number(r.marked || 0) > 0);
+  const unmarkedCount = Math.max(0, classRows.length - markedRows.length);
   const takenPct = classRows.length ? pctOf(markedRows.length, classRows.length) : 0;
-  const overallPct = Number(stats.attendancePercent || 0);
   const totalStudents = Number(stats.totalStudents || 0);
   const present = Number(stats.presentToday || 0);
   const absent = Number(stats.absentToday || 0);
-  const late = Number(stats.lateToday || 0);
-  const marked = Number(stats.markedToday || 0);
+  const halfDayOd =
+    Number(stats.halfDayToday || 0) +
+    Number(stats.odHalfDayToday || 0) +
+    Number(stats.odFullDayToday || 0);
 
   const firstName = (user?.name || 'Admin').split(/\s+/)[0];
-  const roleLabel = ROLE_LABELS[user?.role] || user?.role || 'Teacher';
-  const hello = greetingForHour();
+  const headerDate = formatHeaderDate(selectedDate, dateLabel);
+  const academicYear = academicYearLabel(selectedDate);
 
-  const quickActions = [
-    { id: 'attendance', label: 'Mark Attendance', icon: ClipboardCheck, color: 'bg-indigo-50 text-indigo-700' },
-    { id: 'students', label: 'Students', icon: Users, color: 'bg-violet-50 text-violet-700' },
-    { id: 'leave-letters', label: 'Leave Letters', icon: FileText, color: 'bg-sky-50 text-sky-700' },
-    { id: 'edit-approvals', label: 'Edit Approvals', icon: Shield, color: 'bg-amber-50 text-amber-700' },
-    { id: 'calendar', label: 'Calendar', icon: CalendarDays, color: 'bg-emerald-50 text-emerald-700' },
-    { id: 'reports', label: 'Reports', icon: BarChart2, color: 'bg-rose-50 text-rose-700' },
-    { id: 'send-notification', label: 'Notify', icon: Megaphone, color: 'bg-orange-50 text-orange-700' },
-    { id: 'notifications', label: 'Notices', icon: Bell, color: 'bg-teal-50 text-teal-700' },
-  ].filter((a) => a.id !== 'edit-approvals' || canApproveEditRequests(user));
+  const quickActions = QUICK_ACTION_DEFS.filter(
+    (a) => !a.roles || canApproveEditRequests(user)
+  );
 
   const goDrill = (next) => setDrill(next || { view: 'home' });
 
@@ -717,31 +763,25 @@ export default function DashboardPage({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">
-            {hello}, {firstName}! <span aria-hidden="true">👋</span>
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+            Welcome back, {firstName}! <span aria-hidden="true">👋</span>
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            {roleLabel} · Here&apos;s what&apos;s happening with attendance, classes and the calendar today.
+            Here&apos;s what&apos;s happening in your school today.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {dateLabel ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600">
-              <CalendarDays size={14} className="text-indigo-600" />
-              {dateLabel.replace(/^Today\s*[•·]\s*/i, '')}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => onNavigate?.('attendance', 'grid')}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-800"
-          >
-            <ClipboardCheck size={16} />
-            Take Attendance
-          </button>
+          <span className="inline-flex items-center gap-1.5 rounded-xl border border-violet-100 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm">
+            <CalendarDays size={15} className="text-violet-600" />
+            {headerDate}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-3 py-2 text-xs font-semibold text-white shadow-sm">
+            {academicYear}
+            <ChevronDown size={14} className="opacity-80" aria-hidden="true" />
+          </span>
         </div>
       </div>
 
@@ -751,241 +791,82 @@ export default function DashboardPage({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
-        <MetricCard
-          label="Total Students"
-          value={totalStudents}
-          sub="Open classes, then sections"
-          icon={Users}
-          iconWrap="bg-violet-100 text-violet-700"
-          onClick={() => goDrill({ view: 'classes' })}
-          active
-        />
-        <MetricCard
-          label="Present Today"
-          value={present}
-          sub={`${pctOf(present, marked || totalStudents)}% of marked`}
-          icon={UserCheck}
-          iconWrap="bg-emerald-100 text-emerald-700"
-        />
-        <MetricCard
-          label="Absent Today"
-          value={absent}
-          sub={`${pctOf(absent, marked || totalStudents)}% of marked`}
-          icon={UserX}
-          iconWrap="bg-red-100 text-red-600"
-        />
-        <MetricCard
-          label="Late Today"
-          value={late}
-          sub={`${pctOf(late, marked || totalStudents)}% of marked`}
-          icon={Clock}
-          iconWrap="bg-amber-100 text-amber-700"
-        />
-        <MetricCard
-          label="Attendance %"
-          value={`${overallPct}%`}
-          sub="Of marked today"
-          icon={BarChart2}
-          iconWrap="bg-sky-100 text-sky-700"
-        />
-        <MetricCard
-          label="Classes marked"
-          value={`${markedRows.length}/${classRows.length || stats.totalClasses || 0}`}
-          sub={`${takenPct}% attendance taken`}
-          icon={ClipboardCheck}
-          iconWrap="bg-indigo-100 text-indigo-700"
-          bar={takenPct}
-          onClick={() => goDrill({ view: 'classes' })}
-        />
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-4 lg:hidden">
-        {quickActions.slice(0, 4).map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            onClick={() => onNavigate?.(action.id)}
-            className="flex flex-col items-center gap-2 rounded-2xl border border-gray-100 bg-white px-2 py-3 shadow-sm"
-          >
-            <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${action.color}`}>
-              <action.icon size={18} />
-            </span>
-            <span className="text-[10px] font-semibold text-gray-800">{action.label}</span>
-          </button>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        {quickActions.map((action) => (
+          <QuickActionCard key={action.id} action={action} onNavigate={onNavigate} />
         ))}
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h3 className="text-base font-bold text-gray-900">Attendance marked</h3>
-            <button
-              type="button"
-              onClick={() => goDrill({ view: 'classes' })}
-              className="text-xs font-semibold text-violet-700 hover:text-violet-900"
-            >
-              View all
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-left text-sm">
-              <thead>
-                <tr className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                  <th className="pb-2 font-semibold">Class / Section</th>
-                  <th className="pb-2 font-semibold">Present</th>
-                  <th className="pb-2 font-semibold">Absent</th>
-                  <th className="pb-2 text-right font-semibold">%</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {markedRows.slice(0, 6).map((row) => (
-                  <tr
-                    key={`${row.className}-${row.sectionName}`}
-                    className="cursor-pointer hover:bg-gray-50"
-                    onClick={() =>
-                      goDrill({
-                        view: 'section',
-                        classId: row.className,
-                        sectionId: row.sectionName,
-                      })
-                    }
-                  >
-                    <td className="py-2.5">
-                      <span className="inline-flex items-center gap-2 font-semibold text-gray-900">
-                        <CheckCircle2 size={15} className="text-emerald-500" />
-                        {row.label || `${row.className}-${row.sectionName}`}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-gray-700">{row.present}</td>
-                    <td className="py-2.5 text-gray-700">{row.absent}</td>
-                    <td className="py-2.5 text-right font-semibold text-emerald-700">{row.attendancePercent}%</td>
-                  </tr>
-                ))}
-                {!markedRows.length ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-sm text-gray-500">
-                      No class attendance submitted yet for this date.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-          {markedRows.length > 6 ? (
-            <p className="mt-3 text-xs font-medium text-gray-500">+ {markedRows.length - 6} more classes marked</p>
-          ) : null}
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Classes</h3>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {totalStudents} students · open a class to see its sections
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => goDrill({ view: 'classes' })}
-              className="text-xs font-semibold text-violet-700 hover:text-violet-900"
-            >
-              View all
-            </button>
-          </div>
-          <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
-            {classOverview.map((klass, idx) => {
-              const style = CLASS_CARD_STYLES[idx % CLASS_CARD_STYLES.length];
-              const Icon = classIcon(klass.className);
-              return (
-                <button
-                  key={klass.className}
-                  type="button"
-                  onClick={() => goDrill({ view: 'class', classId: klass.className })}
-                  className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${style.wrap}`}
-                >
-                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl text-white ${style.icon}`}>
-                    <Icon size={16} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-gray-900">{formatClassLabel(klass.className)}</p>
-                    <p className="text-[11px] text-gray-500">
-                      {klass.sections} sections · {klass.students} students
-                    </p>
-                  </div>
-                  <span className={`rounded-lg px-2 py-0.5 text-xs font-bold ${style.pct}`}>
-                    {klass.attendancePercent}%
-                  </span>
-                  <ChevronRight size={16} className="text-gray-400" />
-                </button>
-              );
-            })}
-            {!classOverview.length ? (
-              <p className="px-2 py-6 text-sm text-gray-500">No classes assigned to your account.</p>
-            ) : null}
-          </div>
-          <div className="mt-4">
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-semibold text-gray-700">Overall class attendance</span>
-              <span className="font-bold text-gray-900">{overallPct}%</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, overallPct)}%` }} />
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-gray-900">Upcoming events</h3>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('calendar')}
-            className="text-xs font-semibold text-violet-700 hover:text-violet-900"
-          >
-            View all events
-          </button>
+        <div className="mb-4 flex items-center gap-2">
+          <BarChart2 size={18} className="text-violet-600" />
+          <h3 className="text-base font-bold text-gray-900">Today&apos;s Attendance Overview</h3>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {upcomingEvents.map((event) => {
-            const chip = eventChip(event.date);
-            const tag = EVENT_TAG[event.type] || EVENT_TAG.event;
-            return (
-              <li key={event.id || `${event.date}-${event.title}`} className="flex gap-3">
-                <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-indigo-50 text-indigo-800">
-                  <span className="text-[10px] font-semibold leading-none">{chip.month}</span>
-                  <span className="text-sm font-bold leading-tight">{chip.day}</span>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900">{event.title}</p>
-                  <p className="text-xs text-gray-500">{event.source === 'school' ? 'School' : 'Calendar'}</p>
-                  <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${tag}`}>
-                    {event.type || 'event'}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-          {!upcomingEvents.length ? <li className="text-sm text-gray-500">No upcoming events scheduled.</li> : null}
-        </ul>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <OverviewStat
+            label="Total Students"
+            value={totalStudents.toLocaleString()}
+            icon={Users}
+            iconWrap="bg-violet-100 text-violet-700"
+            onClick={() => goDrill({ view: 'classes' })}
+          />
+          <OverviewStat
+            label="Present"
+            value={present.toLocaleString()}
+            sub={`${pctOf(present, totalStudents)}%`}
+            icon={UserCheck}
+            iconWrap="bg-emerald-100 text-emerald-700"
+          />
+          <OverviewStat
+            label="Absent"
+            value={absent.toLocaleString()}
+            sub={`${pctOf(absent, totalStudents)}%`}
+            icon={UserX}
+            iconWrap="bg-red-100 text-red-600"
+          />
+          <OverviewStat
+            label="Half Day / OD"
+            value={halfDayOd.toLocaleString()}
+            sub={`${pctOf(halfDayOd, totalStudents)}%`}
+            icon={Clock}
+            iconWrap="bg-amber-100 text-amber-700"
+          />
+          <OverviewStat
+            label="Attendance Taken"
+            value={`${markedRows.length} / ${classRows.length || stats.totalClasses || 0}`}
+            sub={`${takenPct}%`}
+            icon={Pencil}
+            iconWrap="bg-sky-100 text-sky-700"
+            onClick={() => goDrill({ view: 'classes' })}
+          />
+        </div>
       </div>
 
-      <div className="hidden gap-3 lg:grid lg:grid-cols-8">
-        {quickActions.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            onClick={() => onNavigate?.(action.id)}
-            className="flex flex-col items-center gap-2 rounded-2xl border border-gray-200 bg-white px-2 py-3 text-center shadow-sm hover:border-violet-200 hover:shadow-md"
-          >
-            <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${action.color}`}>
-              <action.icon size={18} />
+      {unmarkedCount > 0 ? (
+        <div className="flex flex-col gap-4 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-200/80 text-violet-800">
+              <ClipboardList size={20} />
             </span>
-            <span className="text-[11px] font-semibold text-gray-800">{action.label}</span>
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                Attendance not marked for {unmarkedCount} {unmarkedCount === 1 ? 'class' : 'classes'}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-600">
+                Please mark attendance to keep records updated.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('attendance', 'grid')}
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-800"
+          >
+            Go to Attendance
+            <ChevronRight size={16} />
           </button>
-        ))}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

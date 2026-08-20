@@ -26,7 +26,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { formatClassLabel, SCHOOL_SECTIONS } from '../data/schoolGrades.js';
+import { formatClassLabel, SCHOOL_SECTIONS, compareClassNames } from '../data/schoolGrades.js';
 import { getClasses } from '../services/classService.js';
 import { getTeachers } from '../services/teacherService.js';
 import { showToast } from '../services/toast.js';
@@ -176,7 +176,7 @@ function seedUnits(subject, className, section) {
     unit: `Unit ${unit}`,
     fileName: fileSlug(subject.code === 'MAT' ? 'Maths' : label, className, section, unit),
     description:
-      subject.id === 'maths' ? MATHS_UNIT_COPY[unit - 1] : `${label} — ${formatClassLabel(className)} Unit ${unit}`,
+      subject.id.startsWith('maths') ? MATHS_UNIT_COPY[unit - 1] : `${label} — ${formatClassLabel(className)} Unit ${unit}`,
     uploadedBy: 'Admin User',
     uploadedAt: '12 May 2025',
     size: `${(1.1 + unit * 0.1).toFixed(1)} MB`,
@@ -184,24 +184,30 @@ function seedUnits(subject, className, section) {
 }
 
 function initialSubjects() {
-  return [
-    { id: 'english', name: 'English', code: 'ENG', category: 'Language' },
-    { id: 'maths', name: 'Maths', code: 'MAT', category: 'Core' },
-    { id: 'evs', name: 'EVS', code: 'EVS', category: 'Primary' },
-    { id: 'hindi', name: 'Hindi', code: 'HIN', category: 'Language' },
-    { id: 'computer', name: 'Computer', code: 'CMP', category: 'Skill' },
-    { id: 'drawing', name: 'Drawing', code: 'ART', category: 'Activity' },
-    { id: 'games', name: 'Games', code: 'PE', category: 'Activity' },
-    { id: 'library', name: 'Library', code: 'LIB', category: 'Activity' },
-    { id: 'science', name: 'Science', code: 'SCI', category: 'Core' },
-    { id: 'social', name: 'Social', code: 'SST', category: 'Core' },
+  const defs = [
+    { id: 'english-2', name: 'English', code: 'ENG', category: 'Language', className: '2' },
+    { id: 'maths-2', name: 'Maths', code: 'MAT', category: 'Core', className: '2' },
+    { id: 'evs-2', name: 'EVS', code: 'EVS', category: 'Primary', className: '2' },
+    { id: 'hindi-2', name: 'Hindi', code: 'HIN', category: 'Language', className: '2' },
+    { id: 'computer-2', name: 'Computer', code: 'CMP', category: 'Skill', className: '2' },
+    { id: 'english-3', name: 'English', code: 'ENG', category: 'Language', className: '3' },
+    { id: 'maths-3', name: 'Maths', code: 'MAT', category: 'Core', className: '3' },
+    { id: 'evs-3', name: 'EVS', code: 'EVS', category: 'Primary', className: '3' },
+    { id: 'hindi-3', name: 'Hindi', code: 'HIN', category: 'Language', className: '3' },
+    { id: 'science-3', name: 'Science', code: 'SCI', category: 'Core', className: '3' },
+    { id: 'social-3', name: 'Social', code: 'SST', category: 'Core', className: '3' },
+    { id: 'drawing-3', name: 'Drawing', code: 'ART', category: 'Activity', className: '3' },
+    { id: 'games-3', name: 'Games', code: 'PE', category: 'Activity', className: '3' },
+    { id: 'library-3', name: 'Library', code: 'LIB', category: 'Activity', className: '3' },
+    { id: 'computer-3', name: 'Computer', code: 'CMP', category: 'Skill', className: '3' },
   ];
+  return defs;
 }
 
 function seedBooks(subject, className) {
   const label = displayNameOf(subject.name);
   const grade = formatClassLabel(className);
-  if (subject.id === 'maths') {
+  if (subject.name === 'Maths') {
     return [
       { id: `${subject.id}-${className}-b1`, title: `Mathematics Textbook - ${grade}`, author: 'NCERT', type: 'Textbook' },
       { id: `${subject.id}-${className}-b2`, title: `Mathematics Workbook - ${grade}`, author: 'Oxford', type: 'Workbook' },
@@ -214,7 +220,7 @@ function seedBooks(subject, className) {
 }
 
 function seedTeachers(subject, className, section) {
-  if (subject.id === 'maths' && className === '3') {
+  if (subject.id.startsWith('maths') && className === '3') {
     return [
       {
         id: `mat-${className}-${section}-t1`,
@@ -244,7 +250,7 @@ function ensureScope(store, key, factory) {
   return { ...store, [key]: factory() };
 }
 
-const emptySubjectForm = () => ({ name: '', code: '', category: 'Core' });
+const emptySubjectForm = (className = '2') => ({ name: '', code: '', category: 'Core', className });
 const emptyBookForm = () => ({ title: '', author: '', type: 'Textbook' });
 const emptySyllabusForm = () => ({ unit: '', description: '', fileName: '' });
 const emptyTeacherForm = () => ({ teacherId: '', role: 'Subject Teacher' });
@@ -324,8 +330,8 @@ export default function SubjectsPage({ onNavigate }) {
   const [staff, setStaff] = useState([]);
   const [classesData, setClassesData] = useState([]);
 
-  const [selectedId, setSelectedId] = useState('maths');
-  const [className, setClassName] = useState('3');
+  const [selectedId, setSelectedId] = useState('english-2');
+  const [sidebarClass, setSidebarClass] = useState('2');
   const [section, setSection] = useState('A');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -371,8 +377,13 @@ export default function SubjectsPage({ onNavigate }) {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [showFilter]);
 
-  const selected = subjects.find((s) => s.id === selectedId) || subjects[0] || null;
-  const classOptions = classesData.length ? classesData.map((c) => c.name) : ['1', '2', '3', '4', '5'];
+  const selected = subjects.find((s) => s.id === selectedId) || null;
+  const className = selected?.className || sidebarClass;
+  const classOptions = useMemo(() => {
+    const fromApi = classesData.length ? classesData.map((c) => c.name) : ['1', '2', '3', '4', '5'];
+    const fromSubjects = subjects.map((s) => s.className).filter(Boolean);
+    return [...new Set([...fromApi, ...fromSubjects])].sort(compareClassNames);
+  }, [classesData, subjects]);
   const sectionOptions = useMemo(() => {
     const klass = classesData.find((c) => String(c.name) === String(className));
     const names = (klass?.sections || []).map((s) => s.name);
@@ -389,6 +400,18 @@ export default function SubjectsPage({ onNavigate }) {
     if (!sectionOptions.includes(section)) setSection(sectionOptions[0] || 'A');
   }, [sectionOptions, section]);
 
+  useEffect(() => {
+    const inClass = subjects.filter((s) => String(s.className) === String(sidebarClass));
+    if (!inClass.length) {
+      setSelectedId('');
+      return;
+    }
+    const current = subjects.find((s) => s.id === selectedId);
+    if (!current || String(current.className) !== String(sidebarClass)) {
+      setSelectedId(inClass[0].id);
+    }
+  }, [sidebarClass, subjects, selectedId]);
+
   const key = selected ? scopeKey(selected.id, className, section) : '';
 
   useEffect(() => {
@@ -401,11 +424,12 @@ export default function SubjectsPage({ onNavigate }) {
   const filteredSubjects = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return subjects.filter((s) => {
+      if (String(s.className) !== String(sidebarClass)) return false;
       if (categoryFilter && s.category !== categoryFilter) return false;
       if (!q) return true;
       return `${s.name} ${displayNameOf(s.name)} ${s.code} ${s.category}`.toLowerCase().includes(q);
     });
-  }, [subjects, searchQuery, categoryFilter]);
+  }, [subjects, sidebarClass, searchQuery, categoryFilter]);
 
   const units = key ? syllabus[key] || [] : [];
   const scopedBooks = key ? books[key] || [] : [];
@@ -421,8 +445,15 @@ export default function SubjectsPage({ onNavigate }) {
     setMenuKey(null);
   };
 
+  const selectSidebarClass = (nextClass) => {
+    setSidebarClass(nextClass);
+    setSearchQuery('');
+    setCategoryFilter('');
+    setMobileShowDetail(false);
+  };
+
   const openAddSubject = () => {
-    setSubjectForm(emptySubjectForm());
+    setSubjectForm(emptySubjectForm(sidebarClass || classOptions[0] || '2'));
     setModal('add-subject');
   };
 
@@ -432,16 +463,35 @@ export default function SubjectsPage({ onNavigate }) {
       showToast('Enter a subject name', 'error');
       return;
     }
+    const subjectClass = String(subjectForm.className || '').trim();
+    if (!subjectClass) {
+      showToast('Select a class for this subject', 'error');
+      return;
+    }
     const code = (subjectForm.code.trim() || codeFromName(name)).toUpperCase();
     const category = subjectForm.category || 'Core';
+    const duplicate = subjects.some(
+      (s) =>
+        s.id !== selected?.id &&
+        String(s.className) === subjectClass &&
+        s.name.trim().toLowerCase() === name.toLowerCase()
+    );
+    if (duplicate) {
+      showToast(`${name} already exists for ${formatClassLabel(subjectClass)}`, 'error');
+      return;
+    }
     if (modal === 'add-subject') {
       const id = nextId('sub');
-      setSubjects((prev) => [...prev, { id, name, code, category }]);
+      setSubjects((prev) => [...prev, { id, name, code, category, className: subjectClass }]);
+      setSidebarClass(subjectClass);
       setSelectedId(id);
       setMobileShowDetail(true);
-      showToast(`${name} added`, 'success');
+      showToast(`${name} added for ${formatClassLabel(subjectClass)}`, 'success');
     } else if (selected) {
-      setSubjects((prev) => prev.map((s) => (s.id === selected.id ? { ...s, name, code, category } : s)));
+      setSubjects((prev) =>
+        prev.map((s) => (s.id === selected.id ? { ...s, name, code, category, className: subjectClass } : s))
+      );
+      setSidebarClass(subjectClass);
       showToast('Subject updated', 'success');
     }
     setModal(null);
@@ -451,11 +501,13 @@ export default function SubjectsPage({ onNavigate }) {
     if (!selected) return;
     const id = selected.id;
     const label = displayNameOf(selected.name);
+    const subjectClass = selected.className;
     const remaining = subjects.filter((s) => s.id !== id);
     setSubjects(remaining);
-    setSelectedId(remaining[0]?.id || '');
+    const nextInClass = remaining.find((s) => String(s.className) === String(subjectClass));
+    setSelectedId(nextInClass?.id || remaining[0]?.id || '');
     setModal(null);
-    setMobileShowDetail(false);
+    setMobileShowDetail(Boolean(nextInClass));
     showToast(`${label} deleted`, 'success');
   };
 
@@ -860,7 +912,21 @@ export default function SubjectsPage({ onNavigate }) {
 
   const subjectList = (
     <aside className="flex h-full min-h-0 w-full flex-col border-gray-200 bg-white lg:w-[260px] lg:shrink-0 lg:border-r">
-      <div className="border-b border-gray-100 p-3">
+      <div className="space-y-3 border-b border-gray-100 p-3">
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Class</span>
+          <select
+            value={sidebarClass}
+            onChange={(e) => selectSidebarClass(e.target.value)}
+            className={inputClass()}
+          >
+            {classOptions.map((c) => (
+              <option key={c} value={c}>
+                {formatClassLabel(c)}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -868,7 +934,7 @@ export default function SubjectsPage({ onNavigate }) {
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search subjects..."
+              placeholder={`Search in ${formatClassLabel(sidebarClass)}…`}
               className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-400"
             />
           </div>
@@ -921,7 +987,17 @@ export default function SubjectsPage({ onNavigate }) {
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {filteredSubjects.length === 0 ? (
-          <p className="px-2 py-8 text-center text-sm text-gray-500">No subjects match your search.</p>
+          <div className="px-2 py-8 text-center">
+            <p className="text-sm text-gray-500">No subjects for {formatClassLabel(sidebarClass)} yet.</p>
+            <button
+              type="button"
+              onClick={openAddSubject}
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 hover:text-violet-900"
+            >
+              <Plus size={15} />
+              Add subject for this class
+            </button>
+          </div>
         ) : (
           filteredSubjects.map((s) => {
             const isActive = s.id === selected?.id;
@@ -975,7 +1051,9 @@ export default function SubjectsPage({ onNavigate }) {
                   {selected.code} {displayNameOf(selected.name)}
                 </p>
                 <h2 className="text-xl font-bold text-gray-900">{displayNameOf(selected.name)}</h2>
-                <p className="text-sm text-gray-500">{selected.category} Subject</p>
+                <p className="text-sm text-gray-500">
+                  {selected.category} Subject · {formatClassLabel(className)}
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -986,6 +1064,7 @@ export default function SubjectsPage({ onNavigate }) {
                     name: displayNameOf(selected.name),
                     code: selected.code,
                     category: selected.category,
+                    className: selected.className,
                   });
                   setModal('edit-subject');
                 }}
@@ -1005,16 +1084,12 @@ export default function SubjectsPage({ onNavigate }) {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <label className="text-sm">
-              <span className="mb-1 block text-xs font-medium text-gray-500">Select Class</span>
-              <select value={className} onChange={(e) => setClassName(e.target.value)} className={inputClass()}>
-                {classOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {formatClassLabel(c)}
-                  </option>
-                ))}
-              </select>
+              <span className="mb-1 block text-xs font-medium text-gray-500">Class</span>
+              <div className="flex h-[42px] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-800">
+                {formatClassLabel(className)}
+              </div>
             </label>
             <label className="text-sm">
               <span className="mb-1 block text-xs font-medium text-gray-500">Select Section</span>
@@ -1026,7 +1101,7 @@ export default function SubjectsPage({ onNavigate }) {
                 ))}
               </select>
             </label>
-            <div className="flex items-end sm:col-span-2 xl:col-span-2">
+            <div className="flex items-end sm:col-span-2 xl:col-span-1">
               <div className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-100 bg-violet-50 px-4 py-2.5">
                 <div>
                   <p className="text-xs font-medium text-violet-700">Total Students</p>
@@ -1137,6 +1212,20 @@ export default function SubjectsPage({ onNavigate }) {
           }
         >
           <div className="space-y-3">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-gray-600">Class</span>
+              <select
+                value={subjectForm.className}
+                onChange={(e) => setSubjectForm((p) => ({ ...p, className: e.target.value }))}
+                className={inputClass()}
+              >
+                {classOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {formatClassLabel(c)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-gray-600">Subject name</span>
               <input
