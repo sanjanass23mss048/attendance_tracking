@@ -124,6 +124,11 @@ export default function AttendanceScreen({ route, navigation }) {
         status: marks[s.id] || 'P',
       }));
       await saveDailyAttendance({ sectionId, date, marks: payload });
+      // Absence SMS only for today's marking — never for previous-day edits.
+      if (String(date) < todayYmd()) {
+        setMessage('Saved. Parent SMS is only sent for today’s absentees (not previous days).');
+        return;
+      }
       const toNotify = payload.filter((m) => m.status !== 'P');
       if (!toNotify.length) {
         setMessage('Saved — no absentees to SMS');
@@ -134,6 +139,10 @@ export default function AttendanceScreen({ route, navigation }) {
         date,
         messages: toNotify.map((m) => ({ studentId: m.studentId, status: m.status })),
       });
+      if (res?.skippedDelivery || res?.skipReason === 'past_attendance_date') {
+        setMessage('Saved. Parent SMS is only sent for today’s absentees (not previous days).');
+        return;
+      }
       const sms = res.sms || {};
       setMessage(
         `Saved · SMS sent ${sms.sent ?? 0}` +

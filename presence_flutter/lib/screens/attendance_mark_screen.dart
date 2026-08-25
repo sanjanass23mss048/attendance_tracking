@@ -298,6 +298,14 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
             date: date,
             marks: payload,
           );
+      // Absence SMS/WhatsApp only for today's marking — never for previous-day edits.
+      if (date.compareTo(todayYmd()) < 0) {
+        if (!mounted) return;
+        setState(() => message =
+            'Saved. Parent SMS is only sent for today’s absentees (not previous days).');
+        await _refreshEditContext();
+        return;
+      }
       final toNotify = payload.where((m) => m['status'] != 'P').toList();
       if (toNotify.isEmpty) {
         if (!mounted) return;
@@ -311,6 +319,13 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
             messages: toNotify,
           );
       if (!mounted) return;
+      if (res['skippedDelivery'] == true ||
+          res['skipReason'] == 'past_attendance_date') {
+        setState(() => message =
+            'Saved. Parent SMS is only sent for today’s absentees (not previous days).');
+        await _refreshEditContext();
+        return;
+      }
       final sms = (res['sms'] as Map?) ?? {};
       setState(() {
         message =
@@ -515,7 +530,7 @@ class _AttendanceMarkScreenState extends State<AttendanceMarkScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Save & SMS'),
+                      : Text(date.compareTo(todayYmd()) < 0 ? 'Save (no SMS)' : 'Save & SMS'),
                 ),
               ),
             ],

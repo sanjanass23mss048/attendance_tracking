@@ -33,18 +33,15 @@ export default function SupportCenterPage() {
             </p>
           </div>
         </div>
-        <a
-          href={`tel:${SUPPORT_PHONE}`}
-          className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md"
-        >
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
             <Phone size={20} />
           </span>
           <div>
             <p className="text-xs font-medium text-gray-500">Support number</p>
-            <p className="text-base font-bold text-slate-900">{SUPPORT_PHONE}</p>
+            <p className="text-base font-bold text-slate-900 select-text">{SUPPORT_PHONE}</p>
           </div>
-        </a>
+        </div>
         <a
           href={`mailto:${SUPPORT_EMAIL}`}
           className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:shadow-md"

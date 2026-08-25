@@ -409,7 +409,10 @@ export async function getDailyReport(query) {
   const params = new URLSearchParams({ date: query.date });
   if (query.sectionId) params.set('sectionId', query.sectionId);
   if (query.className) params.set('className', query.className);
-  if (query.section) params.set('section', query.section);
+  // Only forward section when it's the special "all" flag, or when we don't have a sectionId yet.
+  if (query.section === 'all' || (!query.sectionId && query.section)) {
+    params.set('section', query.section);
+  }
   return apiFetch(`/api/reports/daily?${params}`);
 }
 

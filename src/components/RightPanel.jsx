@@ -1,6 +1,6 @@
 import { Send, Check, MessageSquare, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { getStatusDisplay, formatAttendanceDate } from '../utils/attendance';
+import { getStatusDisplay, formatAttendanceDate, isPastAttendanceDate } from '../utils/attendance';
 
 export default function RightPanel({
   classPercent,
@@ -19,6 +19,8 @@ export default function RightPanel({
   onSendMessageToAbsent,
   onExportReport,
 }) {
+  const isPastDay = isPastAttendanceDate(selectedDate);
+  const canSendParents = showConfirmed && !messagesSent && sendCount > 0 && !isPastDay;
   const chartData = summaryBreakdown
     .filter((item) => item.count > 0)
     .map((item) => ({
@@ -110,10 +112,16 @@ export default function RightPanel({
           <button
             type="button"
             onClick={onSendMessageToAbsent}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-800 hover:bg-indigo-100"
+            disabled={isPastDay || !showConfirmed || absentStudents.length === 0}
+            title={
+              isPastDay
+                ? 'Parent alerts are only sent for today’s absentees'
+                : undefined
+            }
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-800 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <MessageSquare size={16} />
-            Send Message to Absent
+            {isPastDay ? 'No SMS for previous days' : 'Send Message to Absent'}
           </button>
           <button
             type="button"
@@ -151,13 +159,23 @@ export default function RightPanel({
       <button
         type="button"
         onClick={onSubmitMessages}
-        disabled={!showConfirmed || messagesSent || sendCount === 0}
+        disabled={!canSendParents}
+        title={
+          isPastDay
+            ? 'Parent alerts are only sent for today’s absentees'
+            : undefined
+        }
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-3.5 text-sm font-bold text-gray-900 shadow-sm hover:bg-amber-500 disabled:bg-green-500 disabled:text-white disabled:opacity-90"
       >
         {messagesSent ? (
           <>
             <Check size={18} />
             Messages Submitted!
+          </>
+        ) : isPastDay ? (
+          <>
+            <Send size={18} />
+            No parent alerts (past day)
           </>
         ) : (
           <>

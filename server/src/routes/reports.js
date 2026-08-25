@@ -59,7 +59,8 @@ const dailyQuery = z
     date: z.string(),
     sectionId: z.string().min(1).optional(),
     className: z.string().min(1).optional(),
-    section: z.literal('all').optional(),
+    /** 'all' or a section letter/name when resolving by class */
+    section: z.string().min(1).optional(),
   })
   .refine((data) => data.sectionId || data.className, {
     message: 'Provide sectionId or className',
@@ -154,9 +155,10 @@ router.get('/daily', requireAuth, async (req, res) => {
   }
 
   const { sectionId, className, section } = parsed.data;
-  const allSections = section === 'all' || (!sectionId && className);
+  const sectionFilter =
+    section && String(section).toLowerCase() !== 'all' ? String(section) : null;
 
-  if (!allSections && sectionId) {
+  if (sectionId) {
     const sectionRow = await findClassSectionById(sectionId);
     if (!sectionRow) {
       return res.status(404).json({ error: 'Section not found' });
@@ -203,14 +205,23 @@ router.get('/daily', requireAuth, async (req, res) => {
     return res.status(404).json({ error: className === 'all' ? 'No classes found' : 'Class not found' });
   }
 
+  const allSections = !sectionFilter;
   const showClassColumn = className === 'all';
-  const showSectionColumn = true;
+  const showSectionColumn = allSections;
   const counts = emptyCounts();
   const rows = [];
   let studentCount = 0;
+  let matchedSectionName = sectionFilter || 'all';
 
   for (const klass of targetClasses) {
     for (const sec of klass.sections) {
+      if (
+        sectionFilter &&
+        String(sec.name).toLowerCase() !== String(sectionFilter).toLowerCase()
+      ) {
+        continue;
+      }
+      matchedSectionName = sec.name;
       const built = await buildDailyRowsForSection(sec.id, date, {
         className: klass.name,
         sectionName: sec.name,
@@ -226,18 +237,31 @@ router.get('/daily', requireAuth, async (req, res) => {
     }
   }
 
+  if (sectionFilter && studentCount === 0) {
+    const anyMatch = targetClasses.some((klass) =>
+      (klass.sections || []).some(
+        (sec) => String(sec.name).toLowerCase() === String(sectionFilter).toLowerCase()
+      )
+    );
+    if (!anyMatch) {
+      return res.status(404).json({ error: 'Section not found' });
+    }
+  }
+
   rows.sort(compareDailyRows);
 
   const resolvedClassName = className === 'all' ? 'all' : targetClasses[0].name;
   const label =
     className === 'all'
       ? 'All classes'
-      : `Class ${targetClasses[0].name} - All sections`;
+      : allSections
+        ? `Class ${targetClasses[0].name} - All sections`
+        : `Class ${targetClasses[0].name} - ${matchedSectionName}`;
 
   return res.json({
     date: parsed.data.date,
     className: resolvedClassName,
-    sectionName: 'all',
+    sectionName: allSections ? 'all' : matchedSectionName,
     label,
     showSectionColumn,
     showClassColumn,

@@ -186,16 +186,20 @@ export default function AttendanceHistoryPage({
           date,
           sectionId: sid || undefined,
           className: drill.className,
-          section: drill.sectionName,
+          section: sid ? undefined : drill.sectionName,
         });
         if (cancelled) return;
         setStudents(report.students || []);
         setSectionSummary(report.summary || {});
+        if (report.holiday) {
+          showToast('This date is a holiday — no attendance roster.', 'info');
+        }
         setDrill((prev) => (prev ? { ...prev, sectionId: sid || prev.sectionId } : prev));
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setStudents([]);
           setSectionSummary({});
+          showToast(err?.message || 'Could not load section attendance', 'error');
         }
       } finally {
         if (!cancelled) setSectionLoading(false);
