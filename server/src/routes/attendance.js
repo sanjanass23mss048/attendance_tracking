@@ -550,17 +550,31 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
   // Absence WhatsApp/SMS only fires for live (today) attendance marking.
   if (isPastAttendanceDate(parsed.data.date)) {
     const existing = await listParentMessages(section.Class_Section_id, date);
+    const classLabel =
+      [section.tblClass?.Class_Name, section.tblSection?.Section_Name].filter(Boolean).join('-') ||
+      section.Class_Section_id;
     logAdminAudit(req, {
       action: 'PARENT_ALERT_SKIPPED_PAST_DATE',
       category: 'NOTIFICATION',
       entityType: 'class_section',
       entityId: section.Class_Section_id,
-      summary: `Skipped parent attendance alerts for past date ${parsed.data.date} (${messages.length} requested)`,
+      summary: clipAuditSummary(
+        `Skipped parent attendance alerts for Class ${classLabel} on past date ${parsed.data.date} (${messages.length} initiated, not sent)`
+      ),
       details: {
         date: parsed.data.date,
+        className: section.tblClass?.Class_Name || null,
+        sectionName: section.tblSection?.Section_Name || null,
         channel,
         recipient,
         requested: messages.length,
+        counts: {
+          initiated: messages.length,
+          sent: 0,
+          undelivered: messages.length,
+          skipped: messages.length,
+          failed: 0,
+        },
         skipReason: 'past_attendance_date',
       },
     });
