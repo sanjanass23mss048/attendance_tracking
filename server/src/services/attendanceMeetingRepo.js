@@ -200,7 +200,10 @@ export async function notifyParentOfMeeting(meeting, student = null) {
     student?.motherName ||
     student?.guardianName ||
     'Parent';
-  const reason = meeting.reason || 'attendance';
+  const reason =
+    meeting.discussionNotes?.trim() ||
+    meeting.reason ||
+    'Please meet the school regarding your ward\'s attendance.';
   const title = 'Parent meeting scheduled';
   const message = [
     `Dear ${parentName},`,

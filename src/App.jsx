@@ -1546,6 +1546,7 @@ function AttendanceApp() {
               <AttendanceIntelligencePage
                 initialTab={activeView || 'alerts'}
                 onNavigate={handleNavigate}
+                user={user}
               />
             ) : null
           ) : activePage === 'chronicle' ? (

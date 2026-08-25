@@ -22,7 +22,6 @@ import {
   listNotes,
 } from '../services/attendanceMeetingRepo.js';
 import {
-  buildDemoAttendanceIntelligence,
   isDemoStudentClassId,
 } from '../lib/attendanceIntelligenceDemo.js';
 import { ensureAttendanceIntelligenceTables } from '../lib/ensureAttendanceIntelligenceTables.js';
@@ -41,10 +40,6 @@ router.use(async (_req, _res, next) => {
   next();
 });
 
-function demoFallback(asOf) {
-  return buildDemoAttendanceIntelligence(asOf || new Date().toISOString().slice(0, 10), DEFAULT_INTELLIGENCE_THRESHOLDS);
-}
-
 router.get('/summary', async (req, res) => {
   try {
     const data = await buildAttendanceIntelligence({
@@ -56,16 +51,11 @@ router.get('/summary', async (req, res) => {
       thresholds: data.thresholds,
       summary: data.summary,
       demo: Boolean(data.demo),
+      walkthrough: Boolean(data.walkthrough),
     });
   } catch (err) {
     console.error('intelligence summary', err);
-    const data = demoFallback(req.query.asOf ? String(req.query.asOf) : undefined);
-    return res.json({
-      asOf: data.asOf,
-      thresholds: data.thresholds,
-      summary: data.summary,
-      demo: true,
-    });
+    return res.status(500).json({ error: 'Could not load attendance intelligence' });
   }
 });
 
@@ -78,7 +68,7 @@ router.get('/overview', async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error('intelligence overview', err);
-    return res.json(demoFallback(req.query.asOf ? String(req.query.asOf) : undefined));
+    return res.status(500).json({ error: 'Could not load attendance intelligence' });
   }
 });
 
