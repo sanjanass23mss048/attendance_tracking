@@ -12,6 +12,12 @@ import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { findClassSectionById } from '../services/schoolRepo.js';
 import { toDateString } from '../lib/ids.js';
 import { clipAuditSummary } from '../lib/attendanceAuditDetails.js';
+import { controlPrisma } from '../lib/prisma.js';
+import { tenantAls } from '../lib/tenantContext.js';
+import { APEX_TENANT } from '../lib/tenantHost.js';
+import { listTenants } from '../services/tenantRegistry.js';
+import { getPrismaForSlug } from '../services/tenantPrismaCache.js';
+import { loadAppSettings } from '../lib/appSettings.js';
 
 const router = Router();
 
@@ -47,6 +53,73 @@ function parseButtonAction(buttonId, buttonTitle) {
     return { action: 'deny', requestId: null };
   }
   return null;
+}
+
+/**
+ * Meta posts webhooks to one URL (usually apex host). Edit requests live in each
+ * school DB — search apex + every active tenant until we find the match.
+ */
+async function forEachSchoolDb(fn) {
+  const schools = [{ slug: APEX_TENANT, prisma: controlPrisma }];
+  try {
+    const rows = await listTenants();
+    for (const row of rows || []) {
+      if (row.isActive === false) continue;
+      const slug = String(row.slug || '').toLowerCase();
+      if (!slug || slug === APEX_TENANT) continue;
+      const client = await getPrismaForSlug(slug);
+      if (client) schools.push({ slug, prisma: client });
+    }
+  } catch (err) {
+    console.warn('[whatsapp-webhook] listTenants failed', err?.message || err);
+  }
+
+  for (const school of schools) {
+    const result = await tenantAls.run({ prisma: school.prisma, tenant: school.slug }, async () => {
+      try {
+        await loadAppSettings();
+      } catch {
+        /* ignore */
+      }
+      return fn(school);
+    });
+    if (result) return result;
+  }
+  return null;
+}
+
+async function resolveEditRequestAcrossSchools({ requestId, fromPhone }) {
+  if (requestId) {
+    return forEachSchoolDb(async ({ slug }) => {
+      const row = await findEditRequestById(requestId);
+      if (!row || row.Status !== 'PENDING') return null;
+      const approverUser = await findApproverByWhatsAppPhone(fromPhone);
+      if (!approverUser || approverUser.user_id !== row.Approver_id) {
+        const assignedPhone = normalizePhone(row.approver?.phone);
+        if (normalizePhone(fromPhone) !== assignedPhone) {
+          console.warn('[whatsapp-webhook] phone mismatch for', slug, row.Request_id);
+          return null;
+        }
+      }
+      return { slug, row, approverUser };
+    });
+  }
+
+  // Same WhatsApp number can exist on multiple schools — prefer newest pending.
+  const candidates = [];
+  await forEachSchoolDb(async ({ slug }) => {
+    const approverUser = await findApproverByWhatsAppPhone(fromPhone);
+    if (!approverUser) return null;
+    const row = await findLatestPendingForApprover(approverUser.user_id);
+    if (!row || row.Status !== 'PENDING') return null;
+    candidates.push({ slug, row, approverUser });
+    return null; // keep scanning
+  });
+  if (!candidates.length) return null;
+  candidates.sort(
+    (a, b) => new Date(b.row.Requested_At).getTime() - new Date(a.row.Requested_At).getTime()
+  );
+  return candidates[0];
 }
 
 /** Incoming WhatsApp messages / button replies (POST). */
@@ -88,89 +161,92 @@ router.post('/', async (req, res) => {
           const parsed = parseButtonAction(buttonId, buttonTitle);
           if (!parsed) continue;
 
-          let row = null;
-          if (parsed.requestId) {
-            row = await findEditRequestById(parsed.requestId);
-          } else {
-            const approverUser = await findApproverByWhatsAppPhone(from);
-            if (approverUser) {
-              row = await findLatestPendingForApprover(approverUser.user_id);
-            }
-          }
-          if (!row) continue;
-          if (row.Status !== 'PENDING') continue; // ignore duplicates
-
-          const approverUser = await findApproverByWhatsAppPhone(from);
-          if (!approverUser || approverUser.user_id !== row.Approver_id) {
-            const assignedPhone = normalizePhone(row.approver?.phone);
-            if (normalizePhone(from) !== assignedPhone) {
-              console.warn('[whatsapp-webhook] phone mismatch for', row.Request_id);
-              continue;
-            }
-          }
-
-          const cs = await findClassSectionById(row.Class_Section_id);
-          const classLabel =
-            [cs?.tblClass?.Class_Name, cs?.tblSection?.Section_Name].filter(Boolean).join('-') ||
-            row.Class_Section_id;
-          const dateLabel = toDateString(row.Attendance_Date) || '';
-          const teacherName = row.teacher?.name || row.Teacher_id;
-          const approverName = approverUser?.name || row.approver?.name || row.Approver_id;
-          const actor = {
-            id: approverUser?.user_id || row.Approver_id,
-            name: approverUser?.name || row.approver?.name || null,
-            email: approverUser?.email || row.approver?.email || null,
-            role: approverUser?.role || row.approver?.role || null,
-          };
-          const requestDetails = {
-            channel: 'whatsapp',
-            className: cs?.tblClass?.Class_Name || null,
-            sectionName: cs?.tblSection?.Section_Name || null,
-            classSectionId: row.Class_Section_id,
-            attendanceDate: dateLabel,
-            teacherId: row.Teacher_id,
-            teacherName,
-            approverId: row.Approver_id,
-            approverName,
-            reason: row.Reason || null,
-            fromPhone: from || null,
-          };
-
-          if (parsed.action === 'approve') {
-            await approveEditRequest(row.Request_id, { actorId: row.Approver_id });
-            console.log('[whatsapp-webhook] approved', row.Request_id);
-            logAdminAudit(
-              { headers: {}, ip: null },
-              {
-                actor,
-                action: 'EDIT_REQUEST_APPROVE',
-                category: 'APPROVAL',
-                entityType: 'attendance_edit_request',
-                entityId: row.Request_id,
-                summary: clipAuditSummary(
-                  `${approverName} approved ${teacherName}'s request to edit Class ${classLabel} attendance on ${dateLabel} via WhatsApp`
-                ),
-                details: requestDetails,
-              }
+          const resolved = await resolveEditRequestAcrossSchools({
+            requestId: parsed.requestId,
+            fromPhone: from,
+          });
+          if (!resolved) {
+            console.warn(
+              '[whatsapp-webhook] no pending edit request for',
+              parsed.action,
+              parsed.requestId || from
             );
-          } else if (parsed.action === 'deny') {
-            await denyEditRequest(row.Request_id, { actorId: row.Approver_id });
-            console.log('[whatsapp-webhook] denied', row.Request_id);
-            logAdminAudit(
-              { headers: {}, ip: null },
-              {
-                actor,
-                action: 'EDIT_REQUEST_DENY',
-                category: 'APPROVAL',
-                entityType: 'attendance_edit_request',
-                entityId: row.Request_id,
-                summary: clipAuditSummary(
-                  `${approverName} denied ${teacherName}'s request to edit Class ${classLabel} attendance on ${dateLabel} via WhatsApp`
-                ),
-                details: requestDetails,
-              }
-            );
+            continue;
           }
+
+          const { slug, row, approverUser } = resolved;
+
+          await tenantAls.run(
+            {
+              prisma: slug === APEX_TENANT ? controlPrisma : await getPrismaForSlug(slug),
+              tenant: slug,
+            },
+            async () => {
+              const cs = await findClassSectionById(row.Class_Section_id);
+              const classLabel =
+                [cs?.tblClass?.Class_Name, cs?.tblSection?.Section_Name].filter(Boolean).join('-') ||
+                row.Class_Section_id;
+              const dateLabel = toDateString(row.Attendance_Date) || '';
+              const teacherName = row.teacher?.name || row.Teacher_id;
+              const approverName = approverUser?.name || row.approver?.name || row.Approver_id;
+              const actor = {
+                id: approverUser?.user_id || row.Approver_id,
+                name: approverUser?.name || row.approver?.name || null,
+                email: approverUser?.email || row.approver?.email || null,
+                role: approverUser?.role || row.approver?.role || null,
+              };
+              const requestDetails = {
+                channel: 'whatsapp',
+                tenant: slug,
+                className: cs?.tblClass?.Class_Name || null,
+                sectionName: cs?.tblSection?.Section_Name || null,
+                classSectionId: row.Class_Section_id,
+                attendanceDate: dateLabel,
+                teacherId: row.Teacher_id,
+                teacherName,
+                approverId: row.Approver_id,
+                approverName,
+                reason: row.Reason || null,
+                fromPhone: from || null,
+              };
+
+              if (parsed.action === 'approve') {
+                await approveEditRequest(row.Request_id, { actorId: row.Approver_id });
+                console.log('[whatsapp-webhook] approved', slug, row.Request_id);
+                logAdminAudit(
+                  { headers: {}, ip: null },
+                  {
+                    actor,
+                    action: 'EDIT_REQUEST_APPROVE',
+                    category: 'APPROVAL',
+                    entityType: 'attendance_edit_request',
+                    entityId: row.Request_id,
+                    summary: clipAuditSummary(
+                      `${approverName} approved ${teacherName}'s request to edit Class ${classLabel} attendance on ${dateLabel} via WhatsApp`
+                    ),
+                    details: requestDetails,
+                  }
+                );
+              } else if (parsed.action === 'deny') {
+                await denyEditRequest(row.Request_id, { actorId: row.Approver_id });
+                console.log('[whatsapp-webhook] denied', slug, row.Request_id);
+                logAdminAudit(
+                  { headers: {}, ip: null },
+                  {
+                    actor,
+                    action: 'EDIT_REQUEST_DENY',
+                    category: 'APPROVAL',
+                    entityType: 'attendance_edit_request',
+                    entityId: row.Request_id,
+                    summary: clipAuditSummary(
+                      `${approverName} denied ${teacherName}'s request to edit Class ${classLabel} attendance on ${dateLabel} via WhatsApp`
+                    ),
+                    details: requestDetails,
+                  }
+                );
+              }
+            }
+          );
         }
       }
     }

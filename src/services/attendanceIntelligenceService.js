@@ -27,6 +27,10 @@ export function saveIntelligenceThresholds(thresholds) {
   });
 }
 
+export function getMeetingPrefill(studentClassId) {
+  return apiFetch(`/api/attendance-intelligence/meeting-prefill/${encodeURIComponent(studentClassId)}`);
+}
+
 export function listIntelligenceMeetings(params = {}) {
   const q = new URLSearchParams();
   if (params.status) q.set('status', params.status);

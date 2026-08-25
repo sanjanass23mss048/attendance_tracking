@@ -26,6 +26,7 @@ import {
   createIntelligenceMeeting,
   getIntelligenceOverview,
   getIntelligenceThresholds,
+  getMeetingPrefill,
   saveIntelligenceThresholds,
   updateIntelligenceMeeting,
 } from '../services/attendanceIntelligenceService.js';
@@ -76,7 +77,32 @@ function inputClass() {
   return 'w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500';
 }
 
-export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNavigate }) {
+function readOnlyClass() {
+  return 'w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700';
+}
+
+function formatDisplayDate(iso) {
+  if (!iso) return '—';
+  const m = String(iso).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function resolveParentName(student) {
+  return (
+    student?.fatherName ||
+    student?.motherName ||
+    student?.guardianName ||
+    student?.parentName ||
+    'Parent'
+  );
+}
+
+function resolveStaffName(user) {
+  return user?.name || user?.displayName || user?.email?.split('@')[0] || 'Principal';
+}
+
+export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNavigate, user }) {
   const [tab, setTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -95,15 +121,8 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
       setData(overview);
       setThresholds(th.thresholds || th || overview?.thresholds || null);
     } catch (err) {
-      try {
-        const overview = await getIntelligenceOverview({ demo: true });
-        setData(overview);
-        setThresholds(overview?.thresholds || null);
-        showToast('Showing demo attendance intelligence', 'info');
-      } catch {
-        showToast(err.message || 'Could not load attendance intelligence', 'error');
-        setData(null);
-      }
+      showToast(err.message || 'Could not load attendance intelligence', 'error');
+      setData(null);
     } finally {
       setLoading(false);
     }
@@ -117,17 +136,46 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
 
-  const openMeetingFor = (student) => {
+  const openMeetingFor = async (student) => {
+    const alertReason = student.headline || student.reasons?.[0] || 'Attendance concern';
+    let parentName = resolveParentName(student);
+    let staffName = resolveStaffName(user);
+    let studentName = student.name || '';
+    let className = student.className || '';
+    let sectionName = student.sectionName || '';
+    let studentRecordId = student.studentRecordId;
+
+    const shouldPrefill =
+      student.studentClassId && !String(student.studentClassId).startsWith('demo-');
+
+    if (shouldPrefill) {
+      try {
+        const prefill = await getMeetingPrefill(student.studentClassId);
+        if (prefill?.parentName) parentName = prefill.parentName;
+        if (prefill?.staffName) staffName = prefill.staffName;
+        if (prefill?.student) {
+          studentName = prefill.student.name || studentName;
+          className = prefill.student.className || className;
+          sectionName = prefill.student.sectionName || sectionName;
+          studentRecordId = prefill.student.studentRecordId || studentRecordId;
+        }
+      } catch {
+        // Keep row fallbacks when prefill is unavailable.
+      }
+    }
+
     setMeetingForm({
       studentClassId: student.studentClassId,
-      studentRecordId: student.studentRecordId,
-      studentLabel: `${student.name} · ${formatClassLabel(student.className)}${student.sectionName ? `-${student.sectionName}` : ''}`,
-      parentName: '',
-      reason: student.headline || student.reasons?.[0] || 'Attendance concern',
+      studentRecordId,
+      studentName,
+      className,
+      sectionName,
+      studentLabel: `${studentName} · ${formatClassLabel(className)}${sectionName ? `-${sectionName}` : ''}`,
+      parentName,
+      reason: alertReason,
       meetingDate: new Date().toISOString().slice(0, 10),
-      staffName: '',
-      discussionNotes: '',
-      outcome: '',
+      staffName,
+      parentMessage: '',
       followUpDate: '',
       status: 'Scheduled',
       notifyParent: true,
@@ -136,8 +184,12 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
   };
 
   const saveMeeting = async () => {
-    if (!meetingForm?.studentClassId || !meetingForm.reason || !meetingForm.meetingDate) {
-      showToast('Student, reason and meeting date are required', 'error');
+    if (!meetingForm?.studentClassId || !meetingForm.meetingDate) {
+      showToast('Student and meeting date are required', 'error');
+      return;
+    }
+    if (!meetingForm.parentMessage?.trim()) {
+      showToast('Enter the message to send to the parent', 'error');
       return;
     }
     if (String(meetingForm.studentClassId).startsWith('demo-')) {
@@ -153,16 +205,16 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
         reason: meetingForm.reason,
         meetingDate: meetingForm.meetingDate,
         staffName: meetingForm.staffName,
-        discussionNotes: meetingForm.discussionNotes,
-        outcome: meetingForm.outcome,
+        discussionNotes: meetingForm.parentMessage.trim(),
+        outcome: '',
         followUpDate: meetingForm.followUpDate || null,
         status: meetingForm.status,
         notifyParent: meetingForm.notifyParent !== false,
       });
       const notify = res?.notify;
       const finalStatus = res?.meeting?.status || meetingForm.status;
-      if (notify?.sent > 0 && finalStatus === 'Completed') {
-        showToast('Meeting saved · parent message sent · Status set to Completed', 'success');
+      if (notify?.sent > 0) {
+        showToast(`Meeting saved (${finalStatus}) · parent notified`, 'success');
       } else if (meetingForm.notifyParent !== false && notify) {
         const bits = [];
         if (notify.missingPhones) bits.push('no parent phone on file');
@@ -236,15 +288,19 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
             </>
           ) : null}
           {' — '}
-          Sample alerts, meetings and patterns for walkthroughs. Live data appears automatically once
-          students and attendance are marked.
+          Sample alerts for walkthroughs only. Live school attendance is used by default.
         </div>
-      ) : data?.walkthrough ? (
-        <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
-          <strong className="font-semibold">Sample alerts on real students</strong>
+      ) : !data?.longAbsences?.length && !data?.patterns?.length ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+          <strong className="font-semibold">Live attendance</strong>
           {' — '}
-          No live absence patterns yet. You can schedule meetings and WhatsApp parents; cards use
-          real student records.
+          No students currently match the long-absence or pattern thresholds
+          {typeof data?.enrollmentCount === 'number'
+            ? ` (${data.enrollmentCount} enrolled${
+                typeof data?.markCount === 'number' ? `, ${data.markCount} marks scanned` : ''
+              })`
+            : ''}
+          . Alerts appear here after attendance is marked.
         </div>
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -400,78 +456,53 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
               <h3 className="text-sm font-bold text-gray-900">
                 Schedule meeting — {meetingForm.studentLabel}
               </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Student, parent, date and staff are filled from records. Type the WhatsApp message
+                body below.
+              </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="Parent name">
+                  <input className={readOnlyClass()} value={meetingForm.parentName} readOnly />
+                </Field>
+                <Field label="Student">
+                  <input className={readOnlyClass()} value={meetingForm.studentName} readOnly />
+                </Field>
+                <Field label="Class">
                   <input
-                    className={inputClass()}
-                    value={meetingForm.parentName}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, parentName: e.target.value }))}
+                    className={readOnlyClass()}
+                    value={formatClassLabel(meetingForm.className) + (meetingForm.sectionName ? `-${meetingForm.sectionName}` : '')}
+                    readOnly
                   />
                 </Field>
-                <Field label="Reason">
-                  <input
-                    className={inputClass()}
-                    value={meetingForm.reason}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, reason: e.target.value }))}
-                  />
+                <Field label="Alert reason">
+                  <input className={readOnlyClass()} value={meetingForm.reason} readOnly />
                 </Field>
                 <Field label="Meeting date">
                   <input
-                    type="date"
-                    className={inputClass()}
-                    value={meetingForm.meetingDate}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, meetingDate: e.target.value }))}
+                    className={readOnlyClass()}
+                    value={formatDisplayDate(meetingForm.meetingDate)}
+                    readOnly
                   />
                 </Field>
                 <Field label="Staff / Principal">
-                  <input
-                    className={inputClass()}
-                    value={meetingForm.staffName}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, staffName: e.target.value }))}
-                  />
+                  <input className={readOnlyClass()} value={meetingForm.staffName} readOnly />
                 </Field>
-                <Field label="Follow-up date">
-                  <input
-                    type="date"
+                <Field label="Message to parent" className="sm:col-span-2">
+                  <textarea
                     className={inputClass()}
-                    value={meetingForm.followUpDate}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, followUpDate: e.target.value }))}
+                    rows={4}
+                    placeholder="e.g. Please meet the principal on the scheduled date regarding your ward's attendance."
+                    value={meetingForm.parentMessage}
+                    onChange={(e) =>
+                      setMeetingForm((p) => ({ ...p, parentMessage: e.target.value }))
+                    }
                   />
-                </Field>
-                <Field label="Status">
-                  <select
-                    className={inputClass()}
-                    value={meetingForm.status}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, status: e.target.value }))}
-                  >
-                    {['Requested', 'Scheduled', 'Completed', 'Follow-up Required', 'Closed'].map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
                   {meetingForm.notifyParent !== false ? (
                     <p className="mt-1 text-[11px] text-violet-700">
-                      After the parent message sends successfully, Status becomes Completed (you can still
-                      change it later).
+                      Sent via WhatsApp meeting template. Status stays Scheduled until you mark
+                      the meeting Completed after the parent meets staff.
                     </p>
                   ) : null}
-                </Field>
-                <Field label="Discussion notes" className="sm:col-span-2">
-                  <textarea
-                    className={inputClass()}
-                    rows={2}
-                    value={meetingForm.discussionNotes}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, discussionNotes: e.target.value }))}
-                  />
-                </Field>
-                <Field label="Outcome" className="sm:col-span-2">
-                  <textarea
-                    className={inputClass()}
-                    rows={2}
-                    value={meetingForm.outcome}
-                    onChange={(e) => setMeetingForm((p) => ({ ...p, outcome: e.target.value }))}
-                  />
                 </Field>
               </div>
               <label className="mt-3 flex items-start gap-2 text-sm text-gray-700">
@@ -486,8 +517,8 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
                 <span>
                   <span className="font-semibold text-gray-900">Send message to parent</span>
                   <span className="block text-xs text-gray-500">
-                    WhatsApp the parent with the school meeting template. On successful send, Status
-                    is set to Completed.
+                    WhatsApp the parent with the school meeting template. Mark Completed only after
+                    the parent meets the principal or teacher.
                   </span>
                 </span>
               </label>
@@ -550,7 +581,7 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
                             onClick={() => patchMeetingStatus(m.id, 'Completed')}
                             className="rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
                           >
-                            Complete
+                            Parent met
                           </button>
                         ) : null}
                         {m.status !== 'Follow-up Required' ? (

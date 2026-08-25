@@ -173,7 +173,7 @@ export async function enrichMeetingsWithStudents(meetings) {
 
 /**
  * WhatsApp parent that a meeting was scheduled. Returns send summary.
- * Caller should set meeting Status → Completed when notify.sent > 0.
+ * Status stays Scheduled until staff mark the meeting Completed after it happens.
  */
 export async function notifyParentOfMeeting(meeting, student = null) {
   const { sendParentMeetingWhatsApp } = await import('../lib/whatsapp.js');
@@ -200,7 +200,10 @@ export async function notifyParentOfMeeting(meeting, student = null) {
     student?.motherName ||
     student?.guardianName ||
     'Parent';
-  const reason = meeting.reason || 'attendance';
+  const reason =
+    meeting.discussionNotes?.trim() ||
+    meeting.reason ||
+    'Please meet the school regarding your ward\'s attendance.';
   const title = 'Parent meeting scheduled';
   const message = [
     `Dear ${parentName},`,

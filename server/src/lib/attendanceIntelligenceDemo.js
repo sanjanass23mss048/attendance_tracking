@@ -18,6 +18,9 @@ function student(partial) {
     sectionName: partial.sectionName,
     classLabel: `${partial.className}-${partial.sectionName}`,
     rollNo: partial.rollNo,
+    fatherName: partial.fatherName || '',
+    motherName: partial.motherName || '',
+    guardianName: partial.guardianName || '',
     lastAttended: partial.lastAttended,
     consecutiveAbsent: partial.consecutiveAbsent ?? 0,
     absentIn30: partial.absentIn30 ?? 0,
@@ -52,6 +55,7 @@ export function buildDemoAttendanceIntelligence(asOf, thresholds = {}) {
       className: '7',
       sectionName: 'A',
       rollNo: '12',
+      fatherName: 'Rajesh Sharma',
       consecutiveAbsent: 6,
       absentIn30: 8,
       lastAttended: addDays(asOf, -7),
@@ -517,6 +521,9 @@ export function buildWalkthroughFromEnrollments(
       summary: scenario.reasons?.slice(0, 3),
     });
     row.studentRecordId = en.studentRecordId || row.studentRecordId;
+    row.fatherName = en.fatherName || '';
+    row.motherName = en.motherName || '';
+    row.guardianName = en.guardianName || '';
     if (scenario.meetingRequired || scenario.severity === 'critical' || scenario.severity === 'high') {
       longAbsences.push(row);
     }
