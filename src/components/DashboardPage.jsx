@@ -1157,6 +1157,7 @@ export default function DashboardPage({
       {canApproveEditRequests(user) ? (
         <IntelligenceDashboardCards
           onOpen={(tab) => onNavigate?.('attendance-intelligence', tab)}
+          onNavigate={onNavigate}
         />
       ) : null}
     </div>

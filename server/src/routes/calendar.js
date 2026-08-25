@@ -224,14 +224,6 @@ router.post('/sync', requireAuth, async (req, res) => {
     }
   }
 
-  logAdminAudit(req, {
-    action: 'CALENDAR_SYNC',
-    category: 'CALENDAR',
-    entityType: 'calendar',
-    summary: `Synced ${upserted} calendar event(s)`,
-    details: { upserted, submitted: parsed.data.events.length },
-  });
-
   return res.json({ ok: true, upserted });
 });
 

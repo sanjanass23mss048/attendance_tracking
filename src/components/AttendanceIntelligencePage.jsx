@@ -345,7 +345,6 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
                     View Student
                   </ActionBtn>
                   <ActionBtn onClick={() => openMeetingFor(row)}>Schedule Meeting</ActionBtn>
-                  <ActionBtn onClick={() => onNavigate?.('send-notification')}>Contact Parent</ActionBtn>
                 </div>
               </article>
             ))
@@ -684,7 +683,7 @@ function Field({ label, children, className = '' }) {
 }
 
 /** Dashboard intelligence panel — layout aligned to admin mockup, wired to live data. */
-export function IntelligenceDashboardCards({ onOpen }) {
+export function IntelligenceDashboardCards({ onOpen, onNavigate }) {
   const [data, setData] = useState(null);
   const [activities, setActivities] = useState([]);
 
@@ -1011,7 +1010,7 @@ export function IntelligenceDashboardCards({ onOpen }) {
         <Panel
           title="Recent Activities"
           footer="View All Activities →"
-          onFooter={() => onOpen?.('alerts')}
+          onFooter={() => onNavigate?.('audit-logs')}
           className="lg:col-span-1"
         >
           <ul className="space-y-3">
