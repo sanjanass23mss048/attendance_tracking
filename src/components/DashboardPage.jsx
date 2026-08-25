@@ -472,12 +472,50 @@ function SectionDrillPage({ classId, sectionId, date, report, loading, onNavigat
   );
 }
 
-function academicYearLabel(isoDate) {
+/** School year runs Apr → Mar (month index >= 3 is April). */
+function academicYearStartFromDate(isoDate) {
   const d = isoDate ? new Date(`${isoDate}T12:00:00`) : new Date();
   const y = d.getFullYear();
   const m = d.getMonth();
-  if (m >= 3) return `Academic Year ${y}-${String(y + 1).slice(-2)}`;
-  return `Academic Year ${y - 1}-${String(y).slice(-2)}`;
+  return m >= 3 ? y : y - 1;
+}
+
+function formatAcademicYearKey(startYear) {
+  return `${startYear}-${String(startYear + 1).slice(-2)}`;
+}
+
+function academicYearLabel(isoDate) {
+  return `Academic Year ${formatAcademicYearKey(academicYearStartFromDate(isoDate))}`;
+}
+
+function academicYearRange(startYear) {
+  return {
+    start: `${startYear}-04-01`,
+    end: `${startYear + 1}-03-31`,
+  };
+}
+
+/** Current year plus the previous two (newest first). */
+function academicYearOptions(todayIso) {
+  const currentStart = academicYearStartFromDate(todayIso);
+  return [0, 1, 2].map((offset) => {
+    const startYear = currentStart - offset;
+    return {
+      startYear,
+      key: formatAcademicYearKey(startYear),
+      label: `Academic Year ${formatAcademicYearKey(startYear)}`,
+    };
+  });
+}
+
+function dateForAcademicYear(startYear, preferredIso, todayIso) {
+  const { start, end } = academicYearRange(startYear);
+  if (preferredIso && preferredIso >= start && preferredIso <= end) {
+    return preferredIso > todayIso ? todayIso : preferredIso;
+  }
+  if (todayIso >= start && todayIso <= end) return todayIso;
+  if (end < todayIso) return end;
+  return start;
 }
 
 function formatHeaderDate(isoDate, dateLabel) {
@@ -693,8 +731,10 @@ export default function DashboardPage({
   const [drill, setDrill] = useState({ view: 'home' });
   const [sectionReport, setSectionReport] = useState(null);
   const [sectionLoading, setSectionLoading] = useState(false);
+  const [yearMenuOpen, setYearMenuOpen] = useState(false);
   const todayIso = getTodayAttendanceDate();
   const datePickerRef = useRef(null);
+  const yearMenuRef = useRef(null);
 
   const overviewTab = useMemo(() => {
     if (selectedDate === todayIso) return 'today';
@@ -819,6 +859,32 @@ export default function DashboardPage({
   const firstName = (user?.name || 'Admin').split(/\s+/)[0];
   const headerDate = formatHeaderDate(selectedDate, dateLabel);
   const academicYear = academicYearLabel(selectedDate);
+  const yearOptions = useMemo(() => academicYearOptions(todayIso), [todayIso]);
+  const selectedYearStart = academicYearStartFromDate(selectedDate);
+
+  useEffect(() => {
+    if (!yearMenuOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (yearMenuRef.current && !yearMenuRef.current.contains(event.target)) {
+        setYearMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setYearMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [yearMenuOpen]);
+
+  const selectAcademicYear = (startYear) => {
+    const next = dateForAcademicYear(startYear, selectedDate, todayIso);
+    setYearMenuOpen(false);
+    if (next && next !== selectedDate) onDateChange?.(next);
+  };
 
   const compactNav = usesCompactSchoolNav();
   const quickActions = (compactNav ? COMPACT_QUICK_ACTION_DEFS : FULL_QUICK_ACTION_DEFS).filter((a) => {
@@ -873,10 +939,49 @@ export default function DashboardPage({
             <CalendarDays size={15} className="text-violet-600" />
             {headerDate}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-3 py-2 text-xs font-semibold text-white shadow-sm">
-            {academicYear}
-            <ChevronDown size={14} className="opacity-80" aria-hidden="true" />
-          </span>
+          <div className="relative" ref={yearMenuRef}>
+            <button
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded={yearMenuOpen}
+              onClick={() => setYearMenuOpen((open) => !open)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-violet-700 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-violet-800"
+            >
+              {academicYear}
+              <ChevronDown
+                size={14}
+                className={`opacity-80 transition ${yearMenuOpen ? 'rotate-180' : ''}`}
+                aria-hidden="true"
+              />
+            </button>
+            {yearMenuOpen ? (
+              <ul
+                role="listbox"
+                aria-label="Academic year"
+                className="absolute right-0 z-20 mt-1.5 min-w-[12.5rem] overflow-hidden rounded-xl border border-violet-100 bg-white py-1 shadow-lg"
+              >
+                {yearOptions.map((opt) => {
+                  const active = opt.startYear === selectedYearStart;
+                  return (
+                    <li key={opt.key} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onClick={() => selectAcademicYear(opt.startYear)}
+                        className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-semibold ${
+                          active
+                            ? 'bg-violet-50 text-violet-800'
+                            : 'text-gray-700 hover:bg-violet-50 hover:text-violet-800'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {active ? <CheckCircle2 size={14} className="shrink-0 text-violet-600" /> : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </div>
         </div>
       </div>
 

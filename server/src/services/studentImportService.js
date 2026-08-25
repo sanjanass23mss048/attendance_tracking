@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma.js';
+import { loadWorkbookFromBuffer } from '../lib/xlsxCompat.js';
 import { newId, parseDateOnly, splitFullName, toDateString } from '../lib/ids.js';
 import { saveFile, readFile, absolutePath } from '../lib/storage.js';
 
@@ -381,8 +382,7 @@ async function loadExistingDuplicateSets() {
 export async function validateWorkbookBuffer(buffer) {
   let workbook;
   try {
-    workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    workbook = await loadWorkbookFromBuffer(buffer);
   } catch {
     return { error: 'Invalid workbook. Please upload a valid .xlsx file.' };
   }
