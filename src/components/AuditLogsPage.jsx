@@ -74,6 +74,154 @@ function StudentList({ title, students, emptyText = 'None' }) {
   );
 }
 
+function deliveryStatusBadge(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'sent') {
+    return 'bg-emerald-50 text-emerald-800 ring-emerald-200';
+  }
+  if (s === 'initiated') {
+    return 'bg-sky-50 text-sky-800 ring-sky-200';
+  }
+  if (s === 'undelivered' || s === 'failed') {
+    return 'bg-rose-50 text-rose-800 ring-rose-200';
+  }
+  if (s === 'skipped') {
+    return 'bg-amber-50 text-amber-900 ring-amber-200';
+  }
+  return 'bg-gray-100 text-gray-700 ring-gray-200';
+}
+
+function DeliveryCountChips({ counts, summary }) {
+  const c = counts || summary || null;
+  if (!c || typeof c !== 'object') return null;
+  const initiated = c.initiated ?? c.requested ?? null;
+  const sent = c.sent ?? null;
+  const undelivered = c.undelivered ?? ((c.failed || 0) + (c.skipped || 0) || null);
+  const chips = [
+    initiated != null ? { key: 'initiated', label: `Initiated ${initiated}` } : null,
+    sent != null ? { key: 'sent', label: `Sent ${sent}` } : null,
+    undelivered != null ? { key: 'undelivered', label: `Undelivered ${undelivered}` } : null,
+  ].filter(Boolean);
+  if (!chips.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {chips.map((chip) => (
+        <span
+          key={chip.key}
+          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${deliveryStatusBadge(chip.key)}`}
+        >
+          {chip.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ParentAlertAuditDetails({ details, action }) {
+  if (!details || typeof details !== 'object') return null;
+  const messages = Array.isArray(details.messages) ? details.messages : [];
+  const counts = details.counts || details.summary || null;
+  const isParentAlert =
+    String(action || '').startsWith('PARENT_ALERT') ||
+    Boolean(counts?.sent != null || counts?.initiated != null || messages.length);
+  if (!isParentAlert && !messages.length) return null;
+
+  return (
+    <div className="mt-3 space-y-3 text-xs text-gray-700">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold text-gray-500">Delivery status</span>
+        <DeliveryCountChips counts={counts} summary={details.summary} />
+      </div>
+      {(details.className || details.sectionName || details.date || details.channel) && (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {details.date ? (
+            <div>
+              <div className="font-semibold text-gray-500">Date</div>
+              <div className="mt-0.5">{details.date}</div>
+            </div>
+          ) : null}
+          {(details.className || details.sectionName) && (
+            <div>
+              <div className="font-semibold text-gray-500">Class</div>
+              <div className="mt-0.5">
+                {[details.className, details.sectionName].filter(Boolean).join('-') || '—'}
+              </div>
+            </div>
+          )}
+          {details.channel ? (
+            <div>
+              <div className="font-semibold text-gray-500">Channel</div>
+              <div className="mt-0.5">{details.channel}</div>
+            </div>
+          ) : null}
+          {details.recipient ? (
+            <div>
+              <div className="font-semibold text-gray-500">Recipient</div>
+              <div className="mt-0.5">{details.recipient}</div>
+            </div>
+          ) : null}
+        </div>
+      )}
+      {details.initiatedAt ? (
+        <div>
+          <div className="font-semibold text-gray-500">Initiated at</div>
+          <div className="mt-0.5">{formatAuditWhen(details.initiatedAt)}</div>
+        </div>
+      ) : null}
+      {details.skipReason ? (
+        <div>
+          <div className="font-semibold text-gray-500">Skip reason</div>
+          <div className="mt-0.5">{details.skipReason}</div>
+        </div>
+      ) : null}
+      {messages.length ? (
+        <div className="space-y-2">
+          <div className="font-semibold text-gray-500">
+            Attendance messages ({messages.length})
+          </div>
+          {messages.map((m, i) => (
+            <div
+              key={`${m.studentId || m.studentName || i}-${i}`}
+              className="rounded-lg border border-gray-200 bg-white p-3"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    {m.rollNo != null && m.rollNo !== '' && m.rollNo !== '-'
+                      ? `#${m.rollNo} `
+                      : ''}
+                    {m.studentName || m.name || 'Student'}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-gray-500">
+                    Attendance: {STATUS_LABELS[m.status] || m.status || '—'}
+                    {m.phone ? ` · ${m.phone}` : ''}
+                    {m.channel ? ` · ${m.channel}` : ''}
+                  </div>
+                </div>
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1 ring-inset ${deliveryStatusBadge(
+                    m.deliveryStatus
+                  )}`}
+                >
+                  {m.deliveryStatus || '—'}
+                </span>
+              </div>
+              {m.message ? (
+                <pre className="mt-2 whitespace-pre-wrap rounded-md bg-slate-50 px-2.5 py-2 text-[11px] leading-relaxed text-gray-800">
+                  {m.message}
+                </pre>
+              ) : null}
+              {m.error ? (
+                <p className="mt-1.5 text-[11px] text-rose-700">{m.error}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AttendanceAuditDetails({ details }) {
   if (!details || typeof details !== 'object') return null;
   const snapshot = details.currentAttendance || details;
@@ -401,6 +549,13 @@ export default function AuditLogsPage({ user, onAccessDenied }) {
                         </td>
                         <td className="max-w-md px-3 py-3 text-gray-700">
                           <span className="line-clamp-2">{log.summary || '—'}</span>
+                          {log.category === 'NOTIFICATION' ||
+                          String(log.action || '').startsWith('PARENT_ALERT') ? (
+                            <DeliveryCountChips
+                              counts={log.details?.counts}
+                              summary={log.details?.summary}
+                            />
+                          ) : null}
                         </td>
                         <td className="px-3 py-3">
                           {log.success === false ? (
@@ -443,6 +598,7 @@ export default function AuditLogsPage({ user, onAccessDenied }) {
                             </div>
                             {log.details != null ? (
                               <div className="mt-3">
+                                <ParentAlertAuditDetails details={log.details} action={log.action} />
                                 <AttendanceAuditDetails details={log.details} />
                                 <div className="mt-3 text-xs font-semibold text-gray-500">Raw details</div>
                                 <pre className="mt-1 max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white p-3 text-[11px] leading-relaxed text-gray-800">

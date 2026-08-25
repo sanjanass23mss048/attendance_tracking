@@ -30,7 +30,6 @@ import {
   getGovtHolidayMeta,
   getScheduledEvents,
   getDefaultHolidayState,
-  getHolidayStates,
   isCalendarificConfigured,
   refreshGovtHolidays,
   migrateLocalStorageToDb,
@@ -158,7 +157,6 @@ export default function AcademicCalendarPage() {
   const defaultYear = 2026;
   const defaultMonth = 6; // July — matches mockup
 
-  const [classGroup, setClassGroup] = useState('upto9');
   const [viewMode, setViewMode] = useState('calendar');
   const [month, setMonth] = useState(defaultMonth);
   const [year, setYear] = useState(defaultYear);
@@ -179,7 +177,7 @@ export default function AcademicCalendarPage() {
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [govtCount, setGovtCount] = useState(0);
-  const [holidayState, setHolidayState] = useState(getDefaultHolidayState());
+  const holidayState = getDefaultHolidayState();
   const [selectedDay, setSelectedDay] = useState(null);
   const [exportNotice, setExportNotice] = useState('');
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
@@ -189,7 +187,6 @@ export default function AcademicCalendarPage() {
   const [mobileCalView, setMobileCalView] = useState('calendar');
 
   const calendarificReady = isCalendarificConfigured();
-  const holidayStates = getHolidayStates();
 
   useEffect(() => {
     migrateLocalStorageToDb();
@@ -231,22 +228,8 @@ export default function AcademicCalendarPage() {
 
   const monthCells = useMemo(() => buildMonthDays(year, month), [year, month]);
 
-  const classGroupFilter = (event) => {
-    const a = (event.applicableTo || 'All Classes').toLowerCase();
-    if (a === 'all classes' || !a) return true;
-    if (classGroup === 'upto9') return a.includes('up to') || a.includes('9');
-    return a.includes('10') || a.includes('above');
-  };
-
-  const filteredEvents = useMemo(
-    () => events.filter(classGroupFilter),
-    [events, classGroup]
-  );
-
-  const filteredScheduled = useMemo(
-    () => scheduledEvents.filter(classGroupFilter),
-    [scheduledEvents, classGroup]
-  );
+  const filteredEvents = events;
+  const filteredScheduled = scheduledEvents;
 
   const eventsByDay = useMemo(() => {
     const map = {};
@@ -472,17 +455,6 @@ export default function AcademicCalendarPage() {
               <Calendar size={18} />
             </button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm border border-gray-200">
-          <select
-            value={classGroup}
-            onChange={(e) => setClassGroup(e.target.value)}
-            className="flex-1 rounded-lg border border-emerald-200 bg-emerald-50 py-2 px-3 text-sm font-semibold text-emerald-900"
-          >
-            <option value="upto9">Up to Class 9</option>
-            <option value="above9">Class 10 &amp; above</option>
-          </select>
         </div>
 
         <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm">
@@ -770,31 +742,6 @@ export default function AcademicCalendarPage() {
                     ))}
                 </select>
                 <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={holidayState}
-                  onChange={(e) => setHolidayState(e.target.value)}
-                  className="appearance-none rounded-lg border border-indigo-200 bg-indigo-50 py-2 pl-3 pr-8 text-sm font-semibold text-indigo-900"
-                >
-                  {holidayStates.map((state) => (
-                    <option key={state.id} value={state.id}>{state.label}</option>
-                  ))}
-                </select>
-                <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={classGroup}
-                  onChange={(e) => setClassGroup(e.target.value)}
-                  className="appearance-none rounded-lg border border-emerald-200 bg-emerald-50 py-2 pl-3 pr-8 text-sm font-semibold text-emerald-900"
-                >
-                  <option value="upto9">Up to Class 9</option>
-                  <option value="above9">Class 10 &amp; above</option>
-                </select>
-                <ChevronDown size={16} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400" />
               </div>
 
               <span className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-900">
