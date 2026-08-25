@@ -17,6 +17,7 @@ import StudentBulkImportPage from './components/StudentBulkImportPage';
 import LeaveLettersPage from './components/LeaveLettersPage';
 import TcRequestsPage from './components/TcRequestsPage';
 import ClassesPage from './components/ClassesPage';
+import ClassSectionHandlingPage from './components/ClassSectionHandlingPage';
 import SettingsPage from './components/SettingsPage';
 import SupportCenterPage from './components/SupportCenterPage';
 import ReportsPage from './components/ReportsPage';
@@ -619,6 +620,10 @@ function AttendanceApp() {
       return;
     }
     if (pageId === 'attendance-intelligence' && !canApproveEditRequests(user)) {
+      setActivePage('dashboard');
+      return;
+    }
+    if (pageId === 'class-section-handling' && !canApproveEditRequests(user)) {
       setActivePage('dashboard');
       return;
     }
@@ -1559,6 +1564,8 @@ function AttendanceApp() {
             <TcRequestsPage user={user} />
           ) : activePage === 'classes' ? (
             <ClassesPage initialClassName={pageFocus?.className} />
+          ) : activePage === 'class-section-handling' ? (
+            canApproveEditRequests(user) ? <ClassSectionHandlingPage /> : null
           ) : activePage === 'teachers' ? (
             canManageTeachers(user) ? (
               <TeachersPage user={user} onAccessDenied={denyTeachersAccess} />

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Sparkles,
   History,
+  Layers,
 } from 'lucide-react';
 import { isNavChildActive, navItemsForUser } from '../data/navItems';
 import { SchoolLogo, useBranding } from '../lib/branding.jsx';
@@ -53,6 +54,7 @@ const iconMap = {
   AlertTriangle,
   Sparkles,
   History,
+  Layers,
 };
 
 export default function Sidebar({

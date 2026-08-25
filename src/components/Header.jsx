@@ -34,6 +34,10 @@ const PAGE_TITLES = {
     subtitle: 'Parent request → teacher notifies management → approve (student becomes inactive).',
   },
   classes: { title: 'Classes', subtitle: 'Class and section management.' },
+  'class-section-handling': {
+    title: 'Class & Section Handling',
+    subtitle: 'Allocate students to class and section.',
+  },
   teachers: { title: 'Staff', subtitle: 'Staff directory and management.' },
   users: { title: 'Users', subtitle: 'Create Teacher and Parent login accounts.' },
   calendar: { title: 'Academic Calendar', subtitle: 'Plan, manage and view academic events.' },
