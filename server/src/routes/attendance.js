@@ -543,6 +543,57 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'No notifiable statuses to record (Present is skipped)' });
   }
 
+  const channel = parsed.data.channel || 'sms';
+  const recipient = parsed.data.recipient || 'father';
+
+  // Previous-day edit / unlock / re-confirm must never re-blast parents.
+  // Absence WhatsApp/SMS only fires for live (today) attendance marking.
+  if (isPastAttendanceDate(parsed.data.date)) {
+    const existing = await listParentMessages(section.Class_Section_id, date);
+    logAdminAudit(req, {
+      action: 'PARENT_ALERT_SKIPPED_PAST_DATE',
+      category: 'NOTIFICATION',
+      entityType: 'class_section',
+      entityId: section.Class_Section_id,
+      summary: `Skipped parent attendance alerts for past date ${parsed.data.date} (${messages.length} requested)`,
+      details: {
+        date: parsed.data.date,
+        channel,
+        recipient,
+        requested: messages.length,
+        skipReason: 'past_attendance_date',
+      },
+    });
+    return res.json({
+      ok: true,
+      date: parsed.data.date,
+      sectionId: section.Class_Section_id,
+      recorded: 0,
+      skippedDelivery: true,
+      skipReason: 'past_attendance_date',
+      message:
+        'Parent absence alerts are not sent for previous-day attendance. Alerts only go out for today\'s marking.',
+      channel,
+      recipient,
+      sentMessages: existing,
+      delivery: [],
+      summary: { sent: 0, skipped: messages.length, failed: 0 },
+      sms: {
+        configured: isSmsConfigured(),
+        provider: String(env('SMS_PROVIDER', 'console')).toLowerCase(),
+        sent: 0,
+        skipped: messages.length,
+        failed: 0,
+      },
+      whatsapp: {
+        configured: isWhatsAppConfigured(),
+        sent: 0,
+        skipped: messages.length,
+        failed: 0,
+      },
+    });
+  }
+
   let initiatedAt = null;
   if (parsed.data.initiatedAt) {
     initiatedAt = new Date(parsed.data.initiatedAt);
@@ -558,8 +609,6 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
   });
 
   // Deliver alerts to parents via SMS and/or WhatsApp.
-  const channel = parsed.data.channel || 'sms';
-  const recipient = parsed.data.recipient || 'father';
   const sendSmsChannel = channel === 'sms' || channel === 'whatsapp_sms';
   const sendWhatsAppChannel = channel === 'whatsapp' || channel === 'whatsapp_sms';
 
@@ -581,6 +630,9 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
   const classSectionLabel = [section.tblClass?.Class_Name, section.tblSection?.Section_Name]
     .filter(Boolean)
     .join('-') || '—';
+  const className = section.tblClass?.Class_Name || '';
+  const sectionName = section.tblSection?.Section_Name || '';
+  const classLabel = classSectionLabel === '—' ? section.Class_Section_id : classSectionLabel;
 
   const delivery = [];
   for (const m of messages) {
@@ -595,7 +647,10 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     if (!phones.length) {
       delivery.push({
         studentId: m.studentId,
+        studentName,
+        rollNo,
         status: m.status,
+        message: body,
         phone: null,
         channel,
         recipient,
@@ -655,7 +710,10 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
 
       delivery.push({
         studentId: m.studentId,
+        studentName,
+        rollNo,
         status: m.status,
+        message: body,
         phone: channelResults[0]?.to || phone || null,
         channel,
         recipient,
@@ -671,11 +729,26 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
   const sentOk = delivery.filter((d) => d.ok && !d.skipped).length;
   const sentSkipped = delivery.filter((d) => d.skipped).length;
   const sentFailed = delivery.filter((d) => !d.ok && !d.skipped).length;
+  const initiatedCount = messages.length;
+  const undeliveredCount = sentFailed + sentSkipped;
 
   const countChannel = (name, pred) =>
     delivery.filter((d) => d.channels?.some((c) => c.channel === name && pred(c))).length;
 
   const sentMessages = await listParentMessages(section.Class_Section_id, date);
+
+  const auditMessages = delivery.map((d) => ({
+    studentId: d.studentId,
+    studentName: d.studentName || 'Student',
+    rollNo: d.rollNo || null,
+    status: d.status,
+    deliveryStatus: d.ok && !d.skipped ? 'sent' : d.skipped ? 'skipped' : 'undelivered',
+    phone: d.phone || null,
+    channel: d.channel,
+    error: d.error || null,
+    message: d.message || null,
+    channels: d.channels || [],
+  }));
 
   const payload = {
     ok: true,
@@ -687,7 +760,9 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     sentMessages,
     delivery,
     summary: {
+      initiated: initiatedCount,
       sent: sentOk,
+      undelivered: undeliveredCount,
       skipped: sentSkipped,
       failed: sentFailed,
     },
@@ -711,13 +786,28 @@ router.post('/parent-messages', requireAuth, async (req, res) => {
     category: 'NOTIFICATION',
     entityType: 'class_section',
     entityId: section.Class_Section_id,
-    summary: `Sent parent attendance alerts for ${section.Class_Section_id} on ${parsed.data.date} via ${channel} (${sentOk} sent, ${sentFailed} failed)`,
+    summary: clipAuditSummary(
+      `Parent attendance alerts for Class ${classLabel} on ${parsed.data.date} via ${channel}: ` +
+        `${initiatedCount} initiated, ${sentOk} sent, ${undeliveredCount} undelivered`
+    ),
     details: {
       date: parsed.data.date,
+      className,
+      sectionName,
+      sectionId: section.Class_Section_id,
       channel,
       recipient,
+      initiatedAt: initiatedAt?.toISOString?.() || initiatedAt || new Date().toISOString(),
       recorded: saved.length,
+      counts: {
+        initiated: initiatedCount,
+        sent: sentOk,
+        undelivered: undeliveredCount,
+        skipped: sentSkipped,
+        failed: sentFailed,
+      },
       summary: payload.summary,
+      messages: auditMessages,
     },
   });
 

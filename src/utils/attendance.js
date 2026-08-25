@@ -19,14 +19,24 @@ export function isSundayAttendanceDate(isoDate) {
   return !Number.isNaN(date.getTime()) && date.getDay() === 0;
 }
 
-/** Today's date, or the previous weekday if today is Sunday. */
-export function getTodayAttendanceDate(timeZone = SCHOOL_TIMEZONE) {
-  let iso = new Intl.DateTimeFormat('en-CA', {
+/** Calendar today (YYYY-MM-DD) in the school timezone — matches server todayYmd(). */
+export function getSchoolTodayYmd(timeZone = SCHOOL_TIMEZONE) {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+}
+
+/** True when attendance date is before school-local today (previous-day edits). */
+export function isPastAttendanceDate(dateStr, timeZone = SCHOOL_TIMEZONE) {
+  return String(dateStr || '') < getSchoolTodayYmd(timeZone);
+}
+
+/** Today's date, or the previous weekday if today is Sunday. */
+export function getTodayAttendanceDate(timeZone = SCHOOL_TIMEZONE) {
+  let iso = getSchoolTodayYmd(timeZone);
   while (isSundayAttendanceDate(iso)) {
     iso = shiftAttendanceDate(iso, -1);
   }

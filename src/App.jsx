@@ -62,6 +62,7 @@ import {
   TODAY_IDX,
   formatAttendanceDate,
   getTodayAttendanceDate,
+  isPastAttendanceDate,
   snapToWorkingAttendanceDate,
   ATTENDANCE_HOLIDAY_PICK_MESSAGE,
 } from './utils/attendance';
@@ -529,13 +530,17 @@ function AttendanceApp() {
   const absentStudents = getStudentsByStatus(students, grid, 'A');
   const markedCount = countMarkedToday(grid);
   const isDirty = !gridsEqual(grid, savedGrid);
-  const messagesToSend = getMessagesToSend(
-    students,
-    grid,
-    classLabel,
-    lastSentStatusByStudent,
-    attendanceDateLabel
-  );
+  const isPastAttendanceDay = isPastAttendanceDate(selectedDate);
+  // Never offer parent alerts when editing a previous day (server also blocks delivery).
+  const messagesToSend = isPastAttendanceDay
+    ? []
+    : getMessagesToSend(
+        students,
+        grid,
+        classLabel,
+        lastSentStatusByStudent,
+        attendanceDateLabel
+      );
   const preview = getNotificationStudent(students, grid);
 
   useEffect(() => {
@@ -990,6 +995,13 @@ function AttendanceApp() {
 
   const handleSendMessages = async ({ forceResend = false } = {}) => {
     if (!showConfirmed) return;
+    if (isPastAttendanceDate(selectedDate)) {
+      showToast(
+        "Parent messages are only sent for today's attendance — not when editing previous days.",
+        'info'
+      );
+      return;
+    }
     if (messagesSent && !forceResend) {
       showToast('Messages were already sent to parents.', 'info');
       return;
@@ -1047,6 +1059,15 @@ function AttendanceApp() {
           message: n.message,
         })),
       });
+
+      if (result?.skippedDelivery || result?.skipReason === 'past_attendance_date') {
+        showToast(
+          result.message ||
+            "Parent messages are only sent for today's attendance — not when editing previous days.",
+          'info'
+        );
+        return;
+      }
 
       const snapshot = { ...(forceResend ? {} : lastSentStatusByStudent || {}) };
       for (const m of result.sentMessages || pending) {
@@ -1468,10 +1489,19 @@ function AttendanceApp() {
                       <button
                         type="button"
                         onClick={() => handleSendMessages()}
-                        disabled={messagesSent}
+                        disabled={messagesSent || isPastAttendanceDay}
                         className="rounded-lg bg-amber-400 px-5 py-2 text-sm font-bold text-gray-900 hover:bg-amber-500 disabled:bg-green-500 disabled:text-white"
+                        title={
+                          isPastAttendanceDay
+                            ? 'Parent alerts are not sent for previous-day attendance'
+                            : undefined
+                        }
                       >
-                        {messagesSent ? 'Messages Sent' : 'Send to Parents'}
+                        {messagesSent
+                          ? 'Messages Sent'
+                          : isPastAttendanceDay
+                            ? 'No parent alerts (past day)'
+                            : 'Send to Parents'}
                       </button>
                     </div>
                   )}
