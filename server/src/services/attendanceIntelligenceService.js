@@ -569,3 +569,64 @@ export async function buildStudentTimeline(studentClassId, { days = 90 } = {}) {
     events,
   };
 }
+
+function resolveParentNameFromStudent(st) {
+  return (
+    st?.fatherName ||
+    st?.motherName ||
+    st?.guardianName ||
+    st?.parentName ||
+    'Parent'
+  );
+}
+
+function resolveStaffName(user) {
+  return user?.name || user?.displayName || user?.email?.split('@')[0] || 'Principal';
+}
+
+/**
+ * Prefill parent/staff names for the schedule-meeting form when alert rows lack them.
+ */
+export async function getMeetingPrefill(studentClassId, user) {
+  const enrollment = await prisma.tblStudent_Class.findUnique({
+    where: { student_class_id: studentClassId },
+    include: {
+      tblStudents: true,
+      tblClass_Section: { include: { tblClass: true, tblSection: true } },
+    },
+  });
+  if (!enrollment || enrollment.Int_Status === 0 || enrollment.tblStudents?.Int_Status === 0) {
+    return null;
+  }
+
+  let staffName = resolveStaffName(user);
+  if (!staffName || staffName === 'Principal') {
+    const staffId = user?.id || user?.sub;
+    if (staffId) {
+      const staffUser = await prisma.tblUsers.findUnique({
+        where: { user_id: staffId },
+        select: { name: true, email: true },
+      });
+      if (staffUser?.name) staffName = staffUser.name;
+      else if (staffUser?.email) staffName = staffUser.email.split('@')[0];
+    }
+  }
+
+  const student = {
+    studentClassId: enrollment.student_class_id,
+    studentRecordId: enrollment.Student_id,
+    name: fullName(enrollment.tblStudents?.First_Name, enrollment.tblStudents?.Last_Name) || 'Student',
+    className: enrollment.tblClass_Section?.tblClass?.Class_Name || '',
+    sectionName: enrollment.tblClass_Section?.tblSection?.Section_Name || '',
+    rollNo: enrollment.Roll_No || '',
+    fatherName: enrollment.tblStudents?.Father_Name || '',
+    motherName: enrollment.tblStudents?.Mother_Name || '',
+    guardianName: enrollment.tblStudents?.Guardian_Name || '',
+  };
+
+  return {
+    parentName: resolveParentNameFromStudent(student),
+    staffName,
+    student,
+  };
+}

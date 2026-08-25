@@ -11,6 +11,7 @@ import {
 import {
   buildAttendanceIntelligence,
   buildStudentTimeline,
+  getMeetingPrefill,
 } from '../services/attendanceIntelligenceService.js';
 import {
   listMeetings,
@@ -92,6 +93,34 @@ router.put('/thresholds', async (req, res) => {
   }
 });
 
+router.get('/meeting-prefill/:studentClassId', async (req, res) => {
+  try {
+    if (isDemoStudentClassId(req.params.studentClassId)) {
+      const overview = await buildAttendanceIntelligence({ forceDemo: true });
+      const row =
+        overview.longAbsences.find((s) => s.studentClassId === req.params.studentClassId) ||
+        overview.patterns.find((s) => s.studentClassId === req.params.studentClassId);
+      if (!row) return res.status(404).json({ error: 'Demo student not found' });
+      const parentName =
+        row.fatherName || row.motherName || row.guardianName || row.parentName || 'Parent';
+      const staffName =
+        req.user?.name || req.user?.email?.split('@')[0] || 'Principal';
+      return res.json({
+        parentName,
+        staffName,
+        student: row,
+        demo: true,
+      });
+    }
+    const prefill = await getMeetingPrefill(req.params.studentClassId, req.user);
+    if (!prefill) return res.status(404).json({ error: 'Student not found' });
+    return res.json(prefill);
+  } catch (err) {
+    console.error('intelligence meeting prefill', err);
+    return res.status(500).json({ error: 'Could not load meeting prefill' });
+  }
+});
+
 router.get('/meetings', async (req, res) => {
   try {
     const rows = await listMeetings({
@@ -118,7 +147,7 @@ const meetingSchema = z.object({
   outcome: z.string().optional().nullable(),
   followUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable().or(z.literal('')),
   status: z.string().optional(),
-  /** When true (default), WhatsApp parent and set Status → Completed on successful send. */
+  /** When true (default), WhatsApp the parent about the scheduled meeting. */
   notifyParent: z.boolean().optional().default(true),
 });
 
@@ -144,10 +173,6 @@ router.post('/meetings', async (req, res) => {
     if (notifyParent !== false) {
       try {
         notify = await notifyParentOfMeeting(meeting, enriched.student);
-        if (notify.sent > 0) {
-          meeting = await updateMeeting(meeting.id, { status: 'Completed' }, req.user);
-          [enriched] = await enrichMeetingsWithStudents([meeting]);
-        }
       } catch (err) {
         console.warn('intelligence meeting parent notify', err?.message || err);
         notify = {
@@ -184,10 +209,6 @@ router.patch('/meetings/:id', async (req, res) => {
     if (notifyParent) {
       try {
         notify = await notifyParentOfMeeting(meeting, enriched.student);
-        if (notify.sent > 0) {
-          meeting = await updateMeeting(meeting.id, { status: 'Completed' }, req.user);
-          [enriched] = await enrichMeetingsWithStudents([meeting]);
-        }
       } catch (err) {
         console.warn('intelligence meeting parent notify (patch)', err?.message || err);
         notify = {

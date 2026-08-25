@@ -26,6 +26,7 @@ import {
   createIntelligenceMeeting,
   getIntelligenceOverview,
   getIntelligenceThresholds,
+  getMeetingPrefill,
   saveIntelligenceThresholds,
   updateIntelligenceMeeting,
 } from '../services/attendanceIntelligenceService.js';
@@ -97,6 +98,10 @@ function resolveParentName(student) {
   );
 }
 
+function resolveStaffName(user) {
+  return user?.name || user?.displayName || user?.email?.split('@')[0] || 'Principal';
+}
+
 export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNavigate, user }) {
   const [tab, setTab] = useState(initialTab);
   const [loading, setLoading] = useState(true);
@@ -131,19 +136,45 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
     if (initialTab) setTab(initialTab);
   }, [initialTab]);
 
-  const openMeetingFor = (student) => {
+  const openMeetingFor = async (student) => {
     const alertReason = student.headline || student.reasons?.[0] || 'Attendance concern';
+    let parentName = resolveParentName(student);
+    let staffName = resolveStaffName(user);
+    let studentName = student.name || '';
+    let className = student.className || '';
+    let sectionName = student.sectionName || '';
+    let studentRecordId = student.studentRecordId;
+
+    const shouldPrefill =
+      student.studentClassId && !String(student.studentClassId).startsWith('demo-');
+
+    if (shouldPrefill) {
+      try {
+        const prefill = await getMeetingPrefill(student.studentClassId);
+        if (prefill?.parentName) parentName = prefill.parentName;
+        if (prefill?.staffName) staffName = prefill.staffName;
+        if (prefill?.student) {
+          studentName = prefill.student.name || studentName;
+          className = prefill.student.className || className;
+          sectionName = prefill.student.sectionName || sectionName;
+          studentRecordId = prefill.student.studentRecordId || studentRecordId;
+        }
+      } catch {
+        // Keep row fallbacks when prefill is unavailable.
+      }
+    }
+
     setMeetingForm({
       studentClassId: student.studentClassId,
-      studentRecordId: student.studentRecordId,
-      studentName: student.name || '',
-      className: student.className || '',
-      sectionName: student.sectionName || '',
-      studentLabel: `${student.name} · ${formatClassLabel(student.className)}${student.sectionName ? `-${student.sectionName}` : ''}`,
-      parentName: resolveParentName(student),
+      studentRecordId,
+      studentName,
+      className,
+      sectionName,
+      studentLabel: `${studentName} · ${formatClassLabel(className)}${sectionName ? `-${sectionName}` : ''}`,
+      parentName,
       reason: alertReason,
       meetingDate: new Date().toISOString().slice(0, 10),
-      staffName: user?.name || user?.displayName || user?.email?.split('@')[0] || 'Principal',
+      staffName,
       parentMessage: '',
       followUpDate: '',
       status: 'Scheduled',
@@ -182,8 +213,8 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
       });
       const notify = res?.notify;
       const finalStatus = res?.meeting?.status || meetingForm.status;
-      if (notify?.sent > 0 && finalStatus === 'Completed') {
-        showToast('Meeting saved · parent message sent · Status set to Completed', 'success');
+      if (notify?.sent > 0) {
+        showToast(`Meeting saved (${finalStatus}) · parent notified`, 'success');
       } else if (meetingForm.notifyParent !== false && notify) {
         const bits = [];
         if (notify.missingPhones) bits.push('no parent phone on file');
@@ -469,8 +500,8 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
                   />
                   {meetingForm.notifyParent !== false ? (
                     <p className="mt-1 text-[11px] text-violet-700">
-                      Sent via WhatsApp meeting template. On successful send, Status becomes
-                      Completed.
+                      Sent via WhatsApp meeting template. Status stays Scheduled until you mark
+                      the meeting Completed after the parent meets staff.
                     </p>
                   ) : null}
                 </Field>
@@ -487,8 +518,8 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
                 <span>
                   <span className="font-semibold text-gray-900">Send message to parent</span>
                   <span className="block text-xs text-gray-500">
-                    WhatsApp the parent with the school meeting template. On successful send, Status
-                    is set to Completed.
+                    WhatsApp the parent with the school meeting template. Mark Completed only after
+                    the parent meets the principal or teacher.
                   </span>
                 </span>
               </label>
@@ -551,7 +582,7 @@ export default function AttendanceIntelligencePage({ initialTab = 'alerts', onNa
                             onClick={() => patchMeetingStatus(m.id, 'Completed')}
                             className="rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
                           >
-                            Complete
+                            Parent met
                           </button>
                         ) : null}
                         {m.status !== 'Follow-up Required' ? (
