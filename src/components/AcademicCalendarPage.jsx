@@ -11,7 +11,6 @@ import {
   Users,
   FlaskConical,
   Plus,
-  Zap,
   Download,
   FileDown,
   X,
@@ -21,14 +20,10 @@ import {
 } from 'lucide-react';
 import {
   EVENT_TYPES,
-  DEFAULT_SUDDEN_HOLIDAY,
-  APPLICABLE_OPTIONS,
   CALENDAR_LEGEND,
-  buildSuddenHolidayMessage,
 } from '../data/calendarData';
 import { exportAcademicCalendarPdf, resolveAcademicYearStart } from '../services/reportService.js';
 import {
-  createSuddenHoliday,
   createCalendarEvent,
   getMonthEvents,
   getAcademicYearEvents,
@@ -169,14 +164,7 @@ export default function AcademicCalendarPage() {
   const [year, setYear] = useState(defaultYear);
   const [events, setEvents] = useState([]);
   const [scheduledEvents, setScheduledEvents] = useState([]);
-  const [showSuddenForm, setShowSuddenForm] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [holidayForm, setHolidayForm] = useState({
-    ...DEFAULT_SUDDEN_HOLIDAY,
-    date: `${defaultYear}-07-14`,
-    dateTo: '',
-    message: buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason, `${defaultYear}-07-14`),
-  });
   const [eventForm, setEventForm] = useState({
     title: '',
     date: `${defaultYear}-07-15`,
@@ -185,10 +173,8 @@ export default function AcademicCalendarPage() {
     subtitle: '',
     applicableTo: 'All Classes',
   });
-  const [formSubmitted, setFormSubmitted] = useState(false);
   const [eventSubmitted, setEventSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -196,7 +182,6 @@ export default function AcademicCalendarPage() {
   const [holidayState, setHolidayState] = useState(getDefaultHolidayState());
   const [selectedDay, setSelectedDay] = useState(null);
   const [exportNotice, setExportNotice] = useState('');
-  const [holidayNotice, setHolidayNotice] = useState('');
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [previewMeta, setPreviewMeta] = useState(null);
@@ -331,20 +316,6 @@ export default function AcademicCalendarPage() {
     setYear(next.getFullYear());
   };
 
-  const openSuddenForm = () => {
-    const today = new Date();
-    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    setHolidayForm({
-      ...DEFAULT_SUDDEN_HOLIDAY,
-      date: iso,
-      dateTo: '',
-      message: buildSuddenHolidayMessage(DEFAULT_SUDDEN_HOLIDAY.reason, iso),
-    });
-    setFormSubmitted(false);
-    setError('');
-    setShowSuddenForm(true);
-  };
-
   const openEventForm = () => {
     const pad = (n) => String(n).padStart(2, '0');
     setEventForm({
@@ -463,56 +434,6 @@ export default function AcademicCalendarPage() {
     }
   };
 
-  const handleSubmitHoliday = async (e) => {
-    e.preventDefault();
-    if (!holidayForm.reason.trim()) {
-      setError('Please enter a reason for the sudden holiday.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    setHolidayNotice('');
-    try {
-      const { whatsapp } = await createSuddenHoliday({
-        date: holidayForm.date,
-        dateTo: holidayForm.dateTo || holidayForm.date,
-        reason: holidayForm.reason.trim(),
-        applicableTo: holidayForm.applicableTo,
-        message: holidayForm.message,
-      });
-      if (whatsapp?.mock) {
-        setHolidayNotice('Holiday saved locally (mock mode). WhatsApp is not sent.');
-      } else if (whatsapp && whatsapp.attempted === 0) {
-        setHolidayNotice('Holiday saved, but no parent phone numbers were found to message.');
-      } else if (whatsapp && whatsapp.skipped && whatsapp.skipped === whatsapp.attempted) {
-        setHolidayNotice(
-          'Holiday saved, but WhatsApp was skipped (token not configured, or template sudden_holiday is not approved yet).'
-        );
-      } else if (whatsapp && whatsapp.failed) {
-        setHolidayNotice(
-          `Holiday saved. WhatsApp: ${whatsapp.sent || 0} sent, ${whatsapp.failed} failed, ${whatsapp.skipped || 0} skipped.${whatsapp.error ? ` Meta: ${whatsapp.error}` : ' Confirm sudden_holiday is Approved and parent numbers are allowed recipients for this WhatsApp phone.'}`
-        );
-      } else if (whatsapp && whatsapp.sent) {
-        setHolidayNotice(`Holiday saved. WhatsApp sent to ${whatsapp.sent} parent number(s).`);
-      } else {
-        setHolidayNotice('Holiday saved.');
-      }
-      setFormSubmitted(true);
-      const [y, m] = holidayForm.date.split('-').map(Number);
-      setYear(y);
-      setMonth(m - 1);
-      setReloadKey((key) => key + 1);
-      setTimeout(() => {
-        setFormSubmitted(false);
-        setShowSuddenForm(false);
-      }, 1200);
-    } catch (err) {
-      setError(err.message || 'Failed to save sudden holiday');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {error && (
@@ -521,11 +442,6 @@ export default function AcademicCalendarPage() {
       {exportNotice ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {exportNotice}
-        </div>
-      ) : null}
-      {holidayNotice ? (
-        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-          {holidayNotice}
         </div>
       ) : null}
 
@@ -787,13 +703,6 @@ export default function AcademicCalendarPage() {
           </button>
           <button
             type="button"
-            onClick={openSuddenForm}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 py-3 text-xs font-semibold text-violet-800"
-          >
-            <Zap size={14} /> Sudden Holiday
-          </button>
-          <button
-            type="button"
             onClick={handleDownloadCalendar}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 py-3 text-xs font-semibold text-sky-800"
           >
@@ -802,7 +711,7 @@ export default function AcademicCalendarPage() {
           <button
             type="button"
             onClick={() => setReloadKey((k) => k + 1)}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-[#f5c542]/40 py-3 text-xs font-semibold text-amber-900"
+            className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-[#f5c542]/40 py-3 text-xs font-semibold text-amber-900"
           >
             <LoaderCircle size={14} /> Reload
           </button>
@@ -1135,13 +1044,6 @@ export default function AcademicCalendarPage() {
               </button>
               <button
                 type="button"
-                onClick={openSuddenForm}
-                className="flex w-full items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-left text-xs font-semibold text-violet-800 hover:bg-violet-100"
-              >
-                <Zap size={14} /> Sudden Holiday
-              </button>
-              <button
-                type="button"
                 onClick={handleDownloadCalendar}
                 disabled={exporting}
                 className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
@@ -1308,119 +1210,6 @@ export default function AcademicCalendarPage() {
         </div>
       )}
 
-      {showSuddenForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form
-            onSubmit={handleSubmitHoliday}
-            className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-xl"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-bold text-gray-900">Add Sudden Holiday</h3>
-              <button type="button" onClick={() => setShowSuddenForm(false)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100">
-                <X size={18} />
-              </button>
-            </div>
-            <p className="mb-4 text-xs text-gray-500">
-              For rain, strike, or other unplanned closures. Saves to the calendar and sends the
-              approved WhatsApp sudden_holiday template to parents.
-            </p>
-
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs text-gray-500">From date</label>
-                  <input
-                    type="date"
-                    value={holidayForm.date}
-                    onChange={(e) => {
-                      const date = e.target.value;
-                      setHolidayForm((prev) => ({
-                        ...prev,
-                        date,
-                        message: buildSuddenHolidayMessage(prev.reason, date, prev.dateTo),
-                      }));
-                    }}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-gray-500">To date (optional)</label>
-                  <input
-                    type="date"
-                    value={holidayForm.dateTo || ''}
-                    min={holidayForm.date}
-                    onChange={(e) => {
-                      const dateTo = e.target.value;
-                      setHolidayForm((prev) => ({
-                        ...prev,
-                        dateTo,
-                        message: buildSuddenHolidayMessage(prev.reason, prev.date, dateTo),
-                      }));
-                    }}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Reason</label>
-                <input
-                  type="text"
-                  value={holidayForm.reason}
-                  onChange={(e) => {
-                    const reason = e.target.value;
-                    setHolidayForm((prev) => ({
-                      ...prev,
-                      reason,
-                      message: buildSuddenHolidayMessage(reason, prev.date, prev.dateTo),
-                    }));
-                  }}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Applicable To</label>
-                <select
-                  value={holidayForm.applicableTo}
-                  onChange={(e) => setHolidayForm((prev) => ({ ...prev, applicableTo: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                >
-                  {APPLICABLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-gray-500">Message to Parents</label>
-                <textarea
-                  rows={4}
-                  value={holidayForm.message}
-                  onChange={(e) => setHolidayForm((prev) => ({ ...prev, message: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowSuddenForm(false)}
-                className="flex-1 rounded-lg border border-gray-300 py-2 text-sm font-medium text-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-1 rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : formSubmitted ? 'Submitted!' : 'Submit'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {pdfPreviewOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center sm:p-4">

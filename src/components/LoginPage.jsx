@@ -17,7 +17,7 @@ import { login } from '../services/authService.js';
 import { getRememberedEmail } from '../services/api.js';
 import { isApexBrowserHost } from '../lib/tenantHost.js';
 import { networkErrorMessage } from '../services/toast.js';
-import { SchoolLogo } from '../lib/branding.jsx';
+import { SchoolLogo, useBranding } from '../lib/branding.jsx';
 
 const SCHOOL_IMAGE =
   'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=80';
@@ -25,8 +25,13 @@ const SCHOOL_IMAGE =
 const DEFAULT_EMAIL = 'incharge@brightfuture.edu.in';
 
 export default function LoginPage({ onSuccess }) {
+  const { schoolName, hasLogo } = useBranding();
+  const onApex = isApexBrowserHost();
+  const brandLabel = onApex
+    ? 'Presence'
+    : String(schoolName || '').trim() || 'School Attendance';
   const remembered = getRememberedEmail();
-  const [email, setEmail] = useState(remembered || (isApexBrowserHost() ? DEFAULT_EMAIL : ''));
+  const [email, setEmail] = useState(remembered || (onApex ? DEFAULT_EMAIL : ''));
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -77,11 +82,11 @@ export default function LoginPage({ onSuccess }) {
       <div className="absolute left-4 top-5 z-10 flex items-center gap-3 sm:left-8 sm:top-8">
         <SchoolLogo
           variant="mark"
-          alt="School logo"
+          alt={brandLabel}
           className="h-12 w-12 rounded-xl bg-white/95 object-contain p-1 shadow-md ring-2 ring-white/30 sm:h-14 sm:w-14"
         />
         <span className="text-base font-semibold tracking-tight text-white drop-shadow-sm sm:text-lg">
-          Presence
+          {brandLabel}
         </span>
       </div>
 
@@ -138,10 +143,20 @@ export default function LoginPage({ onSuccess }) {
           <div className="mb-7 text-center">
             <SchoolLogo
               variant="full"
-              alt="School logo"
+              alt={brandLabel}
               className="mx-auto mb-2 h-28 w-auto max-w-[240px] object-contain sm:h-32 sm:max-w-[280px]"
             />
-            <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
+            {!onApex && brandLabel ? (
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{brandLabel}</h1>
+            ) : null}
+            <p className={`text-sm text-slate-500 ${!onApex && brandLabel ? 'mt-1' : 'mt-1'}`}>
+              Sign in to continue
+            </p>
+            {!onApex && !hasLogo ? (
+              <p className="mt-2 text-xs text-slate-400">
+                Upload your school logo in Settings after signing in.
+              </p>
+            ) : null}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

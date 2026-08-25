@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart2,
   Bell,
@@ -16,6 +16,7 @@ import {
   Megaphone,
   Pencil,
   Percent,
+  ScrollText,
   Shield,
   UserCheck,
   Users,
@@ -23,7 +24,12 @@ import {
   XCircle,
 } from 'lucide-react';
 import { formatClassLabel, compareClassNames } from '../data/schoolGrades.js';
-import { canApproveEditRequests } from '../data/navItems.js';
+import {
+  canApproveEditRequests,
+  canViewAuditLogs,
+  usesCompactSchoolNav,
+} from '../data/navItems.js';
+import { IntelligenceDashboardCards } from './AttendanceIntelligencePage.jsx';
 import {
   downloadCsv,
   escapeCsv,
@@ -32,7 +38,12 @@ import {
   getDailyReport,
 } from '../services/reportService.js';
 import { resolveSectionId } from '../services/classService.js';
-import { attendancePercentFromCounts } from '../utils/attendance.js';
+import {
+  attendancePercentFromCounts,
+  getTodayAttendanceDate,
+  shiftAttendanceDate,
+  snapToWorkingAttendanceDate,
+} from '../utils/attendance.js';
 import { STATUS_LABELS } from './reports/attendancePaths.js';
 import {
   CircularAttendance,
@@ -490,7 +501,7 @@ function formatHeaderDate(isoDate, dateLabel) {
   });
 }
 
-const QUICK_ACTION_DEFS = [
+const FULL_QUICK_ACTION_DEFS = [
   {
     id: 'attendance',
     label: 'Mark Attendance',
@@ -558,37 +569,95 @@ const QUICK_ACTION_DEFS = [
   },
 ];
 
+const COMPACT_QUICK_ACTION_DEFS = [
+  {
+    id: 'attendance',
+    label: 'Mark Attendance',
+    description: 'Take daily or period attendance quickly.',
+    icon: ClipboardCheck,
+    iconBg: 'bg-violet-600',
+    arrowBg: 'bg-violet-600 hover:bg-violet-700',
+  },
+  {
+    id: 'students',
+    label: 'Students',
+    description: 'View and manage student information.',
+    icon: Users,
+    iconBg: 'bg-sky-600',
+    arrowBg: 'bg-sky-600 hover:bg-sky-700',
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    description: 'Explore attendance reports and analytics.',
+    icon: BarChart2,
+    iconBg: 'bg-indigo-700',
+    arrowBg: 'bg-indigo-700 hover:bg-indigo-800',
+  },
+  {
+    id: 'audit-logs',
+    label: 'Audit Logs',
+    description: 'Review attendance and system activity.',
+    icon: ScrollText,
+    iconBg: 'bg-slate-700',
+    arrowBg: 'bg-slate-700 hover:bg-slate-800',
+    audit: true,
+  },
+  {
+    id: 'send-notification',
+    label: 'Notify',
+    description: 'Send messages to students & parents.',
+    icon: Megaphone,
+    iconBg: 'bg-orange-500',
+    arrowBg: 'bg-orange-500 hover:bg-orange-600',
+  },
+];
+
 function QuickActionCard({ action, onNavigate }) {
   const Icon = action.icon;
   return (
     <button
       type="button"
       onClick={() => onNavigate?.(action.id, action.id === 'attendance' ? 'grid' : undefined)}
-      className="flex min-h-[11.5rem] flex-col rounded-2xl border border-violet-100/80 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="flex flex-col rounded-2xl border border-gray-100 bg-white p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md"
     >
-      <span className={`inline-flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm ${action.iconBg}`}>
-        <Icon size={20} />
-      </span>
-      <p className="mt-4 text-sm font-bold text-gray-900">{action.label}</p>
-      <p className="mt-1 flex-1 text-xs leading-relaxed text-gray-500">{action.description}</p>
       <span
-        className={`mt-4 inline-flex h-9 w-9 items-center justify-center self-center rounded-full text-white ${action.arrowBg}`}
+        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm ${action.iconBg}`}
+      >
+        <Icon size={18} />
+      </span>
+      <p className="mt-3 text-sm font-bold text-gray-900">{action.label}</p>
+      <p className="mt-0.5 line-clamp-2 flex-1 text-[11px] leading-snug text-gray-500">
+        {action.description}
+      </p>
+      <span
+        className={`mt-3 inline-flex h-8 w-8 items-center justify-center self-end rounded-full text-white ${action.arrowBg}`}
         aria-hidden="true"
       >
-        <ChevronRight size={18} />
+        <ChevronRight size={16} />
       </span>
     </button>
   );
 }
 
-function OverviewStat({ label, value, sub, icon: Icon, iconWrap, onClick }) {
+function OverviewStat({ label, value, badge, badgeTone, icon: Icon, iconWrap, onClick }) {
   const Tag = onClick ? 'button' : 'div';
+  const badgeClass =
+    badgeTone === 'emerald'
+      ? 'bg-emerald-100 text-emerald-700'
+      : badgeTone === 'rose'
+        ? 'bg-rose-100 text-rose-700'
+        : badgeTone === 'amber'
+          ? 'bg-amber-100 text-amber-800'
+          : badgeTone === 'sky'
+            ? 'bg-sky-100 text-sky-700'
+            : 'bg-violet-100 text-violet-700';
   return (
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`rounded-2xl border border-gray-100 bg-gray-50/80 p-4 text-left ${
-        onClick ? 'cursor-pointer hover:border-violet-200 hover:bg-violet-50/50' : ''
+      className={`rounded-2xl border border-gray-100 bg-white p-3.5 text-left shadow-sm ${
+        onClick ? 'cursor-pointer hover:border-violet-200 hover:bg-violet-50/40' : ''
       }`}
     >
       <div className="flex items-start gap-3">
@@ -596,9 +665,13 @@ function OverviewStat({ label, value, sub, icon: Icon, iconWrap, onClick }) {
           <Icon size={18} />
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-medium text-gray-500">{label}</p>
-          <p className="mt-0.5 text-xl font-bold text-gray-900">{value}</p>
-          {sub ? <p className="mt-0.5 text-[11px] font-medium text-gray-500">{sub}</p> : null}
+          <p className="text-[11px] font-medium text-gray-500">{label}</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums text-gray-900">{value}</p>
+          {badge ? (
+            <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeClass}`}>
+              {badge}
+            </span>
+          ) : null}
         </div>
       </div>
     </Tag>
@@ -610,6 +683,7 @@ export default function DashboardPage({
   error,
   dateLabel,
   selectedDate,
+  onDateChange,
   onNavigate,
   user = null,
   classesData = [],
@@ -619,6 +693,24 @@ export default function DashboardPage({
   const [drill, setDrill] = useState({ view: 'home' });
   const [sectionReport, setSectionReport] = useState(null);
   const [sectionLoading, setSectionLoading] = useState(false);
+  const todayIso = getTodayAttendanceDate();
+  const datePickerRef = useRef(null);
+
+  const overviewTab = useMemo(() => {
+    if (selectedDate === todayIso) return 'today';
+    if (selectedDate === shiftAttendanceDate(todayIso, -1)) return 'previous';
+    return 'custom';
+  }, [selectedDate, todayIso]);
+
+  const selectToday = () => onDateChange?.(todayIso);
+  const selectPrevious = async () => {
+    const prev = await snapToWorkingAttendanceDate(shiftAttendanceDate(todayIso, -1));
+    onDateChange?.(prev);
+  };
+  const selectCustomDate = (iso) => {
+    if (!iso || iso > todayIso) return;
+    onDateChange?.(iso);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -728,9 +820,12 @@ export default function DashboardPage({
   const headerDate = formatHeaderDate(selectedDate, dateLabel);
   const academicYear = academicYearLabel(selectedDate);
 
-  const quickActions = QUICK_ACTION_DEFS.filter(
-    (a) => !a.roles || canApproveEditRequests(user)
-  );
+  const compactNav = usesCompactSchoolNav();
+  const quickActions = (compactNav ? COMPACT_QUICK_ACTION_DEFS : FULL_QUICK_ACTION_DEFS).filter((a) => {
+    if (a.roles && !canApproveEditRequests(user)) return false;
+    if (a.audit && !canViewAuditLogs(user)) return false;
+    return true;
+  });
 
   const goDrill = (next) => setDrill(next || { view: 'home' });
 
@@ -791,81 +886,173 @@ export default function DashboardPage({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+      <div
+        className={`grid grid-cols-2 gap-3 ${
+          compactNav ? 'sm:grid-cols-3 lg:grid-cols-5' : 'sm:grid-cols-4 xl:grid-cols-8'
+        }`}
+      >
         {quickActions.map((action) => (
           <QuickActionCard key={action.id} action={action} onNavigate={onNavigate} />
         ))}
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <BarChart2 size={18} className="text-violet-600" />
-          <h3 className="text-base font-bold text-gray-900">Today&apos;s Attendance Overview</h3>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart2 size={18} className="text-indigo-600" />
+            <h3 className="text-base font-bold text-gray-900">Today&apos;s Attendance Overview</h3>
+          </div>
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-indigo-100 bg-indigo-50/60 p-1">
+            <button
+              type="button"
+              onClick={selectToday}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                overviewTab === 'today'
+                  ? 'bg-indigo-700 text-white shadow-sm'
+                  : 'text-indigo-800 hover:bg-white'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={selectPrevious}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                overviewTab === 'previous'
+                  ? 'bg-indigo-700 text-white shadow-sm'
+                  : 'text-indigo-800 hover:bg-white'
+              }`}
+            >
+              Previous Day
+            </button>
+            <button
+              type="button"
+              onClick={() => datePickerRef.current?.showPicker?.() || datePickerRef.current?.click()}
+              className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                overviewTab === 'custom'
+                  ? 'bg-amber-400 text-amber-950 shadow-sm'
+                  : 'text-indigo-800 hover:bg-white'
+              }`}
+            >
+              Select Date <CalendarDays size={13} />
+            </button>
+            <input
+              ref={datePickerRef}
+              type="date"
+              value={selectedDate}
+              max={todayIso}
+              onChange={(e) => selectCustomDate(e.target.value)}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <OverviewStat
-            label="Total Students"
-            value={totalStudents.toLocaleString()}
-            icon={Users}
-            iconWrap="bg-violet-100 text-violet-700"
+        <p className="mb-3 text-sm font-semibold text-indigo-900">{headerDate}</p>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-3 lg:grid-cols-5">
+            <OverviewStat
+              label="Total Students"
+              value={totalStudents.toLocaleString()}
+              icon={Users}
+              iconWrap="bg-violet-100 text-violet-700"
+              onClick={() => goDrill({ view: 'classes' })}
+            />
+            <OverviewStat
+              label="Present"
+              value={present.toLocaleString()}
+              badge={`${pctOf(present, totalStudents)}%`}
+              badgeTone="emerald"
+              icon={UserCheck}
+              iconWrap="bg-emerald-100 text-emerald-700"
+            />
+            <OverviewStat
+              label="Absent"
+              value={absent.toLocaleString()}
+              badge={`${pctOf(absent, totalStudents)}%`}
+              badgeTone="rose"
+              icon={UserX}
+              iconWrap="bg-red-100 text-red-600"
+            />
+            <OverviewStat
+              label="Half Day / OD"
+              value={halfDayOd.toLocaleString()}
+              badge={`${pctOf(halfDayOd, totalStudents)}%`}
+              badgeTone="amber"
+              icon={Clock}
+              iconWrap="bg-amber-100 text-amber-700"
+            />
+            <OverviewStat
+              label="Attendance Taken"
+              value={`${markedRows.length} / ${classRows.length || stats.totalClasses || 0}`}
+              badge={`${takenPct}%`}
+              badgeTone="sky"
+              icon={Pencil}
+              iconWrap="bg-sky-100 text-sky-700"
+              onClick={() => goDrill({ view: 'classes' })}
+            />
+          </div>
+
+          {unmarkedCount > 0 ? (
+            <div className="flex w-full shrink-0 flex-col justify-between rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 xl:w-64">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-200 text-violet-800">
+                  <ClipboardList size={18} />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Attendance not marked</p>
+                  <p className="mt-1 text-2xl font-bold text-violet-900">
+                    {unmarkedCount} {unmarkedCount === 1 ? 'Class' : 'Classes'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">Mark attendance to keep records current.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate?.('attendance', 'grid')}
+                className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-800"
+              >
+                Go to Attendance
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex w-full shrink-0 flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 xl:w-64">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  Overall Attendance
+                </p>
+                <p className="mt-1 text-3xl font-bold text-amber-950">
+                  {stats.attendancePercent != null ? `${stats.attendancePercent}%` : '—'}
+                </p>
+                <p className="mt-1 text-xs text-amber-900/80">{headerDate}</p>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate?.('attendance-history', { date: selectedDate })}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800"
+          >
+            View Class-wise Report
+            <ChevronRight size={16} />
+          </button>
+          <button
+            type="button"
             onClick={() => goDrill({ view: 'classes' })}
-          />
-          <OverviewStat
-            label="Present"
-            value={present.toLocaleString()}
-            sub={`${pctOf(present, totalStudents)}%`}
-            icon={UserCheck}
-            iconWrap="bg-emerald-100 text-emerald-700"
-          />
-          <OverviewStat
-            label="Absent"
-            value={absent.toLocaleString()}
-            sub={`${pctOf(absent, totalStudents)}%`}
-            icon={UserX}
-            iconWrap="bg-red-100 text-red-600"
-          />
-          <OverviewStat
-            label="Half Day / OD"
-            value={halfDayOd.toLocaleString()}
-            sub={`${pctOf(halfDayOd, totalStudents)}%`}
-            icon={Clock}
-            iconWrap="bg-amber-100 text-amber-700"
-          />
-          <OverviewStat
-            label="Attendance Taken"
-            value={`${markedRows.length} / ${classRows.length || stats.totalClasses || 0}`}
-            sub={`${takenPct}%`}
-            icon={Pencil}
-            iconWrap="bg-sky-100 text-sky-700"
-            onClick={() => goDrill({ view: 'classes' })}
-          />
+            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-semibold text-indigo-800 hover:bg-indigo-50"
+          >
+            Drill down on dashboard
+          </button>
         </div>
       </div>
 
-      {unmarkedCount > 0 ? (
-        <div className="flex flex-col gap-4 rounded-2xl border border-violet-100 bg-violet-50/70 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="flex items-start gap-3">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-200/80 text-violet-800">
-              <ClipboardList size={20} />
-            </span>
-            <div>
-              <p className="text-sm font-bold text-gray-900">
-                Attendance not marked for {unmarkedCount} {unmarkedCount === 1 ? 'class' : 'classes'}
-              </p>
-              <p className="mt-0.5 text-xs text-gray-600">
-                Please mark attendance to keep records updated.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigate?.('attendance', 'grid')}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet-800"
-          >
-            Go to Attendance
-            <ChevronRight size={16} />
-          </button>
-        </div>
+      {canApproveEditRequests(user) ? (
+        <IntelligenceDashboardCards
+          onOpen={(tab) => onNavigate?.('attendance-intelligence', tab)}
+        />
       ) : null}
     </div>
   );

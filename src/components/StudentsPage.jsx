@@ -28,6 +28,7 @@ import {
 } from '../services/studentService.js';
 import { exportTablePdfReport } from '../services/reportService.js';
 import StudentDocumentsPanel from './StudentDocumentsPanel.jsx';
+import StudentAttendanceTimeline from './StudentAttendanceTimeline.jsx';
 
 const PAGE_SIZE = 10;
 const DETAIL_TABS = ['Profile', 'Attendance', 'Leave Letters', 'Guardian'];
@@ -1166,12 +1167,12 @@ export default function StudentsPage({ user = null, onNavigate, initialClass, in
             )}
 
             {detailTab === 'Attendance' && (
-              <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-10 text-center">
-                <User size={28} className="mx-auto text-gray-300" />
-                <p className="mt-3 text-sm font-medium text-gray-700">Attendance history</p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Period and daily attendance for this student will appear here.
+              <div className="rounded-xl border border-gray-100 bg-white p-4">
+                <p className="mb-3 text-sm font-bold text-gray-900">Attendance timeline</p>
+                <p className="mb-4 text-xs text-gray-500">
+                  Marks, leave letters, parent contact, meetings and notes in one place.
                 </p>
+                <StudentAttendanceTimeline studentClassId={selectedStudent.id} />
               </div>
             )}
 

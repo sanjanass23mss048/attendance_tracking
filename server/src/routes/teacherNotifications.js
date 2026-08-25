@@ -139,6 +139,7 @@ router.post('/', requireAuth, uploadOptional, async (req, res) => {
         recipientType: n?.recipientType,
         recipientSummary: n?.recipientSummary,
         recipientCount: n?.recipientCount,
+        whatsapp: result?.whatsapp || null,
       },
     });
     return res.status(201).json(result);

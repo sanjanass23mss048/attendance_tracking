@@ -107,10 +107,11 @@ export function formatClosedDates(fromIso, toIso) {
 }
 
 /** Build parent SMS/message from the sudden-holiday reason. */
-export function buildSuddenHolidayMessage(reason, fromDate, toDate) {
+export function buildSuddenHolidayMessage(reason, fromDate, toDate, schoolName) {
   const cleaned = String(reason || '').trim() || 'an unexpected reason';
   const when = formatClosedDates(fromDate, toDate) || 'today';
-  return `Dear Parent,\n\nDue to ${cleaned}, the school will remain closed on ${when}.\n\nRegards,\nRIOBizSols`;
+  const signOff = String(schoolName || '').trim() || 'RIOBizSols';
+  return `Dear Parent,\n\nDue to ${cleaned}, the school will remain closed on ${when}.\n\nRegards,\n${signOff}`;
 }
 
 DEFAULT_SUDDEN_HOLIDAY.message = buildSuddenHolidayMessage(

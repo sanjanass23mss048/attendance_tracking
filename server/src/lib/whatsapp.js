@@ -447,3 +447,347 @@ export async function sendSuddenHolidayWhatsApp({ toPhone, reason, dates }) {
     error: lastError,
   });
 }
+
+/**
+ * Upload binary media to Meta WhatsApp Cloud API. Returns media id (reusable for ~30 days).
+ */
+export async function uploadWhatsAppMedia(buffer, mimeType = 'image/png', filename = 'poster.png') {
+  if (!configured()) {
+    throw new Error('WhatsApp is not configured');
+  }
+  const phoneId = env('WHATSAPP_PHONE_NUMBER_ID');
+  const url = `https://graph.facebook.com/${graphVersion()}/${phoneId}/media`;
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimeType || 'image/png');
+  form.append(
+    'file',
+    new Blob([buffer], { type: mimeType || 'image/png' }),
+    filename || 'poster.png'
+  );
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env('WHATSAPP_ACCESS_TOKEN')}`,
+    },
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const meta = data?.error || {};
+    const detail = [meta.message, meta.error_user_msg].filter(Boolean).join(' — ');
+    throw new Error(detail || 'WhatsApp media upload failed');
+  }
+  const id = data?.id;
+  if (!id) throw new Error('WhatsApp media upload returned no id');
+  return id;
+}
+
+/**
+ * Free-form image (only works inside an open customer-care window, or as a best-effort
+ * follow-up after a template). Prefer IMAGE-header templates when available.
+ */
+export async function sendWhatsAppImage({ toPhone, mediaId, imageLink, caption }) {
+  if (!configured()) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
+  }
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return waResult({ ok: false, to: '', error: 'Missing phone number' });
+  }
+  if (!mediaId && !imageLink) {
+    return waResult({ ok: false, to, error: 'Missing image media id or link' });
+  }
+  const image = mediaId ? { id: mediaId } : { link: String(imageLink) };
+  if (caption) image.caption = String(caption).slice(0, 1024);
+  try {
+    const data = await postMessage({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'image',
+      image,
+    });
+    return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+  } catch (err) {
+    return waResult({ ok: false, to, error: err.message || 'WhatsApp image send failed' });
+  }
+}
+
+/**
+ * Meta template `general_notice` (Utility / en), APPROVED:
+ *   HEADER (static): St.Josephs
+ *   BODY:
+ *     Dear {{1}},
+ *     This is to inform you about {{2}}.
+ *     Details: {{3}}
+ *     Thank You.
+ * {{1}} = greeting e.g. "Parent of Aarav Sharma"
+ * {{2}} = notice title
+ * {{3}} = details / message body
+ * Header is static — do not send a header component unless WHATSAPP_NOTICE_HEADER_VAR=1.
+ *
+ * Optional image (Chronicle posters):
+ * - If WHATSAPP_NOTICE_IMAGE_TEMPLATE is an approved template with an IMAGE header,
+ *   send that template with the media header + same body vars.
+ * - Otherwise send general_notice text, then best-effort free-form image follow-up
+ *   (mediaId / imageLink / imageBuffer).
+ */
+function noticeLangs() {
+  const preferred =
+    env('WHATSAPP_NOTICE_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
+  const langs = [preferred, preferred === 'en_US' ? 'en' : null].filter(Boolean);
+  return [...new Set(langs)];
+}
+
+export async function sendSchoolNoticeWhatsApp({
+  toPhone,
+  title,
+  message,
+  studentName,
+  greeting,
+  mediaId = null,
+  imageLink = null,
+  imageBuffer = null,
+  imageMime = 'image/png',
+  imageFileName = 'chronicle-poster.png',
+}) {
+  if (!configured()) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
+  }
+  const templateName = env('WHATSAPP_NOTICE_TEMPLATE', 'general_notice');
+  if (!templateName) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'no_template' });
+  }
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return waResult({ ok: false, to: '', error: 'Missing phone number' });
+  }
+  const name = String(studentName || '').replace(/\s+/g, ' ').trim();
+  const greetingText =
+    String(greeting || '').replace(/\s+/g, ' ').trim() ||
+    (name ? `Parent of ${name}` : 'Parent');
+  const titleText =
+    String(title || 'School notice').replace(/\s+/g, ' ').trim().slice(0, 1024) || 'School notice';
+  const messageText =
+    String(message || '—').replace(/\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 1024) || '—';
+  const body = textParams([greetingText, titleText, messageText]);
+
+  let resolvedMediaId = mediaId || null;
+  if (!resolvedMediaId && !imageLink && imageBuffer) {
+    try {
+      resolvedMediaId = await uploadWhatsAppMedia(imageBuffer, imageMime, imageFileName);
+    } catch (err) {
+      console.warn('[whatsapp] media upload failed', err?.message || err);
+    }
+  }
+
+  const imageTemplate = String(env('WHATSAPP_NOTICE_IMAGE_TEMPLATE', '') || '').trim();
+  if (imageTemplate && (resolvedMediaId || imageLink)) {
+    const headerImage = resolvedMediaId
+      ? { id: resolvedMediaId }
+      : { link: String(imageLink) };
+    const components = [
+      {
+        type: 'header',
+        parameters: [{ type: 'image', image: headerImage }],
+      },
+      {
+        type: 'body',
+        parameters: body,
+      },
+    ];
+    let lastError = 'WhatsApp notice image template failed';
+    for (const languageCode of noticeLangs()) {
+      try {
+        const data = await postMessage({
+          messaging_product: 'whatsapp',
+          to,
+          type: 'template',
+          template: {
+            name: imageTemplate,
+            language: { code: languageCode },
+            components,
+          },
+        });
+        return {
+          ...waResult({
+            ok: true,
+            to,
+            id: data?.messages?.[0]?.id || null,
+          }),
+          imageAttached: true,
+        };
+      } catch (err) {
+        lastError = err.message || lastError;
+        console.error('[whatsapp] notice image template failed', languageCode, err);
+      }
+    }
+    // Fall through to text template + image follow-up
+    console.warn('[whatsapp] IMAGE template failed; falling back to text+image', lastError);
+  }
+
+  const components = [
+    {
+      type: 'body',
+      parameters: body,
+    },
+  ];
+  // Only add a header component when the Meta template uses a header *variable*.
+  if (String(env('WHATSAPP_NOTICE_HEADER_VAR', '')).toLowerCase() === '1') {
+    const headerText =
+      env('WHATSAPP_NOTICE_HEADER') || env('WHATSAPP_HOLIDAY_HEADER') || env('SCHOOL_NAME') || 'School';
+    components.unshift({
+      type: 'header',
+      parameters: textParams([headerText]),
+    });
+  }
+  let lastError = 'WhatsApp notice send failed';
+  let templateOk = null;
+  for (const languageCode of noticeLangs()) {
+    try {
+      const data = await postMessage({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components,
+        },
+      });
+      templateOk = waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+      break;
+    } catch (err) {
+      lastError = err.message || lastError;
+      console.error('[whatsapp] school notice failed', languageCode, err);
+    }
+  }
+  if (!templateOk) {
+    return waResult({
+      ok: false,
+      to,
+      error: lastError,
+    });
+  }
+
+  if (resolvedMediaId || imageLink) {
+    const img = await sendWhatsAppImage({
+      toPhone: to,
+      mediaId: resolvedMediaId,
+      imageLink,
+      caption: titleText,
+    });
+    if (img.ok) {
+      return { ...templateOk, imageAttached: true, imageMessageId: img.id };
+    }
+    console.warn('[whatsapp] poster image follow-up failed', img.error);
+    return {
+      ...templateOk,
+      imageAttached: false,
+      imageError: img.error || 'Image follow-up failed',
+    };
+  }
+
+  return templateOk;
+}
+
+/**
+ * Meta template `school_parent_meeting_schedule` (Utility / en), APPROVED:
+ *   HEADER (static TEXT): St.Josephs — do not send a header component
+ *   BODY (positional):
+ *     Dear {{1}},
+ *     A meeting has been scheduled regarding {{2}} - {{3}}.
+ *     Reason: {{4}}
+ *     Meeting Date: {{5}}
+ *     Staff / Principal: {{6}}
+ *     Kindly attend the meeting on the scheduled date.
+ *      Thank You.
+ * {{1}} parent name  {{2}} student name  {{3}} class e.g. Class 7-A
+ * {{4}} reason  {{5}} date DD-MM-YYYY  {{6}} staff / principal
+ */
+function meetingLangs() {
+  const preferred =
+    env('WHATSAPP_MEETING_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
+  const langs = [preferred, preferred === 'en_US' ? 'en' : null].filter(Boolean);
+  return [...new Set(langs)];
+}
+
+function waPlain(value, fallback = '—') {
+  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 1024) || fallback;
+}
+
+function formatWaMeetingDate(value) {
+  const s = String(value || '').slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return waPlain(value, '—');
+}
+
+function formatWaClassSection(className, sectionName) {
+  const cls = String(className || '').trim();
+  const sec = String(sectionName || '').trim();
+  if (!cls && !sec) return 'Class';
+  const labelled = /^(class|lkg|ukg)\b/i.test(cls) ? cls : `Class ${cls}`;
+  return sec ? `${labelled}-${sec}` : labelled;
+}
+
+export async function sendParentMeetingWhatsApp({
+  toPhone,
+  parentName,
+  studentName,
+  className,
+  sectionName,
+  classSection,
+  reason,
+  meetingDate,
+  staffName,
+}) {
+  if (!configured()) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
+  }
+  const templateName = env('WHATSAPP_MEETING_TEMPLATE', 'school_parent_meeting_schedule');
+  if (!templateName) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'no_template' });
+  }
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return waResult({ ok: false, to: '', error: 'Missing phone number' });
+  }
+  const body = textParams([
+    waPlain(parentName, 'Parent'),
+    waPlain(studentName, 'your ward'),
+    waPlain(classSection, formatWaClassSection(className, sectionName)),
+    waPlain(reason, 'attendance'),
+    formatWaMeetingDate(meetingDate),
+    waPlain(staffName, 'Principal'),
+  ]);
+  let lastError = 'WhatsApp meeting send failed';
+  for (const languageCode of meetingLangs()) {
+    try {
+      const data = await postMessage({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components: [
+            {
+              type: 'body',
+              parameters: body,
+            },
+          ],
+        },
+      });
+      return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+    } catch (err) {
+      lastError = err.message || lastError;
+      console.error('[whatsapp] parent meeting failed', languageCode, err);
+    }
+  }
+  return waResult({
+    ok: false,
+    to,
+    error: lastError,
+  });
+}

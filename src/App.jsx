@@ -33,6 +33,9 @@ import AuditLogsPage from './components/AuditLogsPage';
 import AttendanceEditRequestModal from './components/AttendanceEditRequestModal';
 import NotificationsPage from './components/NotificationsPage';
 import SendNotificationPage from './components/SendNotificationPage';
+import AttendanceIntelligencePage from './components/AttendanceIntelligencePage';
+import AttendanceHistoryPage from './components/AttendanceHistoryPage';
+import ChroniclePosterPage from './components/ChroniclePosterPage';
 import TeacherPanelPage from './components/TeacherPanelPage';
 import HomeworkListPage from './components/HomeworkListPage';
 import SubjectsPage from './components/SubjectsPage';
@@ -610,6 +613,14 @@ function AttendanceApp() {
       setActivePage('dashboard');
       return;
     }
+    if (pageId === 'attendance-intelligence' && !canApproveEditRequests(user)) {
+      setActivePage('dashboard');
+      return;
+    }
+    if (pageId === 'chronicle' && !canApproveEditRequests(user)) {
+      setActivePage('dashboard');
+      return;
+    }
     const opts = view && typeof view === 'object' ? view : null;
     const attendanceView = typeof view === 'string' ? view : opts?.view;
     if (opts?.className || opts?.sectionName) {
@@ -620,9 +631,19 @@ function AttendanceApp() {
     } else if (pageId === 'students' || pageId === 'classes') {
       setPageFocus(null);
     }
+    if (opts?.date && /^\d{4}-\d{2}-\d{2}$/.test(opts.date)) {
+      setSelectedDate(opts.date);
+    }
+    if (pageId === 'attendance-history' && typeof view === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(view)) {
+      setActiveView(view);
+    } else if (pageId === 'attendance-history' && opts?.date) {
+      setActiveView(opts.date);
+    }
     setActivePage(pageId);
     if (pageId === 'attendance') {
       setActiveView(attendanceView || 'grid');
+    } else if (pageId === 'attendance-intelligence') {
+      setActiveView(typeof view === 'string' ? view : opts?.tab || 'alerts');
     } else if (pageId === 'dashboard') {
       setActiveView('grid');
     }
@@ -1336,9 +1357,23 @@ function AttendanceApp() {
               error={dashStatsError}
               dateLabel={attendanceDateLabel}
               selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
               onNavigate={handleNavigate}
               user={user}
               classesData={classesData}
+            />
+          ) : activePage === 'attendance-history' ? (
+            <AttendanceHistoryPage
+              user={user}
+              classesData={classesData}
+              onNavigate={handleNavigate}
+              initialDate={
+                /^\d{4}-\d{2}-\d{2}$/.test(String(activeView || ''))
+                  ? activeView
+                  : selectedDate < getTodayAttendanceDate()
+                    ? selectedDate
+                    : null
+              }
             />
           ) : isAttendancePage ? (
             <>
@@ -1506,6 +1541,17 @@ function AttendanceApp() {
             canViewAuditLogs(user) ? (
               <AuditLogsPage user={user} onAccessDenied={denyAuditLogsAccess} />
             ) : null
+          ) : activePage === 'attendance-intelligence' ? (
+            canApproveEditRequests(user) ? (
+              <AttendanceIntelligencePage
+                initialTab={activeView || 'alerts'}
+                onNavigate={handleNavigate}
+              />
+            ) : null
+          ) : activePage === 'chronicle' ? (
+            canApproveEditRequests(user) ? (
+              <ChroniclePosterPage onNavigate={handleNavigate} />
+            ) : null
           ) : activePage === 'timetable' ? (
             <WeeklyTimetablePage />
           ) : activePage === 'notifications' ? (
@@ -1515,7 +1561,7 @@ function AttendanceApp() {
               onMarkAllRead={clearNotificationBadge}
             />
           ) : activePage === 'send-notification' ? (
-            <SendNotificationPage user={user} />
+            <SendNotificationPage user={user} onNavigate={handleNavigate} />
           ) : activePage === 'assign-homework' ? (
             <TeacherPanelPage mode="assign-homework" />
           ) : activePage === 'timetable-nav' ||

@@ -34,6 +34,7 @@ export const CATEGORIES = [
   'Holiday',
   'Important Notice',
   'Reminder',
+  'Chronicle',
 ];
 
 export const CLASS_GROUPS = [
@@ -93,6 +94,8 @@ const payloadSchema = z.object({
   delivery: z.enum(['now', 'later']).default('now'),
   scheduledAt: z.string().optional().nullable(),
   asDraft: z.boolean().optional().default(false),
+  /** When true (default), SENT notifications also blast WhatsApp to parent phones. */
+  sendViaWhatsApp: z.boolean().optional().default(true),
 });
 
 function serializeNotification(row) {
@@ -435,8 +438,9 @@ export async function saveTeacherNotification({
     });
   }
 
+  let whatsapp = null;
   if (status === NOTIF_STATUSES.SENT) {
-    // Notice Board + FCM only — do not SMS. MSG91 is an attendance-absence
+    // Notice Board + FCM — do not SMS. MSG91 is an attendance-absence
     // DLT template and would send blank "Your ward is absent" texts.
     try {
       const mirrored = await publishToParentNoticeBoard({
@@ -459,6 +463,33 @@ export async function saveTeacherNotification({
     } catch (err) {
       console.warn('Parent notice board mirror / push failed', err?.message || err);
     }
+
+    if (data.sendViaWhatsApp !== false) {
+      try {
+        whatsapp = await notifyParentsViaWhatsApp({
+          title: data.title,
+          message: data.message,
+          students,
+          imageBuffer: file?.buffer || null,
+          imageMime: attachment.attachment_mime || file?.mimetype || null,
+          imageFileName: attachment.attachment_name || file?.originalname || null,
+        });
+        console.log(
+          `Teacher notification ${notificationId} WhatsApp`,
+          `attempted=${whatsapp.attempted} sent=${whatsapp.sent} failed=${whatsapp.failed} skipped=${whatsapp.skipped}` +
+            (whatsapp.imagesSent != null ? ` images=${whatsapp.imagesSent}` : '')
+        );
+      } catch (err) {
+        console.warn('Teacher notification WhatsApp blast failed', err?.message || err);
+        whatsapp = {
+          attempted: 0,
+          sent: 0,
+          failed: 0,
+          skipped: 0,
+          error: err?.message || 'WhatsApp send failed',
+        };
+      }
+    }
   }
 
   const row = await prisma.tblTeacher_Notifications.findUnique({
@@ -466,6 +497,7 @@ export async function saveTeacherNotification({
   });
   return {
     notification: serializeNotification(row),
+    whatsapp,
     preview: {
       title: data.title,
       message: data.message,
@@ -479,6 +511,113 @@ export async function saveTeacherNotification({
         label: s.label,
       })),
     },
+  };
+}
+
+/**
+ * Blast WhatsApp to unique parent phones for the resolved recipients.
+ * Uses Meta Cloud API template `general_notice` (override via WHATSAPP_NOTICE_TEMPLATE).
+ * When imageBuffer is provided (Chronicle posters), uploads once and attaches to each send.
+ */
+async function notifyParentsViaWhatsApp({
+  title,
+  message,
+  students,
+  imageBuffer = null,
+  imageMime = null,
+  imageFileName = null,
+}) {
+  const { sendSchoolNoticeWhatsApp, uploadWhatsAppMedia } = await import('../lib/whatsapp.js');
+  const { normalizePhone } = await import('../lib/sms.js');
+
+  const seen = new Set();
+  /** @type {{ phone: string, studentName: string }[]} */
+  const recipients = [];
+  let missingPhones = 0;
+  for (const s of students) {
+    const phone = normalizePhone(s.parentPhone);
+    if (!phone) {
+      missingPhones += 1;
+      continue;
+    }
+    if (seen.has(phone)) continue;
+    seen.add(phone);
+    recipients.push({
+      phone,
+      studentName: String(s.name || s.label || '').trim() || 'your ward',
+    });
+  }
+
+  if (!recipients.length) {
+    return {
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: missingPhones,
+      missingPhones,
+    };
+  }
+
+  let mediaId = null;
+  let imageError = null;
+  if (imageBuffer && Buffer.isBuffer(imageBuffer) && imageBuffer.length) {
+    try {
+      mediaId = await uploadWhatsAppMedia(
+        imageBuffer,
+        imageMime || 'image/png',
+        imageFileName || 'chronicle-poster.png'
+      );
+    } catch (err) {
+      imageError = err?.message || 'Media upload failed';
+      console.warn('[whatsapp] chronicle media upload failed', imageError);
+    }
+  }
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = missingPhones;
+  let imagesSent = 0;
+  let error = imageError;
+  let reason = null;
+  const chunk = 6;
+  for (let i = 0; i < recipients.length; i += chunk) {
+    const part = recipients.slice(i, i + chunk);
+    const results = await Promise.all(
+      part.map(({ phone: toPhone, studentName }) =>
+        sendSchoolNoticeWhatsApp({
+          toPhone,
+          title,
+          message,
+          studentName,
+          mediaId,
+        })
+      )
+    );
+    for (const r of results) {
+      if (r.skipped) {
+        skipped += 1;
+        if (!reason && r.reason) reason = r.reason;
+      } else if (r.ok) {
+        sent += 1;
+        if (r.imageAttached) imagesSent += 1;
+        else if (mediaId && r.imageError && !error) error = r.imageError;
+      } else {
+        failed += 1;
+        if (!error && r.error) error = r.error;
+      }
+    }
+  }
+
+  return {
+    attempted: recipients.length,
+    sent,
+    failed,
+    skipped,
+    missingPhones,
+    imagesSent,
+    mediaId: mediaId || null,
+    error,
+    reason,
   };
 }
 

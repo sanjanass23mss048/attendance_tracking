@@ -43,9 +43,11 @@ import { ensureStudentImportTables } from './lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotificationTables.js';
 import { ensureAdminAuditTables } from './lib/ensureAdminAuditTables.js';
 import { ensureTcRequestTables } from './lib/ensureTcRequestTables.js';
+import { ensureAttendanceIntelligenceTables } from './lib/ensureAttendanceIntelligenceTables.js';
 import { ensureTenantRegistry } from './lib/ensureTenantRegistry.js';
 import { loadAppSettings } from './lib/appSettings.js';
 import { getRequestTenant } from './lib/tenantContext.js';
+import attendanceIntelligenceRoutes from './routes/attendanceIntelligence.js';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'];
 for (const key of required) {
@@ -184,6 +186,7 @@ app.use('/api/timetable', timetableRoutes);
 app.use('/api/tc-requests', requireAuth, tcRequestRoutes);
 app.use('/api/parent', parentRoutes);
 app.use('/api/admin/audit-logs', adminAuditRoutes);
+app.use('/api/attendance-intelligence', attendanceIntelligenceRoutes);
 app.use('/api/settings', appSettingsRoutes);
 
 app.use((err, _req, res, _next) => {
@@ -217,16 +220,18 @@ ensureUploadDir()
   .then(() => ensureAttendanceStatuses())
   .then(() => ensureStudentImportTables())
   .then(() => ensureTeacherNotificationTables())
-    .then(() => ensureAdminAuditTables())
+  .then(() => ensureAdminAuditTables())
   .then(() => ensureTcRequestTables())
-    .then(() => loadAppSettings())
-    .then(() => {
+  .then(() => ensureAttendanceIntelligenceTables())
+  .then(() => loadAppSettings())
+  .then(() => {
     console.log('Tenant registry ensured');
     console.log('Attendance statuses ensured (P/A/L/H/OH/OF)');
     console.log('Student import tables ensured');
     console.log('Teacher notification tables ensured');
     console.log('Admin audit tables ensured');
     console.log('TC request tables ensured');
+    console.log('Attendance intelligence tables ensured');
     console.log('App settings table ensured (SMS / WhatsApp / FCM from DB)');
   })
   .catch((err) => {

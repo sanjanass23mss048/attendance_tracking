@@ -5,7 +5,7 @@ import { AUDIT_CATEGORIES, listAdminAuditLogs } from '../services/adminAuditRepo
 
 const router = Router();
 
-router.get('/', requireAuth, requireRoles('ADMIN'), async (req, res) => {
+router.get('/', requireAuth, requireRoles('ADMIN', 'INCHARGE', 'HOD', 'VICE_PRINCIPAL', 'PRINCIPAL', 'HEADMASTER'), async (req, res) => {
   try {
     const successRaw = req.query.success;
     let success;
@@ -31,7 +31,7 @@ router.get('/', requireAuth, requireRoles('ADMIN'), async (req, res) => {
   }
 });
 
-router.get('/meta', requireAuth, requireRoles('ADMIN'), async (_req, res) => {
+router.get('/meta', requireAuth, requireRoles('ADMIN', 'INCHARGE', 'HOD', 'VICE_PRINCIPAL', 'PRINCIPAL', 'HEADMASTER'), async (_req, res) => {
   return res.json({ categories: AUDIT_CATEGORIES });
 });
 

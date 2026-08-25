@@ -15,6 +15,10 @@ import { useMock } from '../services/api.js';
 const PAGE_TITLES = {
   dashboard: { title: 'Dashboard', subtitle: 'School overview and quick stats.' },
   attendance: { title: 'Attendance', subtitle: 'Mark and manage daily attendance.' },
+  'attendance-history': {
+    title: 'Attendance History',
+    subtitle: 'View attendance records from previous days.',
+  },
   'edit-approvals': {
     title: 'Edit Approvals',
     subtitle: 'View pending requests — approve or deny only via WhatsApp.',
@@ -75,6 +79,10 @@ const PAGE_TITLES = {
   'send-notification': {
     title: 'Send Notification',
     subtitle: 'Message classes, groups, or individual students.',
+  },
+  chronicle: {
+    title: 'Chronicle',
+    subtitle: 'Create branded school posters and publish to the notice board.',
   },
   settings: { title: 'Settings', subtitle: 'System configuration.' },
   support: { title: 'Support Center', subtitle: 'Get help from Rio Biz Solutions.' },

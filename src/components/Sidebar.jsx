@@ -12,6 +12,7 @@ import {
   Shield,
   CalendarDays,
   Megaphone,
+  Bell,
   Pin,
   PinOff,
   ArrowRight,
@@ -22,9 +23,13 @@ import {
   ChevronDown,
   ScrollText,
   UserCog,
+  AlertTriangle,
+  Sparkles,
+  History,
 } from 'lucide-react';
 import { isNavChildActive, navItemsForUser } from '../data/navItems';
-import { SchoolLogo } from '../lib/branding.jsx';
+import { SchoolLogo, useBranding } from '../lib/branding.jsx';
+import { isApexBrowserHost } from '../lib/tenantHost.js';
 
 const iconMap = {
   LayoutDashboard,
@@ -38,12 +43,16 @@ const iconMap = {
   Shield,
   CalendarDays,
   Megaphone,
+  Bell,
   BookMarked,
   CalendarClock,
   Library,
   ScrollText,
   UserCog,
   Headset,
+  AlertTriangle,
+  Sparkles,
+  History,
 };
 
 export default function Sidebar({
@@ -57,6 +66,10 @@ export default function Sidebar({
   onMobileOpenChange,
   user = null,
 }) {
+  const { schoolName } = useBranding();
+  const brandLabel = isApexBrowserHost()
+    ? 'Presence'
+    : String(schoolName || '').trim() || 'School';
   const [isMobile, setIsMobile] = useState(false);
   const [expanded, setExpanded] = useState({});
   const items = navItemsForUser(user);
@@ -131,7 +144,7 @@ export default function Sidebar({
             />
             <div className="min-w-0">
               <p className="truncate text-base font-semibold leading-tight tracking-tight text-white">
-                Presence
+                {brandLabel}
               </p>
               <p className="truncate text-[11px] leading-tight text-indigo-300">School Attendance</p>
             </div>

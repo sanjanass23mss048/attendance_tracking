@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
+  CloudRain,
   FileText,
   Layers,
   Loader2,
@@ -21,6 +22,13 @@ import {
   getNotificationStudents,
   saveTeacherNotification,
 } from '../services/teacherNotificationService.js';
+import { getBrowserTenantSlug } from '../lib/tenantHost.js';
+import { useBranding } from '../lib/branding.jsx';
+import {
+  APPLICABLE_OPTIONS,
+  buildSuddenHolidayMessage,
+} from '../data/calendarData.js';
+import { createSuddenHoliday } from '../services/calendarService.js';
 
 const RECIPIENT_OPTIONS = [
   {
@@ -82,11 +90,36 @@ function matchesGroup(className, groupId) {
   return true;
 }
 
-export default function SendNotificationPage({ user }) {
+function formatWhatsAppToast(whatsapp) {
+  if (!whatsapp) return '';
+  if (whatsapp.reason === 'not_configured') {
+    return ' WhatsApp skipped (not configured).';
+  }
+  const parts = [];
+  if (whatsapp.sent) parts.push(`${whatsapp.sent} sent`);
+  if (whatsapp.skipped) parts.push(`${whatsapp.skipped} skipped`);
+  if (whatsapp.failed) parts.push(`${whatsapp.failed} failed`);
+  if (!parts.length) {
+    if (whatsapp.attempted === 0) return ' WhatsApp: no parent phones found.';
+    return '';
+  }
+  let msg = ` WhatsApp: ${parts.join(', ')}.`;
+  if (whatsapp.error) msg += ` Meta: ${whatsapp.error}`;
+  return msg;
+}
+
+export default function SendNotificationPage({ user, onNavigate }) {
+  const { schoolName } = useBranding();
+  const tenantSlug = getBrowserTenantSlug();
+  // Sudden Holiday lives on Notify (moved from Academic Calendar). Show for all school tenants.
+  const showSuddenHoliday = Boolean(tenantSlug) && tenantSlug !== 'apex';
+  const displaySchool = schoolName || 'School';
+
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [composerMode, setComposerMode] = useState('notify'); // notify | sudden
   const [options, setOptions] = useState({
     classes: [],
     groups: [],
@@ -115,9 +148,67 @@ export default function SendNotificationPage({ user }) {
   const [delivery, setDelivery] = useState('now');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
+  const [sendViaWhatsApp, setSendViaWhatsApp] = useState(true);
   const [attachment, setAttachment] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [addClassOpen, setAddClassOpen] = useState(false);
+
+  const [holidayDate, setHolidayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [holidayDateTo, setHolidayDateTo] = useState('');
+  const [holidayReason, setHolidayReason] = useState('Heavy Rain');
+  const [holidayApplicableTo, setHolidayApplicableTo] = useState('All Classes');
+  const [holidayMessage, setHolidayMessage] = useState('');
+  const [holidaySaving, setHolidaySaving] = useState(false);
+
+  useEffect(() => {
+    setHolidayMessage(
+      buildSuddenHolidayMessage(holidayReason, holidayDate, holidayDateTo, displaySchool)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed when school name loads
+  }, [displaySchool]);
+
+  const refreshHolidayMessage = (reason, from, to) => {
+    setHolidayMessage(buildSuddenHolidayMessage(reason, from, to, displaySchool));
+  };
+
+  const submitSuddenHoliday = async (e) => {
+    e?.preventDefault?.();
+    if (!holidayReason.trim()) {
+      setError('Please enter a reason for the sudden holiday.');
+      return;
+    }
+    if (!holidayDate) {
+      setError('Please select a from date.');
+      return;
+    }
+    setHolidaySaving(true);
+    setError('');
+    setToast('');
+    try {
+      const { whatsapp } = await createSuddenHoliday({
+        date: holidayDate,
+        dateTo: holidayDateTo || holidayDate,
+        reason: holidayReason.trim(),
+        applicableTo: holidayApplicableTo,
+        message: holidayMessage,
+      });
+      let notice = 'Sudden holiday saved to calendar.';
+      if (whatsapp?.mock) notice = 'Holiday saved locally (mock mode). WhatsApp is not sent.';
+      else if (whatsapp && whatsapp.attempted === 0) {
+        notice = 'Holiday saved, but no parent phone numbers were found.';
+      } else if (whatsapp && whatsapp.skipped && whatsapp.skipped === whatsapp.attempted) {
+        notice =
+          'Holiday saved, but WhatsApp was skipped (token not configured, or sudden_holiday template not approved).';
+      } else if (whatsapp && (whatsapp.sent || whatsapp.failed)) {
+        notice = `Holiday saved.${formatWhatsAppToast(whatsapp)}`;
+      }
+      setToast(notice);
+    } catch (err) {
+      setError(err.message || 'Failed to save sudden holiday');
+    } finally {
+      setHolidaySaving(false);
+    }
+  };
 
   const sectionMeta = useMemo(() => {
     const map = new Map();
@@ -319,6 +410,7 @@ export default function SendNotificationPage({ user }) {
       delivery: asDraft ? 'now' : delivery,
       scheduledAt,
       asDraft,
+      sendViaWhatsApp: asDraft ? false : sendViaWhatsApp,
     };
   };
 
@@ -371,12 +463,16 @@ export default function SendNotificationPage({ user }) {
     try {
       const data = await saveTeacherNotification(buildPayload(asDraft), attachment);
       const status = data.notification?.status;
+      const waNote =
+        !asDraft && status === 'SENT' && sendViaWhatsApp
+          ? formatWhatsAppToast(data.whatsapp)
+          : '';
       setToast(
         asDraft
           ? 'Draft saved.'
           : status === 'SCHEDULED'
             ? 'Notification scheduled.'
-            : `Sent to ${data.notification?.recipientCount || 0} recipient(s).`
+            : `Sent to ${data.notification?.recipientCount || 0} recipient(s) (notice board).${waNote}`
       );
       setTitle('');
       setMessage('');
@@ -456,6 +552,193 @@ export default function SendNotificationPage({ user }) {
         </div>
       )}
 
+      {showSuddenHoliday ? (
+        <div className="mb-5 overflow-hidden rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 shadow-sm">
+          <button
+            type="button"
+            onClick={() => {
+              setComposerMode('sudden');
+              setError('');
+              refreshHolidayMessage(holidayReason, holidayDate, holidayDateTo);
+            }}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-amber-100/60"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white">
+              <CloudRain size={22} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-amber-950">Sudden Holiday</span>
+              <span className="mt-0.5 block text-xs text-amber-900/80">
+                School closure + WhatsApp parents (rain, strike, etc.) — tap to open
+              </span>
+            </span>
+            <span className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white">
+              Open
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      {showSuddenHoliday ? (
+        <div className="mb-5 inline-flex rounded-xl border border-indigo-100 bg-indigo-50 p-1 text-sm font-semibold">
+          <button
+            type="button"
+            onClick={() => {
+              setComposerMode('notify');
+              setError('');
+            }}
+            className={`rounded-lg px-4 py-2 ${
+              composerMode === 'notify' ? 'bg-indigo-700 text-white' : 'text-indigo-900 hover:bg-white/70'
+            }`}
+          >
+            Send Notification
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setComposerMode('sudden');
+              setError('');
+              refreshHolidayMessage(holidayReason, holidayDate, holidayDateTo);
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 ${
+              composerMode === 'sudden' ? 'bg-indigo-700 text-white' : 'text-indigo-900 hover:bg-white/70'
+            }`}
+          >
+            <CloudRain size={16} />
+            Sudden Holiday
+          </button>
+        </div>
+      ) : null}
+
+      {showSuddenHoliday && composerMode === 'sudden' ? (
+        <form
+          onSubmit={submitSuddenHoliday}
+          className="mx-auto max-w-2xl space-y-5 rounded-2xl border border-amber-200 bg-white p-5 shadow-sm sm:p-6"
+        >
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Sudden Holiday Configuration</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              For rain, strike, or other unplanned closures at {displaySchool}. Saves to the academic
+              calendar and sends the WhatsApp <span className="font-semibold">sudden_holiday</span>{' '}
+              template to parents.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                From date *
+              </span>
+              <input
+                type="date"
+                required
+                value={holidayDate}
+                onChange={(e) => {
+                  const date = e.target.value;
+                  setHolidayDate(date);
+                  refreshHolidayMessage(holidayReason, date, holidayDateTo);
+                }}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                To date (optional)
+              </span>
+              <input
+                type="date"
+                min={holidayDate}
+                value={holidayDateTo}
+                onChange={(e) => {
+                  const dateTo = e.target.value;
+                  setHolidayDateTo(dateTo);
+                  refreshHolidayMessage(holidayReason, holidayDate, dateTo);
+                }}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              />
+            </label>
+          </div>
+
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Reason *
+            </span>
+            <input
+              type="text"
+              required
+              value={holidayReason}
+              placeholder="e.g. Heavy Rain"
+              onChange={(e) => {
+                const reason = e.target.value;
+                setHolidayReason(reason);
+                refreshHolidayMessage(reason, holidayDate, holidayDateTo);
+              }}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Applicable to
+            </span>
+            <select
+              value={holidayApplicableTo}
+              onChange={(e) => setHolidayApplicableTo(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            >
+              {APPLICABLE_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Message to parents
+            </span>
+            <textarea
+              rows={5}
+              value={holidayMessage}
+              onChange={(e) => setHolidayMessage(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            />
+            <span className="mt-1 block text-xs text-gray-500">
+              Preview for notice board / SMS wording. WhatsApp uses the approved Meta template with
+              reason + dates.
+            </span>
+          </label>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={holidaySaving}
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
+            >
+              {holidaySaving ? <Loader2 className="animate-spin" size={16} /> : <CloudRain size={16} />}
+              Save &amp; Notify Parents
+            </button>
+            <button
+              type="button"
+              onClick={() => setComposerMode('notify')}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700"
+            >
+              Back to Notify
+            </button>
+            {typeof onNavigate === 'function' ? (
+              <button
+                type="button"
+                onClick={() => onNavigate('calendar')}
+                className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-800"
+              >
+                Open Academic Calendar
+              </button>
+            ) : null}
+          </div>
+        </form>
+      ) : (
+      <>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
         {/* LEFT */}
         <div className="space-y-5">
@@ -464,14 +747,48 @@ export default function SendNotificationPage({ user }) {
               Who do you want to notify?
             </h2>
             <div className="mt-4 space-y-2.5">
+              {showSuddenHoliday ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComposerMode('sudden');
+                    setError('');
+                    refreshHolidayMessage(holidayReason, holidayDate, holidayDateTo);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition ${
+                    composerMode === 'sudden'
+                      ? 'border-amber-500 bg-amber-50'
+                      : 'border-amber-200 bg-amber-50/50 hover:border-amber-400'
+                  }`}
+                >
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      composerMode === 'sudden'
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    <CloudRain size={20} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-amber-950">
+                      Sudden Holiday
+                    </span>
+                    <span className="mt-0.5 block text-xs text-amber-900/70">
+                      School closure + WhatsApp parents (rain, strike, etc.)
+                    </span>
+                  </span>
+                </button>
+              ) : null}
               {recipientCards.map((opt) => {
                 const Icon = opt.icon;
-                const active = recipientType === opt.id;
+                const active = composerMode === 'notify' && recipientType === opt.id;
                 return (
                   <button
                     key={opt.id}
                     type="button"
                     onClick={() => {
+                      setComposerMode('notify');
                       setRecipientType(opt.id);
                       setError('');
                     }}
@@ -1028,6 +1345,40 @@ export default function SendNotificationPage({ user }) {
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Delivery channels</h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Always published to the parent Notice Board. WhatsApp uses the school’s
+                  approved Meta template.
+                </p>
+              </div>
+              {sendViaWhatsApp && (
+                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">
+                  WhatsApp on
+                </span>
+              )}
+            </div>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-slate-50 px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={sendViaWhatsApp}
+                onChange={(e) => setSendViaWhatsApp(e.target.checked)}
+                className="mt-0.5 accent-indigo-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">
+                  Send via WhatsApp
+                </span>
+                <span className="mt-0.5 block text-xs text-gray-500">
+                  Parents with a registered phone receive the notice on WhatsApp (same
+                  integration as sudden holiday alerts). Missing numbers are skipped.
+                </span>
+              </span>
+            </label>
+          </section>
+
+          <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
             <h2 className="text-base font-semibold text-gray-900">Preview</h2>
             <div className="mt-3 rounded-2xl border border-gray-100 bg-gradient-to-b from-slate-50 to-white p-4">
               <div className="flex items-start gap-3">
@@ -1127,6 +1478,7 @@ export default function SendNotificationPage({ user }) {
         </div>
       </div>
 
+
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
@@ -1134,7 +1486,11 @@ export default function SendNotificationPage({ user }) {
             <p className="mt-2 text-sm text-gray-600">
               This notification will be sent to{' '}
               <span className="font-semibold text-gray-900">{livePreviewRecipients}</span>
-              {delivery === 'later' ? ' at the scheduled time' : ' now'}.
+              {delivery === 'later' ? ' at the scheduled time' : ' now'}
+              {sendViaWhatsApp
+                ? ' via the parent Notice Board and WhatsApp'
+                : ' via the parent Notice Board'}
+              .
             </p>
             <div className="mt-4 flex gap-2">
               <button
@@ -1154,6 +1510,8 @@ export default function SendNotificationPage({ user }) {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

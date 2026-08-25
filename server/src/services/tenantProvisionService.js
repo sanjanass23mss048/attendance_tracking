@@ -14,6 +14,7 @@ import { seedNewTenant } from './tenantSeedService.js';
 import { saveSchoolLogo } from '../lib/schoolBranding.js';
 import { ensureAttendanceStatuses } from '../lib/statusMap.js';
 import { ensureAdminAuditTables } from '../lib/ensureAdminAuditTables.js';
+import { ensureAttendanceIntelligenceTables } from '../lib/ensureAttendanceIntelligenceTables.js';
 import { ALERT_SETTING_KEYS, loadAppSettings, saveAppSettings } from '../lib/appSettings.js';
 import { ensureStudentImportTables } from '../lib/ensureStudentImportTables.js';
 import { ensureTeacherNotificationTables } from '../lib/ensureTeacherNotificationTables.js';
@@ -152,6 +153,7 @@ export async function createSchoolTenant({
         await ensureStudentImportTables();
         await ensureTeacherNotificationTables();
         await ensureAdminAuditTables();
+        await ensureAttendanceIntelligenceTables();
         await loadAppSettings();
         await saveAppSettings({
           [ALERT_SETTING_KEYS.CHANNEL]: alertChannel || 'sms',

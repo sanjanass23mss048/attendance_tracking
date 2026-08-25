@@ -41,6 +41,18 @@ export const APP_SETTING_GROUPS = [
       { key: 'WHATSAPP_HOLIDAY_HEADER', label: 'Sudden holiday header text', hint: 'Must match the template header variable, e.g. St.Joseph' },
       { key: 'WHATSAPP_OTP_TEMPLATE', label: 'Login OTP template name', hint: 'Exact Meta name, e.g. login_otp' },
       { key: 'WHATSAPP_PROMOTION_TEMPLATE', label: 'Promotion template name', hint: 'Exact Meta name, e.g. promotion_message' },
+      { key: 'WHATSAPP_MEETING_TEMPLATE', label: 'Parent meeting template name', hint: 'Exact Meta name: school_parent_meeting_schedule' },
+      { key: 'WHATSAPP_MEETING_TEMPLATE_LANG', label: 'Parent meeting template language', hint: 'Must match Meta, usually en' },
+      { key: 'WHATSAPP_NOTICE_TEMPLATE', label: 'School notice template name', hint: 'Exact Meta name: general_notice' },
+      { key: 'WHATSAPP_NOTICE_TEMPLATE_LANG', label: 'School notice template language', hint: 'Must match Meta, usually en' },
+      { key: 'WHATSAPP_NOTICE_HEADER', label: 'School notice header text', hint: 'Only if template has a header variable; general_notice uses static St.Josephs' },
+      { key: 'WHATSAPP_NOTICE_HEADER_VAR', label: 'Notice header is a variable?', hint: 'Set 1 only if Meta header is {{1}}; leave empty for general_notice' },
+      {
+        key: 'WHATSAPP_NOTICE_IMAGE_TEMPLATE',
+        label: 'Notice + image template',
+        hint: 'Optional approved IMAGE-header template for Chronicle posters (e.g. general_notice_image)',
+      },
+      { key: 'WHATSAPP_BUSINESS_ACCOUNT_ID', label: 'WhatsApp Business Account ID', hint: 'WABA id for template listing, e.g. 1683072422845683' },
     ],
   },
   {
