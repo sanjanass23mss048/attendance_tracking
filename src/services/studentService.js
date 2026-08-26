@@ -169,3 +169,24 @@ export async function updateStudent(id, payload) {
   const data = await apiFetch(`/api/students/${id}`, { method: 'PUT', json: payload });
   return { student: normalizeStudent(data.student) };
 }
+
+/**
+ * Send WhatsApp promotion_message to parents.
+ * Body: student name, from grade, to grade (matches approved Meta template).
+ * @param {{ fromGrade: string, toGrade: string, schoolName?: string, recipients: Array<{ studentClassId: string, studentName?: string }> }} payload
+ */
+export async function notifyPromotionParents(payload) {
+  if (useMock()) {
+    return {
+      sent: payload.recipients?.length || 0,
+      skipped: 0,
+      failed: 0,
+      results: (payload.recipients || []).map((r) => ({
+        studentClassId: r.studentClassId,
+        ok: true,
+        skipped: false,
+      })),
+    };
+  }
+  return apiFetch('/api/students/promotion-notify', { method: 'POST', json: payload });
+}

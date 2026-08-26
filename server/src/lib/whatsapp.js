@@ -791,3 +791,85 @@ export async function sendParentMeetingWhatsApp({
     error: lastError,
   });
 }
+
+/**
+ * Promotion notice - approved Meta template body:
+ *   Dear Parent,
+ *   We are pleased to inform you that your ward {{1}} has been promoted from Grade {{2}} to Grade {{3}} for the new academic year.
+ *   Congratulations and best wishes for continued success!
+ * Body params are class keys only (e.g. UKG, 1) ? do not prefix "Grade ".
+ * Optional TEXT header {{1}} = school name (e.g. St.Joseph).
+ */
+export async function sendPromotionWhatsApp({
+  toPhone,
+  studentName,
+  fromGrade,
+  toGrade,
+  schoolName,
+}) {
+  if (!configured()) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'not_configured' });
+  }
+  const templateName = env('WHATSAPP_PROMOTION_TEMPLATE', 'promotion_message');
+  if (!templateName) {
+    return waResult({ ok: true, skipped: true, to: null, reason: 'no_template' });
+  }
+  const to = String(toPhone || '').replace(/\D/g, '');
+  if (!to) {
+    return waResult({ ok: false, to: '', error: 'Missing phone number' });
+  }
+
+  const preferred =
+    env('WHATSAPP_PROMOTION_TEMPLATE_LANG') || env('WHATSAPP_TEMPLATE_LANG', 'en');
+  const langs = [...new Set([preferred, preferred === 'en_US' ? 'en' : null].filter(Boolean))];
+  const body = textParams([
+    studentName || 'Student',
+    fromGrade || '-',
+    toGrade || '-',
+  ]);
+  const headerText =
+    schoolName ||
+    env('WHATSAPP_PROMOTION_HEADER') ||
+    env('WHATSAPP_HOLIDAY_HEADER') ||
+    env('SCHOOL_NAME') ||
+    'School';
+
+  let lastError = 'WhatsApp promotion send failed';
+  for (const languageCode of langs) {
+    for (const withHeader of [true, false]) {
+      try {
+        const components = [];
+        if (withHeader) {
+          components.push({
+            type: 'header',
+            parameters: textParams([headerText]),
+          });
+        }
+        components.push({
+          type: 'body',
+          parameters: body,
+        });
+        const data = await postMessage({
+          messaging_product: 'whatsapp',
+          to,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: languageCode },
+            components,
+          },
+        });
+        return waResult({ ok: true, to, id: data?.messages?.[0]?.id || null });
+      } catch (err) {
+        lastError = err.message || lastError;
+        console.error(
+          '[whatsapp] promotion failed',
+          languageCode,
+          withHeader ? 'header' : 'body-only',
+          err
+        );
+      }
+    }
+  }
+  return waResult({ ok: false, to, error: lastError });
+}

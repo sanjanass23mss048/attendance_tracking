@@ -12,6 +12,7 @@ import {
   serializeEnrollment,
 } from '../services/schoolRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
+import { sendPromotionWhatsApp } from '../lib/whatsapp.js';
 
 const router = Router();
 
@@ -103,6 +104,105 @@ router.get('/', requireAuth, async (req, res) => {
       section: serializeClassSection(section),
     })),
   });
+});
+
+const promotionNotifySchema = z.object({
+  fromGrade: z.string().min(1),
+  toGrade: z.string().min(1),
+  schoolName: z.string().optional(),
+  recipients: z
+    .array(
+      z.object({
+        studentClassId: z.string().min(1),
+        studentName: z.string().optional(),
+      })
+    )
+    .min(1)
+    .max(500),
+});
+
+/** Send Meta promotion_message template to parents of promoted students. */
+router.post('/promotion-notify', requireAuth, async (req, res) => {
+  const parsed = promotionNotifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid body', details: parsed.error.flatten() });
+  }
+
+  const { fromGrade, toGrade, schoolName, recipients } = parsed.data;
+  const results = [];
+
+  for (const row of recipients) {
+    const enrollment = await prisma.tblStudent_Class.findUnique({
+      where: { student_class_id: row.studentClassId },
+      include: {
+        tblStudents: true,
+        tblClass_Section: { include: { tblClass: true, tblSection: true } },
+      },
+    });
+    if (!enrollment) {
+      results.push({
+        studentClassId: row.studentClassId,
+        ok: false,
+        skipped: false,
+        error: 'Student not found',
+      });
+      continue;
+    }
+    if (!(await canAccessSection(req.user?.sub, req.user?.role, enrollment.class_section_id))) {
+      results.push({
+        studentClassId: row.studentClassId,
+        ok: false,
+        skipped: false,
+        error: 'Section forbidden',
+      });
+      continue;
+    }
+
+    const st = enrollment.tblStudents;
+    const phone =
+      st?.Father_Number || st?.Mother_Number || st?.Guardian_Number || null;
+    const name =
+      row.studentName ||
+      [st?.First_Name, st?.Last_Name].filter(Boolean).join(' ').trim() ||
+      'Student';
+
+    const send = await sendPromotionWhatsApp({
+      toPhone: phone,
+      studentName: name,
+      fromGrade,
+      toGrade,
+      schoolName,
+    });
+
+    results.push({
+      studentClassId: row.studentClassId,
+      name,
+      phone: send.to || phone || null,
+      ok: Boolean(send.ok),
+      skipped: Boolean(send.skipped),
+      error: send.error || send.reason || null,
+      messageId: send.id || null,
+    });
+  }
+
+  const sent = results.filter((r) => r.ok && !r.skipped).length;
+  const skipped = results.filter((r) => r.skipped).length;
+  const failed = results.filter((r) => !r.ok && !r.skipped).length;
+
+  try {
+    logAdminAudit(req, {
+      action: 'STUDENT_PROMOTION_NOTIFY',
+      category: 'STUDENTS',
+      entityType: 'students',
+      entityId: null,
+      summary: `Promotion WhatsApp: ${sent} sent, ${skipped} skipped, ${failed} failed (${fromGrade} → ${toGrade})`,
+      details: { fromGrade, toGrade, sent, skipped, failed, count: recipients.length },
+    });
+  } catch (err) {
+    console.warn('[students] promotion audit failed', err?.message || err);
+  }
+
+  return res.json({ sent, skipped, failed, results });
 });
 
 router.get('/:id', requireAuth, async (req, res) => {

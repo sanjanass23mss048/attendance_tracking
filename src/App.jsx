@@ -17,7 +17,7 @@ import StudentBulkImportPage from './components/StudentBulkImportPage';
 import LeaveLettersPage from './components/LeaveLettersPage';
 import TcRequestsPage from './components/TcRequestsPage';
 import ClassesPage from './components/ClassesPage';
-import ClassSectionHandlingPage from './components/ClassSectionHandlingPage';
+import StudentPromotionPage from './components/StudentPromotionPage';
 import SettingsPage from './components/SettingsPage';
 import SupportCenterPage from './components/SupportCenterPage';
 import ReportsPage from './components/ReportsPage';
@@ -623,8 +623,12 @@ function AttendanceApp() {
       setActivePage('dashboard');
       return;
     }
-    if (pageId === 'class-section-handling' && !canApproveEditRequests(user)) {
+    if (pageId === 'student-promotion' && !canApproveEditRequests(user)) {
       setActivePage('dashboard');
+      return;
+    }
+    if (pageId === 'student-demotion') {
+      setActivePage('student-promotion');
       return;
     }
     if (pageId === 'chronicle' && !canApproveEditRequests(user)) {
@@ -1564,8 +1568,8 @@ function AttendanceApp() {
             <TcRequestsPage user={user} />
           ) : activePage === 'classes' ? (
             <ClassesPage initialClassName={pageFocus?.className} />
-          ) : activePage === 'class-section-handling' ? (
-            canApproveEditRequests(user) ? <ClassSectionHandlingPage /> : null
+          ) : activePage === 'student-promotion' || activePage === 'student-demotion' ? (
+            canApproveEditRequests(user) ? <StudentPromotionPage /> : null
           ) : activePage === 'teachers' ? (
             canManageTeachers(user) ? (
               <TeachersPage user={user} onAccessDenied={denyTeachersAccess} />

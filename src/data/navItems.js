@@ -55,11 +55,11 @@ export const FULL_NAV_ITEMS = [
       { id: 'students', label: 'Student Directory', icon: 'Users', dot: 'bg-violet-400' },
       { id: 'classes', label: 'Classes & Sections', icon: 'BookOpen', dot: 'bg-emerald-400' },
       {
-        id: 'class-section-handling',
-        label: 'Class & Section Handling',
-        icon: 'Layers',
+        id: 'student-promotion',
+        label: 'Promotion',
+        icon: 'TrendingUp',
         roles: EDIT_APPROVER_ROLES,
-        dot: 'bg-amber-400',
+        dot: 'bg-emerald-400',
       },
     ],
   },
@@ -151,7 +151,7 @@ export function canAccessNavItem(item, user) {
   if (item.id === 'users') return canManageUsers(user);
   if (item.id === 'audit-logs') return canViewAuditLogs(user);
   if (item.id === 'attendance-intelligence') return canApproveEditRequests(user);
-  if (item.id === 'class-section-handling') return canApproveEditRequests(user);
+  if (item.id === 'student-promotion') return canApproveEditRequests(user);
   if (item.id === 'chronicle') return canApproveEditRequests(user);
   const role = String(user?.role || user?.role_id || '').toUpperCase();
   return item.roles.map((r) => String(r).toUpperCase()).includes(role);

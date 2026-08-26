@@ -41,6 +41,16 @@ export const APP_SETTING_GROUPS = [
       { key: 'WHATSAPP_HOLIDAY_HEADER', label: 'Sudden holiday header text', hint: 'Must match the template header variable, e.g. St.Joseph' },
       { key: 'WHATSAPP_OTP_TEMPLATE', label: 'Login OTP template name', hint: 'Exact Meta name, e.g. login_otp' },
       { key: 'WHATSAPP_PROMOTION_TEMPLATE', label: 'Promotion template name', hint: 'Exact Meta name, e.g. promotion_message' },
+      {
+        key: 'WHATSAPP_PROMOTION_TEMPLATE_LANG',
+        label: 'Promotion template language',
+        hint: 'Must match Meta, usually en',
+      },
+      {
+        key: 'WHATSAPP_PROMOTION_HEADER',
+        label: 'Promotion header text',
+        hint: 'Must match template header variable, e.g. school name',
+      },
       { key: 'WHATSAPP_MEETING_TEMPLATE', label: 'Parent meeting template name', hint: 'Exact Meta name: school_parent_meeting_schedule' },
       { key: 'WHATSAPP_MEETING_TEMPLATE_LANG', label: 'Parent meeting template language', hint: 'Must match Meta, usually en' },
       { key: 'WHATSAPP_NOTICE_TEMPLATE', label: 'School notice template name', hint: 'Exact Meta name: general_notice' },
