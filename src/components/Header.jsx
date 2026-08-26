@@ -42,27 +42,31 @@ const PAGE_TITLES = {
   users: { title: 'Users', subtitle: 'Create Teacher and Parent login accounts.' },
   calendar: { title: 'Academic Calendar', subtitle: 'Plan, manage and view academic events.' },
   timetable: {
-    title: 'Manage Timetables',
-    subtitle: 'Create, update and publish class, test and examination schedules.',
+    title: 'Weekly Timetable',
+    subtitle: 'View class period schedules.',
+  },
+  'timetable-scheduling': {
+    title: 'Timetable Scheduling',
+    subtitle: 'Drag teachers and subjects onto the weekly grid.',
   },
   'timetable-nav': {
-    title: 'Manage Timetables',
-    subtitle: 'Create, update and publish class, test and examination schedules.',
+    title: 'Exam Timetable',
+    subtitle: 'Create and publish exam / test schedules.',
   },
   'update-timetable': {
-    title: 'Manage Timetables',
-    subtitle: 'Create, update and publish class, test and examination schedules.',
+    title: 'Timetable Scheduling',
+    subtitle: 'Drag teachers and subjects onto the weekly grid.',
   },
   'regular-timetable': {
-    title: 'Manage Timetables',
-    subtitle: 'Create, update and publish class, test and examination schedules.',
+    title: 'Timetable Scheduling',
+    subtitle: 'Drag teachers and subjects onto the weekly grid.',
   },
   'test-timetable': {
-    title: 'Manage Timetables',
+    title: 'Exam Timetable',
     subtitle: 'Class timetable and exam / test schedules.',
   },
   'exam-timetable': {
-    title: 'Manage Timetables',
+    title: 'Exam Timetable',
     subtitle: 'Class timetable and exam / test schedules.',
   },
   'assign-homework': {

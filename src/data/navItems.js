@@ -68,7 +68,8 @@ export const FULL_NAV_ITEMS = [
     label: 'Academics',
     icon: 'Library',
     children: [
-      { id: 'timetable-nav', label: 'Timetable', icon: 'CalendarClock', dot: 'bg-violet-400' },
+      { id: 'timetable-scheduling', label: 'Timetable Scheduling', icon: 'CalendarClock', dot: 'bg-indigo-400' },
+      { id: 'timetable-nav', label: 'Exam Timetable', icon: 'CalendarClock', dot: 'bg-violet-400' },
       { id: 'subjects', label: 'Subjects', icon: 'Library', dot: 'bg-sky-400' },
       { id: 'assign-homework', label: 'Assign Homework', icon: 'BookMarked', dot: 'bg-amber-400' },
       { id: 'homework-list', label: 'Homework List', icon: 'BookMarked', dot: 'bg-rose-400' },
@@ -178,6 +179,12 @@ export function canBulkImportStudents(user) {
 /** School-wide audit feed — in-charge / school leadership. */
 export function canViewAuditLogs(user) {
   return hasLeadershipRole(user);
+}
+
+/** Timetable scheduling editors — any staff except parents (matches requireStaff). */
+export function canEditTimetable(user) {
+  const role = String(user?.role || user?.role_id || '').toUpperCase();
+  return Boolean(role) && role !== 'PARENT';
 }
 
 export function navItemsForUser(user) {

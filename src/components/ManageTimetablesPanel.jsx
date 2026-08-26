@@ -155,6 +155,7 @@ export default function ManageTimetablesPanel({
   mode = 'regular',
   sectionOptions = [],
   loadingClasses = false,
+  onNavigate,
 }) {
   const initialType =
     mode === 'exam-timetable' ||
@@ -379,6 +380,17 @@ export default function ManageTimetablesPanel({
 
       {type === 'regular' ? (
         <div className="space-y-4">
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+            Prefer the drag-and-drop scheduler? Open{' '}
+            <button
+              type="button"
+              onClick={() => onNavigate?.('timetable-scheduling')}
+              className="font-bold text-indigo-700 underline underline-offset-2"
+            >
+              Timetable Scheduling
+            </button>{' '}
+            under Academics for teacher conflict checks and live availability.
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">
               Select Class / Section

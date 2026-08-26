@@ -44,6 +44,7 @@ import { ensureTeacherNotificationTables } from './lib/ensureTeacherNotification
 import { ensureAdminAuditTables } from './lib/ensureAdminAuditTables.js';
 import { ensureTcRequestTables } from './lib/ensureTcRequestTables.js';
 import { ensureAttendanceIntelligenceTables } from './lib/ensureAttendanceIntelligenceTables.js';
+import { ensureTimetableSchedulingTables } from './lib/ensureTimetableSchedulingTables.js';
 import { ensureTenantRegistry } from './lib/ensureTenantRegistry.js';
 import { loadAppSettings } from './lib/appSettings.js';
 import { getRequestTenant } from './lib/tenantContext.js';
@@ -223,6 +224,7 @@ ensureUploadDir()
   .then(() => ensureAdminAuditTables())
   .then(() => ensureTcRequestTables())
   .then(() => ensureAttendanceIntelligenceTables())
+  .then(() => ensureTimetableSchedulingTables())
   .then(() => loadAppSettings())
   .then(() => {
     console.log('Tenant registry ensured');
@@ -232,6 +234,7 @@ ensureUploadDir()
     console.log('Admin audit tables ensured');
     console.log('TC request tables ensured');
     console.log('Attendance intelligence tables ensured');
+    console.log('Timetable scheduling tables ensured');
     console.log('App settings table ensured (SMS / WhatsApp / FCM from DB)');
   })
   .catch((err) => {

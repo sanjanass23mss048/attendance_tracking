@@ -34,7 +34,7 @@ function StepBadge({ n }) {
 /**
  * Teacher Academic Management — Assign Homework + Manage Timetables.
  */
-export default function TeacherPanelPage({ mode = 'assign-homework' }) {
+export default function TeacherPanelPage({ mode = 'assign-homework', onNavigate }) {
   const showHomework = mode === 'assign-homework';
   const timetableOnly =
     mode === 'regular-timetable' ||
@@ -328,6 +328,7 @@ export default function TeacherPanelPage({ mode = 'assign-homework' }) {
             mode={timetableMode}
             sectionOptions={sectionOptions}
             loadingClasses={loadingClasses}
+            onNavigate={onNavigate}
           />
         )}
       </div>

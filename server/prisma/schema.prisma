@@ -444,6 +444,28 @@ model tblTimetable {
   classSection     tblClass_Section @relation(fields: [Class_Section_id], references: [Class_Section_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+/// Teacher ↔ subject eligibility for timetable scheduling (ensure-DDL also creates this).
+model tblTeacher_Subjects {
+  Teacher_Subject_id String  @id @db.VarChar(50)
+  Teacher_id         String  @db.VarChar(50)
+  Subject_id         String  @db.VarChar(50)
+  Academic_Year      String? @db.VarChar(50)
+  Int_Status         Int?    @default(1)
+  Created_On         DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@unique([Teacher_id, Subject_id])
+  @@index([Teacher_id])
+  @@index([Subject_id])
+}
+
+/// School-wide period / working-day settings for drag-drop timetable scheduling.
+model tblTimetable_Settings {
+  Settings_id   String   @id @db.VarChar(50)
+  Settings_Json Json
+  Updated_On    DateTime @default(now()) @db.Timestamptz(6)
+  Updated_By    String?  @db.VarChar(50)
+}
+
 /// FCM (or other) push tokens for parent devices.
 model tblDevice_Tokens {
   Token_id   String   @id @db.VarChar(50)

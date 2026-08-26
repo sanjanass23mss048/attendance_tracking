@@ -40,6 +40,7 @@ import ChroniclePosterPage from './components/ChroniclePosterPage';
 import TeacherPanelPage from './components/TeacherPanelPage';
 import HomeworkListPage from './components/HomeworkListPage';
 import SubjectsPage from './components/SubjectsPage';
+import TimetableSchedulingPage from './components/TimetableSchedulingPage';
 import RightPanel from './components/RightPanel';
 import AppToast from './components/AppToast';
 import MobileBottomNav from './components/MobileBottomNav';
@@ -1605,19 +1606,15 @@ function AttendanceApp() {
           ) : activePage === 'send-notification' ? (
             <SendNotificationPage user={user} onNavigate={handleNavigate} />
           ) : activePage === 'assign-homework' ? (
-            <TeacherPanelPage mode="assign-homework" />
-          ) : activePage === 'timetable-nav' ||
-            activePage === 'update-timetable' ||
+            <TeacherPanelPage mode="assign-homework" onNavigate={handleNavigate} />
+          ) : activePage === 'timetable-scheduling' ||
             activePage === 'regular-timetable' ||
+            activePage === 'update-timetable' ? (
+            <TimetableSchedulingPage user={user} />
+          ) : activePage === 'timetable-nav' ||
             activePage === 'test-timetable' ||
             activePage === 'exam-timetable' ? (
-            <TeacherPanelPage
-              mode={
-                activePage === 'exam-timetable' || activePage === 'test-timetable'
-                  ? 'exam-timetable'
-                  : 'regular-timetable'
-              }
-            />
+            <TeacherPanelPage mode="exam-timetable" onNavigate={handleNavigate} />
           ) : activePage === 'homework-list' ? (
             <HomeworkListPage onAssign={() => setActivePage('assign-homework')} />
           ) : activePage === 'subjects' ? (
