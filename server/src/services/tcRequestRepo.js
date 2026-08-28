@@ -359,6 +359,29 @@ export async function markReviewed(id, { status, reviewerId, note }) {
   return findById(id);
 }
 
+/** Skip teacher + management steps when Settings say verification is not required. */
+export async function skipToApproved(id, actorUserId, note = 'Verification not required') {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "tblTc_Requests"
+     SET "Status" = $2,
+         "Forwarded_By" = COALESCE("Forwarded_By", $3),
+         "Forwarded_On" = COALESCE("Forwarded_On", NOW()),
+         "Reviewed_By" = $3,
+         "Reviewed_On" = NOW(),
+         "Review_Note" = $4
+     WHERE "Request_id" = $1
+       AND "Status" IN ($5, $6)
+       AND "Int_Status" <> 0`,
+    id,
+    TC_STATUS.APPROVED,
+    actorUserId,
+    note ? String(note).slice(0, 500) : 'Verification not required',
+    TC_STATUS.REQUESTED,
+    TC_STATUS.FORWARDED
+  );
+  return findById(id);
+}
+
 export async function markIssued(
   id,
   {

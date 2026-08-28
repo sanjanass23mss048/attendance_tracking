@@ -75,22 +75,22 @@ function workflowSteps({ approvalRequired = true, tcMethod = 'generate' } = {}) 
       tone: 'bg-sky-500',
       Icon: UserRound,
     },
-    {
-      title: 'Teacher verifies request',
-      hint: approvalRequired
-        ? 'Teacher verifies and notifies management'
-        : 'Teacher verifies the request',
-      tone: 'bg-emerald-500',
-      Icon: ShieldCheck,
-    },
   ];
   if (approvalRequired) {
-    steps.push({
-      title: 'Management approves',
-      hint: 'Management reviews and approves',
-      tone: 'bg-amber-500',
-      Icon: CheckCircle2,
-    });
+    steps.push(
+      {
+        title: 'Teacher verifies request',
+        hint: 'Teacher verifies and notifies management',
+        tone: 'bg-emerald-500',
+        Icon: ShieldCheck,
+      },
+      {
+        title: 'Management approves',
+        hint: 'Management reviews and approves',
+        tone: 'bg-amber-500',
+        Icon: CheckCircle2,
+      }
+    );
   }
   steps.push(
     {
@@ -112,7 +112,8 @@ function workflowSteps({ approvalRequired = true, tcMethod = 'generate' } = {}) 
 function readyToIssue(status, approvalRequired) {
   const s = String(status || '').toUpperCase();
   if (s === 'APPROVED') return true;
-  return s === 'FORWARDED' && !approvalRequired;
+  if (!approvalRequired && (s === 'REQUESTED' || s === 'FORWARDED')) return true;
+  return false;
 }
 
 const PAGE_SIZE = 10;
@@ -152,13 +153,13 @@ export default function TcRequestsPage({ user }) {
         dateTo: dateTo || undefined,
       });
       setRequests(data.requests || []);
-      setCanVerify(data.canVerify !== false && data.canForward !== false);
       const nextWorkflow = data.workflow || {
         managementApproval: 'required',
         tcMethod: 'generate',
         approvalRequired: true,
       };
       setWorkflow(nextWorkflow);
+      setCanVerify(Boolean(data.canVerify) && nextWorkflow.approvalRequired !== false);
       setCanReview(Boolean(data.canReview));
       setCanGenerate(Boolean(data.canGenerate ?? data.canReview));
       setCanUpload(Boolean(data.canUpload));
@@ -220,7 +221,10 @@ export default function TcRequestsPage({ user }) {
       setPreviewRow(req);
       return;
     }
-    if (status === 'APPROVED' && workflow.tcMethod !== 'upload') {
+    if (
+      (status === 'APPROVED' || (!workflow.approvalRequired && status === 'REQUESTED')) &&
+      workflow.tcMethod !== 'upload'
+    ) {
       setPreviewRow(req);
       return;
     }
@@ -253,12 +257,18 @@ export default function TcRequestsPage({ user }) {
           <div>
             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">TC Workflow</h2>
             <p className="mt-0.5 text-sm text-gray-600">
-              Track every request from parent request through issue — student records are never deleted.
+              {approvalRequired
+                ? 'Track every request from parent request through issue — student records are never deleted.'
+                : 'Verification is not required. Prepare the TC when the request is raised — student records are never deleted.'}
             </p>
           </div>
         </div>
 
-        <div className={`grid gap-3 sm:grid-cols-2 ${steps.length > 4 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+        <div
+          className={`grid gap-3 sm:grid-cols-2 ${
+            steps.length >= 5 ? 'lg:grid-cols-5' : steps.length === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+          }`}
+        >
           {steps.map((step, idx) => (
             <div key={step.n} className="relative flex gap-3 rounded-xl border border-white/80 bg-white/90 p-3 shadow-sm">
               {idx < steps.length - 1 ? (
@@ -346,9 +356,11 @@ export default function TcRequestsPage({ user }) {
                     <th className="whitespace-nowrap px-3 py-3 font-semibold">Parent Name</th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold">Request Date</th>
                     <th className="min-w-[8rem] px-3 py-3 font-semibold">Reason</th>
-                    <th className="whitespace-nowrap px-3 py-3 font-semibold">Teacher Verification</th>
                     {approvalRequired ? (
-                      <th className="whitespace-nowrap px-3 py-3 font-semibold">Management Approval</th>
+                      <>
+                        <th className="whitespace-nowrap px-3 py-3 font-semibold">Teacher Verification</th>
+                        <th className="whitespace-nowrap px-3 py-3 font-semibold">Management Approval</th>
+                      </>
                     ) : null}
                     <th className="whitespace-nowrap px-3 py-3 font-semibold">TC Status</th>
                     <th className="whitespace-nowrap px-4 py-3 font-semibold">Actions</th>
@@ -357,7 +369,7 @@ export default function TcRequestsPage({ user }) {
                 <tbody className="divide-y divide-gray-100">
                   {pageRows.length === 0 ? (
                     <tr>
-                      <td colSpan={approvalRequired ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={approvalRequired ? 10 : 8} className="px-4 py-10 text-center text-sm text-gray-500">
                         No TC requests match these filters.
                       </td>
                     </tr>
@@ -592,6 +604,10 @@ function TcRow({
   const busy = busyId === req.id;
   const displayStatus = status;
   const showIssue = readyToIssue(status, approvalRequired);
+  const statusLabel =
+    !approvalRequired && status === 'REQUESTED' ? 'Ready' : tcStatusLabel(displayStatus);
+  const statusTone =
+    !approvalRequired && status === 'REQUESTED' ? tcStatusClass('APPROVED') : tcStatusClass(displayStatus);
 
   return (
     <tr className="align-top hover:bg-slate-50/80">
@@ -609,21 +625,21 @@ function TcRow({
       <td className="max-w-[12rem] px-3 py-3 text-gray-600">
         <span className="line-clamp-2">{req.reason || '—'}</span>
       </td>
-      <td className="px-3 py-3">
-        <VerificationCell verified={teacherVerified} date={req.forwardedOn} />
-      </td>
       {approvalRequired ? (
-        <td className="px-3 py-3">
-          <ApprovalCell approved={mgmtApproved} rejected={mgmtRejected} date={req.reviewedOn} />
-        </td>
+        <>
+          <td className="px-3 py-3">
+            <VerificationCell verified={teacherVerified} date={req.forwardedOn} />
+          </td>
+          <td className="px-3 py-3">
+            <ApprovalCell approved={mgmtApproved} rejected={mgmtRejected} date={req.reviewedOn} />
+          </td>
+        </>
       ) : null}
       <td className="px-3 py-3">
         <span
-          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${tcStatusClass(
-            displayStatus
-          )}`}
+          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${statusTone}`}
         >
-          {tcStatusLabel(displayStatus)}
+          {statusLabel}
           {(displayStatus === 'INACTIVE' ||
             (displayStatus === 'TC_ISSUED' && req.studentInactive)) && (
             <Info size={11} />
@@ -634,7 +650,9 @@ function TcRow({
         <div className="flex flex-wrap items-center gap-1.5">
           <IconBtn
             title={
-              ['APPROVED', 'TC_ISSUED', 'INACTIVE'].includes(status) || req.hasTcDocument
+              ['APPROVED', 'TC_ISSUED', 'INACTIVE'].includes(status) ||
+              req.hasTcDocument ||
+              showIssue
                 ? 'Preview TC'
                 : 'View'
             }
@@ -643,7 +661,7 @@ function TcRow({
           >
             <Eye size={14} />
           </IconBtn>
-          {status === 'REQUESTED' && canVerify ? (
+          {status === 'REQUESTED' && canVerify && approvalRequired ? (
             <button
               type="button"
               disabled={busy}
@@ -750,7 +768,7 @@ function ViewModal({
     status === 'TC_ISSUED' ||
     status === 'INACTIVE' ||
     req.hasTcDocument ||
-    (status === 'APPROVED' && canGenerate);
+    (showIssue && canGenerate);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
@@ -777,7 +795,7 @@ function ViewModal({
             ['Request Date', formatDate(req.createdOn)],
             ['Reason', req.reason || '—'],
             ['Status', tcStatusLabel(status)],
-            ['Teacher verified', req.forwardedOn ? formatDate(req.forwardedOn) : 'Pending'],
+            ['Teacher verified', approvalRequired ? (req.forwardedOn ? formatDate(req.forwardedOn) : 'Pending') : 'Not required'],
             ['Management', approvalRequired ? (req.reviewedOn ? formatDate(req.reviewedOn) : 'Pending') : 'Not required'],
             ['Issued', req.issuedOn ? formatDate(req.issuedOn) : '—'],
             ['Signed by', req.signerName || '—'],
@@ -800,7 +818,7 @@ function ViewModal({
               <Eye size={14} /> Preview TC
             </button>
           ) : null}
-          {status === 'REQUESTED' && canVerify ? (
+          {status === 'REQUESTED' && canVerify && approvalRequired ? (
             <button
               type="button"
               disabled={busy}

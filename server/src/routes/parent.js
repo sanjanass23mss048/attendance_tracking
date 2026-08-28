@@ -14,7 +14,9 @@ import {
   listForParent,
   listOpenForStudent,
   loadEnrollmentForTc,
+  skipToApproved,
 } from '../services/tcRequestRepo.js';
+import { loadAppSettings, parseTcWorkflowConfig } from '../lib/appSettings.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { listNoticesForParentScope } from '../services/noticeRepo.js';
 import { serializeCalendarEvent } from './calendar.js';
@@ -288,15 +290,20 @@ router.post('/tc-requests', async (req, res) => {
     requestedBy: req.user.sub,
     source: 'PARENT',
   });
+  const workflow = parseTcWorkflowConfig(await loadAppSettings());
+  const request =
+    workflow.approvalRequired || !created?.id
+      ? created
+      : await skipToApproved(created.id, req.user.sub, 'Verification not required');
   logAdminAudit(req, {
     action: 'TC_REQUEST',
     category: 'TC',
     entityType: 'tc_request',
-    entityId: created?.id,
+    entityId: request?.id,
     summary: `Parent requested TC for ${child.name}`,
     details: { classLabel, studentClassId: child.id },
   });
-  return res.status(201).json({ request: created });
+  return res.status(201).json({ request });
 });
 
 export default router;

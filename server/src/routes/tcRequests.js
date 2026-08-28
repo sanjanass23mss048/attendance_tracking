@@ -39,6 +39,7 @@ import {
   listOpenForStudent,
   getTcHtml,
   buildTcHtml,
+  skipToApproved,
 } from '../services/tcRequestRepo.js';
 
 const router = Router();
@@ -88,14 +89,21 @@ function canIssueTc(role, workflow) {
 
 async function ensureApprovedForIssue(id, row, userId, workflow) {
   if (row.status === TC_STATUS.APPROVED) return row;
-  if (row.status === TC_STATUS.FORWARDED && workflow && !workflow.approvalRequired) {
-    return markReviewed(id, {
-      status: TC_STATUS.APPROVED,
-      reviewerId: userId,
-      note: 'Management approval not required',
-    });
+  if (
+    workflow &&
+    !workflow.approvalRequired &&
+    [TC_STATUS.REQUESTED, TC_STATUS.FORWARDED].includes(row.status)
+  ) {
+    return skipToApproved(id, userId, 'Verification not required');
   }
   return row;
+}
+
+async function applySkipVerification(created, userId) {
+  if (!created?.id) return created;
+  const workflow = await loadTcWorkflow();
+  if (workflow.approvalRequired) return created;
+  return skipToApproved(created.id, userId, 'Verification not required');
 }
 
 function tenantSlug(req) {
@@ -195,7 +203,7 @@ router.get('/', async (req, res) => {
   return res.json({
     requests,
     canForward: true,
-    canVerify: true,
+    canVerify: workflow.approvalRequired,
     canReview: hasFullClassAccess(req.user.role) && workflow.approvalRequired,
     canGenerate: canIssue && workflow.allowsGenerate,
     canUpload: canIssue && workflow.allowsUpload,
@@ -336,7 +344,11 @@ router.get('/:id/preview', async (req, res) => {
   if (!ok) return res.status(403).json({ error: 'Forbidden for this class' });
 
   const issued = [TC_STATUS.TC_ISSUED, TC_STATUS.INACTIVE].includes(row.status) || row.hasTcDocument;
-  const approved = row.status === TC_STATUS.APPROVED;
+  const workflow = await loadTcWorkflow();
+  const approved =
+    row.status === TC_STATUS.APPROVED ||
+    (!workflow.approvalRequired &&
+      [TC_STATUS.REQUESTED, TC_STATUS.FORWARDED].includes(row.status));
 
   if (!issued && !approved) {
     return res.status(409).json({
@@ -367,7 +379,6 @@ router.get('/:id/preview', async (req, res) => {
   }
 
   if (approved && !issued) {
-    const workflow = await loadTcWorkflow();
     if (workflow.tcMethod === 'upload') {
       return res.status(409).json({ error: 'Upload a TC document to preview it' });
     }
@@ -419,12 +430,13 @@ router.post('/', async (req, res) => {
     requestedBy: req.user.sub,
     source: parsed.data.source || 'STAFF',
   });
+  const request = await applySkipVerification(created, req.user.sub);
 
   logAdminAudit(req, {
     action: 'TC_REQUEST',
     category: 'TC',
     entityType: 'tc_request',
-    entityId: created?.id,
+    entityId: request?.id,
     summary: `TC requested for ${enrollment.studentName} (${parsed.data.source || 'STAFF'})`,
     details: {
       classLabel: enrollment.classLabel,
@@ -432,7 +444,7 @@ router.post('/', async (req, res) => {
       source: parsed.data.source || 'STAFF',
     },
   });
-  return res.status(201).json({ request: created });
+  return res.status(201).json({ request });
 });
 
 const noteSchema = z.object({
@@ -449,19 +461,23 @@ async function handleVerify(req, res) {
   const ok = await canAccessSection(req.user.sub, req.user.role, row.classSectionId);
   if (!ok) return res.status(403).json({ error: 'Forbidden for this class' });
 
+  const workflow = await loadTcWorkflow();
+  if (!workflow.approvalRequired) {
+    const updated = await skipToApproved(id, req.user.sub, 'Verification not required');
+    logAdminAudit(req, {
+      action: 'TC_VERIFY',
+      category: 'TC',
+      entityType: 'tc_request',
+      entityId: id,
+      summary: `Verification skipped for ${row.studentName} (not required)`,
+      details: { classLabel: row.classLabel, studentId: row.studentId, autoApproved: true },
+    });
+    return res.json({ request: updated, workflow });
+  }
+
   const forwarded = await markForwarded(id, req.user.sub);
   if (forwarded?.status !== TC_STATUS.FORWARDED) {
     return res.status(409).json({ error: 'Could not verify TC request' });
-  }
-
-  const workflow = await loadTcWorkflow();
-  let updated = forwarded;
-  if (!workflow.approvalRequired) {
-    updated = await markReviewed(id, {
-      status: TC_STATUS.APPROVED,
-      reviewerId: req.user.sub,
-      note: 'Management approval not required',
-    });
   }
 
   logAdminAudit(req, {
@@ -469,12 +485,10 @@ async function handleVerify(req, res) {
     category: 'TC',
     entityType: 'tc_request',
     entityId: id,
-    summary: workflow.approvalRequired
-      ? `Teacher verified TC request for ${row.studentName}`
-      : `Teacher verified TC request for ${row.studentName} (management approval skipped)`,
-    details: { classLabel: row.classLabel, studentId: row.studentId, autoApproved: !workflow.approvalRequired },
+    summary: `Teacher verified TC request for ${row.studentName}`,
+    details: { classLabel: row.classLabel, studentId: row.studentId, autoApproved: false },
   });
-  return res.json({ request: updated, workflow });
+  return res.json({ request: forwarded, workflow });
 }
 
 /** Teacher verifies request (notifies management). */
@@ -582,7 +596,7 @@ router.post('/:id/generate', async (req, res) => {
     return res.status(409).json({
       error: workflow.approvalRequired
         ? 'TC can be generated only after management approval'
-        : 'TC can be generated after teacher verification',
+        : 'TC can be generated from this request',
     });
   }
 
@@ -666,7 +680,7 @@ router.post('/:id/upload', (req, res, next) => {
     return res.status(409).json({
       error: workflow.approvalRequired
         ? 'TC can be uploaded only after management approval'
-        : 'TC can be uploaded after teacher verification',
+        : 'TC can be uploaded from this request',
     });
   }
 
