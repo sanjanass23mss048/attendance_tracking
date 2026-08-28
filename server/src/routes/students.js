@@ -33,6 +33,10 @@ const querySchema = z
     class: z.string().optional(),
     section: z.string().optional(),
     sectionId: z.string().optional(),
+    /** When true/1, Student Directory includes TC soft-inactive rows. */
+    includeInactive: z
+      .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false'), z.boolean()])
+      .optional(),
   })
   .refine((q) => q.sectionId || (q.class && q.section), {
     message: 'Provide sectionId, or both class and section',
@@ -96,7 +100,15 @@ router.get('/', requireAuth, async (req, res) => {
   }
   if (!(await forbidUnlessSectionAccess(req, res, section.Class_Section_id))) return;
 
-  const students = await listEnrollmentsForSection(section.Class_Section_id);
+  const rawInclude = parsed.data.includeInactive;
+  const includeInactive =
+    rawInclude === true || rawInclude === '1' || rawInclude === 'true';
+
+  // Directory can pass includeInactive=1 so TC soft-inactive students appear.
+  // Attendance and other clients omit it and keep the active-only default.
+  const students = await listEnrollmentsForSection(section.Class_Section_id, {
+    includeInactive,
+  });
   return res.json({
     section: serializeClassSection(section),
     students: students.map((s) => ({

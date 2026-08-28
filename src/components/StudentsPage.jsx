@@ -158,7 +158,11 @@ export default function StudentsPage({ user = null, onNavigate, initialClass, in
     setLoading(true);
     setError('');
     try {
-      const data = await getStudents({ class: selectedClass, section: selectedSection });
+      const data = await getStudents({
+        class: selectedClass,
+        section: selectedSection,
+        includeInactive: true,
+      });
       setStudents(data.students || []);
       setSectionMeta(data.section || null);
     } catch (err) {
@@ -195,7 +199,11 @@ export default function StudentsPage({ user = null, onNavigate, initialClass, in
     setLoading(true);
     setError('');
     setPage(1);
-    getStudents({ class: selectedClass, section: selectedSection })
+    getStudents({
+      class: selectedClass,
+      section: selectedSection,
+      includeInactive: true,
+    })
       .then((data) => {
         if (cancelled) return;
         setStudents(data.students || []);
@@ -446,6 +454,19 @@ export default function StudentsPage({ user = null, onNavigate, initialClass, in
                   Section {s.name}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="min-w-[120px] rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="">All</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
             </select>
           </div>
 
@@ -705,7 +726,7 @@ export default function StudentsPage({ user = null, onNavigate, initialClass, in
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm"
           >
-            <option value="">All statuses</option>
+            <option value="">All</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>

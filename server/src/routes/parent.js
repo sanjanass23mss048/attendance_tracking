@@ -13,6 +13,7 @@ import {
   createRequest,
   listForParent,
   listOpenForStudent,
+  loadEnrollmentForTc,
 } from '../services/tcRequestRepo.js';
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { listNoticesForParentScope } from '../services/noticeRepo.js';
@@ -272,14 +273,20 @@ router.post('/tc-requests', async (req, res) => {
     });
   }
   const classLabel = [child.section?.class?.name, child.section?.name].filter(Boolean).join(' - ');
+  const enrollment = await loadEnrollmentForTc(child.id);
   const created = await createRequest({
     studentId: child.studentRecordId,
     studentClassId: child.id,
     classSectionId: child.sectionId,
     studentName: child.name,
     classLabel,
+    admissionNo: enrollment?.admissionNo || child.admissionNo || '',
+    rollNo: enrollment?.rollNo || String(child.rollNo ?? child.roll ?? ''),
+    parentName: enrollment?.parentName || '',
+    parentContact: enrollment?.parentContact || child.parentPhone || '',
     reason,
     requestedBy: req.user.sub,
+    source: 'PARENT',
   });
   logAdminAudit(req, {
     action: 'TC_REQUEST',

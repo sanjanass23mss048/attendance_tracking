@@ -27,6 +27,7 @@ import {
   Sparkles,
   History,
   TrendingUp,
+  FileCheck,
 } from 'lucide-react';
 import { isNavChildActive, navItemsForUser } from '../data/navItems';
 import { SchoolLogo, useBranding } from '../lib/branding.jsx';
@@ -55,6 +56,7 @@ const iconMap = {
   Sparkles,
   History,
   TrendingUp,
+  FileCheck,
 };
 
 export default function Sidebar({

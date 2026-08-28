@@ -76,11 +76,22 @@ export function serializeEnrollment(sc, classSection, studentOverride = null) {
   };
 }
 
-export async function listEnrollmentsForSection(classSectionId) {
+/**
+ * Roster for a section.
+ * @param {string} classSectionId
+ * @param {{ includeInactive?: boolean }} [opts] — when true (Student Directory), include
+ *   soft-deactivated / TC students. Attendance and other callers keep active-only default.
+ */
+export async function listEnrollmentsForSection(classSectionId, { includeInactive = false } = {}) {
   const rows = await prisma.tblStudent_Class.findMany({
     where: {
       class_section_id: classSectionId,
-      Int_Status: { not: 0 },
+      ...(includeInactive
+        ? {}
+        : {
+            Int_Status: { not: 0 },
+            tblStudents: { Int_Status: { not: 0 } },
+          }),
     },
     include: { tblStudents: true },
   });

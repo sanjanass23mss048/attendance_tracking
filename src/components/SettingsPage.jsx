@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ImagePlus, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { ImagePlus, LogOut, PenLine, Settings as SettingsIcon } from 'lucide-react';
 import AlertDeliveryOptions from './AlertDeliveryOptions';
+import TcConfigurationCard from './TcConfigurationCard.jsx';
 import {
   getAlertDeliveryPrefs,
   hydrateAlertDeliveryPrefs,
@@ -8,7 +9,12 @@ import {
 } from '../services/alertDeliveryPrefs';
 import { showToast } from '../services/toast';
 import { uploadSchoolLogo, useBranding } from '../lib/branding.jsx';
-import { canManageUsers } from '../data/navItems.js';
+import { canApproveEditRequests, canManageUsers } from '../data/navItems.js';
+import {
+  getTcSignatureSettings,
+  saveTcSignatureSettings,
+} from '../services/tcRequestService.js';
+import { API_BASE, apiHeaders } from '../services/api.js';
 
 const ROLE_LABELS = {
   INCHARGE: 'Attendance In-charge',
@@ -28,6 +34,13 @@ export default function SettingsPage({ user, onLogout }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const { markSrc, refresh } = useBranding();
   const canEditLogo = canManageUsers(user);
+  const canEditTcSig = canApproveEditRequests(user);
+
+  const [sigName, setSigName] = useState('');
+  const [sigDesignation, setSigDesignation] = useState('Principal');
+  const [sigPreview, setSigPreview] = useState(null);
+  const [sigSaving, setSigSaving] = useState(false);
+  const [sigLoading, setSigLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +53,37 @@ export default function SettingsPage({ user, onLogout }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!canEditTcSig) return undefined;
+    let cancelled = false;
+    let objectUrl = null;
+    (async () => {
+      setSigLoading(true);
+      try {
+        const data = await getTcSignatureSettings();
+        if (cancelled) return;
+        setSigName(data?.signerName || '');
+        setSigDesignation(data?.signerDesignation || 'Principal');
+        if (data?.hasSignature && data?.signatureUrl) {
+          const res = await fetch(`${API_BASE}${data.signatureUrl}`, { headers: apiHeaders() });
+          if (res.ok) {
+            const blob = await res.blob();
+            objectUrl = URL.createObjectURL(blob);
+            if (!cancelled) setSigPreview(objectUrl);
+          }
+        }
+      } catch {
+        // optional section
+      } finally {
+        if (!cancelled) setSigLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [canEditTcSig]);
 
   const updatePrefs = async (partial) => {
     const next = { ...prefs, ...partial };
@@ -75,8 +119,47 @@ export default function SettingsPage({ user, onLogout }) {
     }
   };
 
+  const onSigImage = (file) => {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      showToast('Signature must be PNG, JPEG, or WebP.', 'error');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      showToast('Signature must be 1 MB or smaller.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setSigPreview(String(reader.result || ''));
+    reader.readAsDataURL(file);
+    setSigSaving(true);
+    saveTcSignatureSettings({
+      signerName: sigName,
+      signerDesignation: sigDesignation,
+      file,
+    })
+      .then(() => showToast('TC signature image saved', 'success'))
+      .catch((err) => showToast(err.message || 'Could not save signature', 'error'))
+      .finally(() => setSigSaving(false));
+  };
+
+  const saveSigMeta = async () => {
+    setSigSaving(true);
+    try {
+      await saveTcSignatureSettings({
+        signerName: sigName.trim(),
+        signerDesignation: sigDesignation.trim() || 'Principal',
+      });
+      showToast('TC signatory details saved', 'success');
+    } catch (err) {
+      showToast(err.message || 'Could not save signatory', 'error');
+    } finally {
+      setSigSaving(false);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100">
@@ -140,6 +223,88 @@ export default function SettingsPage({ user, onLogout }) {
           Log out
         </button>
       </div>
+
+      {canEditTcSig ? <TcConfigurationCard /> : null}
+
+      {canEditTcSig ? (
+        <div className="rounded-xl border border-indigo-100 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <PenLine size={18} className="text-indigo-600" />
+            <div>
+              <h3 className="text-base font-bold text-gray-900">TC authorized signatory</h3>
+              <p className="text-sm text-gray-500">
+                Default signature embedded on Transfer Certificates under Authorized Signatory.
+              </p>
+            </div>
+          </div>
+          {sigLoading ? (
+            <p className="text-sm text-gray-500">Loading…</p>
+          ) : (
+            <div className="space-y-3">
+              <label className="block text-xs font-medium text-gray-500">
+                Signer name
+                <input
+                  value={sigName}
+                  onChange={(e) => setSigName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="Principal name"
+                />
+              </label>
+              <label className="block text-xs font-medium text-gray-500">
+                Designation
+                <input
+                  value={sigDesignation}
+                  onChange={(e) => setSigDesignation(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="Principal"
+                />
+              </label>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="mb-1 text-xs font-medium text-gray-500">Signature image</p>
+                  {sigPreview ? (
+                    <img
+                      src={sigPreview}
+                      alt="Signature"
+                      className="mb-2 max-h-16 rounded border border-gray-100 bg-white object-contain p-1"
+                    />
+                  ) : (
+                    <p className="mb-2 text-xs text-gray-400">No image yet</p>
+                  )}
+                  <input
+                    id="settings-tc-sig"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      onSigImage(file);
+                    }}
+                  />
+                  <label
+                    htmlFor="settings-tc-sig"
+                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 ${
+                      sigSaving ? 'pointer-events-none opacity-60' : ''
+                    }`}
+                  >
+                    <ImagePlus size={14} />
+                    {sigSaving ? 'Saving…' : 'Upload signature'}
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  disabled={sigSaving}
+                  onClick={saveSigMeta}
+                  className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  Save name &amp; designation
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h3 className="text-base font-bold text-gray-900">Absence alert delivery</h3>

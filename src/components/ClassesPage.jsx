@@ -55,7 +55,10 @@ function sectionSubtitle({ klass, count, minCount }) {
   if (klass) {
     if (count > minCount) {
       const label = lettersForCount(count);
-      return label ? `${label} · adding sections` : 'Adding sections';
+      const pending = count - minCount;
+      return label
+        ? `${label} · +${pending} pending save`
+        : `+${pending} pending save`;
     }
     const label = lettersForCount(minCount || count);
     return label || 'No sections yet';
@@ -417,21 +420,24 @@ export default function ClassesPage({ initialClassName } = {}) {
 
   const handleSaveSections = async (e) => {
     e.preventDefault();
-    const updates = [];
+    if (savingClass) return;
 
+    const updates = [];
     for (const className of SCHOOL_GRADES) {
-      const desired = resolveSectionCount(sectionCounts, className, klass);
       const klass = classByName(classes, className);
+      const desired = resolveSectionCount(sectionCounts, className, klass);
       const current = klass?.sections?.length || 0;
       if (desired <= current) continue;
 
-      const existingNames = new Set((klass?.sections || []).map((s) => String(s.name || '').toUpperCase()));
+      const existingNames = new Set(
+        (klass?.sections || []).map((s) => String(s.name || '').toUpperCase())
+      );
       const allDesired = SECTION_LETTERS.slice(0, desired).split('');
       const sectionNames = klass
         ? allDesired.filter((label) => !existingNames.has(label))
         : allDesired;
       if (!sectionNames.length) continue;
-      updates.push({ className, sectionNames, klass });
+      updates.push({ className, sectionNames });
     }
 
     if (!updates.length) {
@@ -442,12 +448,14 @@ export default function ClassesPage({ initialClassName } = {}) {
     setSavingClass(true);
     try {
       let lastCreated = null;
+      let addedTotal = 0;
       for (const item of updates) {
         const result = await createClass({
           className: item.className,
           sectionNames: item.sectionNames,
         });
         lastCreated = result.class || lastCreated;
+        addedTotal += item.sectionNames.length;
       }
       setShowAddClass(false);
       await loadClasses();
@@ -455,7 +463,12 @@ export default function ClassesPage({ initialClassName } = {}) {
         setSelectedClassId(lastCreated.id);
         setSectionName(lastCreated.addedSections?.[0] || lastCreated.sections?.[0]?.name || 'A');
       }
-      showToast('Class sections updated.', 'success');
+      showToast(
+        addedTotal === 1
+          ? 'Added 1 section.'
+          : `Added ${addedTotal} sections across ${updates.length} class${updates.length === 1 ? '' : 'es'}.`,
+        'success'
+      );
     } catch (err) {
       showToast(networkErrorMessage(err) || 'Could not update class sections', 'error');
     } finally {

@@ -70,7 +70,7 @@ export function normalizeStudent(s) {
 }
 
 /**
- * @param {{ class?: string, section?: string, sectionId?: string }} query
+ * @param {{ class?: string, section?: string, sectionId?: string, includeInactive?: boolean }} query
  */
 export async function getStudents(query = {}) {
   if (useMock()) {
@@ -78,6 +78,10 @@ export async function getStudents(query = {}) {
       query.sectionId ||
       mockSectionId(query.class || '1', query.section || 'A');
     const [, , className, sectionName] = sectionId.match(/^mock-section-(.+)-(.+)$/) || [];
+    let students = ensureMockSection(sectionId).map(normalizeStudent);
+    if (!query.includeInactive) {
+      students = students.filter((s) => (s.status || 'Active') === 'Active');
+    }
     return {
       section: {
         id: sectionId,
@@ -88,7 +92,7 @@ export async function getStudents(query = {}) {
           name: className || query.class || '1',
         },
       },
-      students: ensureMockSection(sectionId).map(normalizeStudent),
+      students,
     };
   }
 
@@ -96,6 +100,7 @@ export async function getStudents(query = {}) {
   if (query.sectionId) params.set('sectionId', query.sectionId);
   if (query.class) params.set('class', query.class);
   if (query.section) params.set('section', query.section);
+  if (query.includeInactive) params.set('includeInactive', '1');
   const data = await apiFetch(`/api/students?${params.toString()}`);
   return {
     ...data,

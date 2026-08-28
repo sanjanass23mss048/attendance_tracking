@@ -94,7 +94,7 @@ export async function getNotificationsFeed() {
             id: `tc-requested-${req.id}`,
             category: 'approval',
             title: 'TC request from parent',
-            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — notify management.`,
+            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — verify request.`,
             time: 'Pending',
             page: 'tc-requests',
             tone: 'sky',
@@ -104,10 +104,20 @@ export async function getNotificationsFeed() {
             id: `tc-forwarded-${req.id}`,
             category: 'approval',
             title: 'TC waiting for management',
-            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — approve to set student inactive.`,
+            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — approve or reject.`,
             time: 'Pending',
             page: 'tc-requests',
             tone: 'amber',
+          });
+        } else if (status === 'APPROVED' && canReviewTc) {
+          items.push({
+            id: `tc-approved-${req.id}`,
+            category: 'approval',
+            title: 'TC ready to generate',
+            body: `${req.studentName || 'Student'}${req.classLabel ? ` · ${req.classLabel}` : ''} — generate certificate.`,
+            time: 'Approved',
+            page: 'tc-requests',
+            tone: 'violet',
           });
         }
       }

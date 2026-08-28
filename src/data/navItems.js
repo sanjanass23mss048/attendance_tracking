@@ -61,6 +61,12 @@ export const FULL_NAV_ITEMS = [
         roles: EDIT_APPROVER_ROLES,
         dot: 'bg-emerald-400',
       },
+      {
+        id: 'tc-requests',
+        label: 'TC',
+        icon: 'FileCheck',
+        dot: 'bg-indigo-400',
+      },
     ],
   },
   {

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getClasses } from '../services/classService.js';
 import { getStudents, notifyPromotionParents } from '../services/studentService.js';
+import { createTcRequest } from '../services/tcRequestService.js';
 import { networkErrorMessage, showToast } from '../services/toast.js';
 import { useBranding } from '../lib/branding.jsx';
 
@@ -290,6 +291,8 @@ export default function StudentPromotionPage() {
   const [groupId, setGroupId] = useState(CLASS_GROUPS[0].id);
   const [triageMode, setTriageMode] = useState('all'); // all | some
   const [demotedIds, setDemotedIds] = useState(() => new Set());
+  /** For demoted/non-promoting students: continuing | tc */
+  const [leavingIntent, setLeavingIntent] = useState(() => ({}));
   const [search, setSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
@@ -348,6 +351,7 @@ export default function StudentPromotionPage() {
 
       setSourceStudents(roster);
       setDemotedIds(new Set());
+      setLeavingIntent({});
       const next = {};
       for (const s of roster) next[s.id] = null;
       setAllocation(next);
@@ -368,6 +372,16 @@ export default function StudentPromotionPage() {
   const demotedStudents = useMemo(
     () => sourceStudents.filter((s) => demotedIds.has(s.id)),
     [sourceStudents, demotedIds]
+  );
+
+  const tcLeavingStudents = useMemo(
+    () => demotedStudents.filter((s) => leavingIntent[s.id] === 'tc'),
+    [demotedStudents, leavingIntent]
+  );
+
+  const continuingStudents = useMemo(
+    () => demotedStudents.filter((s) => leavingIntent[s.id] !== 'tc'),
+    [demotedStudents, leavingIntent]
   );
 
   const promoteStudents = useMemo(
@@ -424,27 +438,89 @@ export default function StudentPromotionPage() {
   const toggleDemoted = (id) => {
     setDemotedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        setLeavingIntent((intent) => {
+          const copy = { ...intent };
+          delete copy[id];
+          return copy;
+        });
+      } else {
+        next.add(id);
+        setLeavingIntent((intent) => ({ ...intent, [id]: intent[id] || 'continuing' }));
+      }
       return next;
     });
   };
 
   const selectAllDemoted = () => {
     setDemotedIds(new Set(sourceStudents.map((s) => s.id)));
+    setLeavingIntent((prev) => {
+      const next = { ...prev };
+      for (const s of sourceStudents) {
+        if (!next[s.id]) next[s.id] = 'continuing';
+      }
+      return next;
+    });
   };
 
-  const clearDemoted = () => setDemotedIds(new Set());
+  const clearDemoted = () => {
+    setDemotedIds(new Set());
+    setLeavingIntent({});
+  };
 
-  const handleContinueToAssign = () => {
+  const setStudentLeavingIntent = (id, intent) => {
+    setLeavingIntent((prev) => ({ ...prev, [id]: intent }));
+  };
+
+  const createTcForLeavers = async (students) => {
+    let created = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const s of students) {
+      try {
+        await createTcRequest({
+          studentClassId: s.id,
+          reason: 'Requesting for TC (recorded during promotion)',
+          source: 'PROMOTION',
+        });
+        created += 1;
+      } catch (err) {
+        if (err?.status === 409) skipped += 1;
+        else failed += 1;
+      }
+    }
+    return { created, skipped, failed };
+  };
+
+  const handleContinueToAssign = async () => {
     if (triageMode === 'all') {
       setDemotedIds(new Set());
+      setLeavingIntent({});
     }
     const effectiveDemoted = triageMode === 'all' ? new Set() : demotedIds;
     if (triageMode === 'some' && effectiveDemoted.size === sourceStudents.length) {
       showToast('Select at least one student to promote, or choose “All promoting”.', 'error');
       return;
     }
+
+    if (triageMode === 'some') {
+      const leavers = sourceStudents.filter(
+        (s) => effectiveDemoted.has(s.id) && leavingIntent[s.id] === 'tc'
+      );
+      if (leavers.length) {
+        const result = await createTcForLeavers(leavers);
+        const parts = [];
+        if (result.created) parts.push(`${result.created} TC request(s) created`);
+        if (result.skipped) parts.push(`${result.skipped} already in progress`);
+        if (result.failed) parts.push(`${result.failed} failed`);
+        showToast(
+          parts.length ? parts.join(', ') : 'TC requests processed',
+          result.failed ? 'error' : 'success'
+        );
+      }
+    }
+
     const next = {};
     for (const s of sourceStudents) next[s.id] = null;
     setAllocation(next);
@@ -561,6 +637,7 @@ export default function StudentPromotionPage() {
                     setGroupId(e.target.value);
                     setTriageMode('all');
                     setDemotedIds(new Set());
+                    setLeavingIntent({});
                     setStep(1);
                   }}
                   className="min-w-[12rem] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
@@ -589,6 +666,7 @@ export default function StudentPromotionPage() {
               onClick={() => {
                 setTriageMode('all');
                 setDemotedIds(new Set());
+                setLeavingIntent({});
               }}
               className={`rounded-2xl border p-5 text-left shadow-sm transition ${
                 triageMode === 'all'
@@ -629,9 +707,10 @@ export default function StudentPromotionPage() {
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Select demoted / retained students</p>
+                  <p className="text-sm font-semibold text-gray-800">Select students not promoting</p>
                   <p className="text-xs text-gray-500">
-                    {demotedCount} selected · {total - demotedCount} will promote
+                    {demotedCount} selected · {continuingStudents.length} continuing ·{' '}
+                    {tcLeavingStudents.length} requesting TC · {total - demotedCount} will promote
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -666,27 +745,54 @@ export default function StudentPromotionPage() {
                 <ul className="max-h-80 space-y-1 overflow-y-auto">
                   {filteredForTriage.map((s) => {
                     const checked = demotedIds.has(s.id);
+                    const intent = leavingIntent[s.id] || 'continuing';
                     return (
                       <li key={s.id}>
-                        <label
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm ${
+                        <div
+                          className={`rounded-xl px-3 py-2 text-sm ${
                             checked ? 'bg-amber-50' : 'hover:bg-gray-50'
                           }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleDemoted(s.id)}
-                            className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                          />
-                          <span className="min-w-0 flex-1 truncate font-medium text-gray-900">
-                            {s.name}
-                          </span>
-                          <span className="shrink-0 text-xs text-gray-400">
-                            Roll {s.rollNo ?? s.roll} · {normalizeClassKey(group.sourceClass)}-
-                            {s.fromSection}
-                          </span>
-                        </label>
+                          <label className="flex cursor-pointer items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleDemoted(s.id)}
+                              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                            />
+                            <span className="min-w-0 flex-1 truncate font-medium text-gray-900">
+                              {s.name}
+                            </span>
+                            <span className="shrink-0 text-xs text-gray-400">
+                              Roll {s.rollNo ?? s.roll} · {normalizeClassKey(group.sourceClass)}-
+                              {s.fromSection}
+                            </span>
+                          </label>
+                          {checked ? (
+                            <div className="ml-7 mt-2 flex flex-wrap gap-3 text-xs">
+                              <label className="inline-flex items-center gap-1.5 text-gray-700">
+                                <input
+                                  type="radio"
+                                  name={`leave-${s.id}`}
+                                  checked={intent === 'continuing'}
+                                  onChange={() => setStudentLeavingIntent(s.id, 'continuing')}
+                                  className="text-emerald-600 focus:ring-emerald-500"
+                                />
+                                Continuing in School
+                              </label>
+                              <label className="inline-flex items-center gap-1.5 text-indigo-800">
+                                <input
+                                  type="radio"
+                                  name={`leave-${s.id}`}
+                                  checked={intent === 'tc'}
+                                  onChange={() => setStudentLeavingIntent(s.id, 'tc')}
+                                  className="text-indigo-600 focus:ring-indigo-500"
+                                />
+                                Requesting for TC
+                              </label>
+                            </div>
+                          ) : null}
+                        </div>
                       </li>
                     );
                   })}

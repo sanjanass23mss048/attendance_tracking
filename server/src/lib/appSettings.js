@@ -93,10 +93,39 @@ export const ALERT_SETTING_KEYS = {
 export const ALERT_CHANNEL_VALUES = ['whatsapp', 'sms', 'whatsapp_sms'];
 export const ALERT_RECIPIENT_VALUES = ['father', 'mother', 'both'];
 
+export const TC_WORKFLOW_SETTING_KEYS = {
+  MANAGEMENT_APPROVAL: 'TC_MANAGEMENT_APPROVAL',
+  METHOD: 'TC_METHOD',
+};
+
+export const TC_APPROVAL_VALUES = ['required', 'not_required'];
+export const TC_METHOD_VALUES = ['generate', 'upload'];
+
+export const DEFAULT_TC_WORKFLOW = {
+  managementApproval: 'required',
+  tcMethod: 'generate',
+};
+
+export function parseTcWorkflowConfig(map = {}) {
+  const approval = String(map[TC_WORKFLOW_SETTING_KEYS.MANAGEMENT_APPROVAL] || '').toLowerCase();
+  const method = String(map[TC_WORKFLOW_SETTING_KEYS.METHOD] || '').toLowerCase();
+  const managementApproval = TC_APPROVAL_VALUES.includes(approval)
+    ? approval
+    : DEFAULT_TC_WORKFLOW.managementApproval;
+  const tcMethod = TC_METHOD_VALUES.includes(method) ? method : DEFAULT_TC_WORKFLOW.tcMethod;
+  return {
+    managementApproval,
+    tcMethod,
+    approvalRequired: managementApproval === 'required',
+  };
+}
+
 export const MANAGED_SETTING_KEYS = [
   ...APP_SETTING_GROUPS.flatMap((g) => g.fields.map((f) => f.key)),
   ALERT_SETTING_KEYS.CHANNEL,
   ALERT_SETTING_KEYS.RECIPIENT,
+  TC_WORKFLOW_SETTING_KEYS.MANAGEMENT_APPROVAL,
+  TC_WORKFLOW_SETTING_KEYS.METHOD,
 ];
 
 export function parseAlertDeliveryPrefs(map = {}) {

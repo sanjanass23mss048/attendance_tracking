@@ -30,8 +30,8 @@ const PAGE_TITLES = {
   },
   'leave-letters': { title: 'Leave Letters', subtitle: 'Upload and track student leave letters.' },
   'tc-requests': {
-    title: 'Transfer Certificate',
-    subtitle: 'Parent request → teacher notifies management → approve (student becomes inactive).',
+    title: 'TC Management',
+    subtitle: 'Manage TC requests and track the process until completion.',
   },
   classes: { title: 'Classes', subtitle: 'Class and section management.' },
   'student-promotion': {
