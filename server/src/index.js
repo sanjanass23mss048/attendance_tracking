@@ -196,9 +196,20 @@ app.use((err, _req, res, _next) => {
 });
 
 if (isProd) {
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders(res, filePath) {
+        if (String(filePath).endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+        }
+      },
+    })
+  );
   // SPA fallback for client-side routes (skip API / health / socket)
   app.get(/^(?!\/api(?:\/|$)|\/health(?:\/|$)|\/socket\.io(?:\/|$)).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
