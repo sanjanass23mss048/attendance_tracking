@@ -123,7 +123,13 @@ export default function TcConfigurationCard() {
             iconWrap="bg-emerald-100 text-emerald-700"
             title="TC Method"
             description="Choose how the TC will be prepared."
-            help="If Generate TC is selected, the system will create TC using student details."
+            help={
+              tcMethod === 'upload'
+                ? 'If Upload TC is selected, staff will attach a prepared TC file.'
+                : tcMethod === 'both'
+                  ? 'Staff can generate a TC from student details or upload a prepared file.'
+                  : 'If Generate TC is selected, the system will create TC using student details.'
+            }
           >
             <RadioOption
               name="tc-method"
@@ -138,6 +144,13 @@ export default function TcConfigurationCard() {
               checked={tcMethod === 'upload'}
               onChange={setTcMethod}
               label="Upload TC"
+            />
+            <RadioOption
+              name="tc-method"
+              value="both"
+              checked={tcMethod === 'both'}
+              onChange={setTcMethod}
+              label="Both"
             />
           </ConfigRow>
 

@@ -99,7 +99,7 @@ export const TC_WORKFLOW_SETTING_KEYS = {
 };
 
 export const TC_APPROVAL_VALUES = ['required', 'not_required'];
-export const TC_METHOD_VALUES = ['generate', 'upload'];
+export const TC_METHOD_VALUES = ['generate', 'upload', 'both'];
 
 export const DEFAULT_TC_WORKFLOW = {
   managementApproval: 'required',
@@ -117,6 +117,8 @@ export function parseTcWorkflowConfig(map = {}) {
     managementApproval,
     tcMethod,
     approvalRequired: managementApproval === 'required',
+    allowsGenerate: tcMethod !== 'upload',
+    allowsUpload: tcMethod !== 'generate',
   };
 }
 

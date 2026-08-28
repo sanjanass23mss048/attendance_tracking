@@ -197,8 +197,8 @@ router.get('/', async (req, res) => {
     canForward: true,
     canVerify: true,
     canReview: hasFullClassAccess(req.user.role) && workflow.approvalRequired,
-    canGenerate: canIssue && workflow.tcMethod === 'generate',
-    canUpload: canIssue && workflow.tcMethod === 'upload',
+    canGenerate: canIssue && workflow.allowsGenerate,
+    canUpload: canIssue && workflow.allowsUpload,
     workflow,
   });
 });
@@ -561,7 +561,7 @@ const generateSchema = z.object({
 
 router.post('/:id/generate', async (req, res) => {
   const workflow = await loadTcWorkflow();
-  if (workflow.tcMethod !== 'generate') {
+  if (!workflow.allowsGenerate) {
     return res.status(409).json({ error: 'This school is configured to upload TCs' });
   }
   if (!canIssueTc(req.user.role, workflow)) {
@@ -645,7 +645,7 @@ router.post('/:id/upload', (req, res, next) => {
   });
 }, async (req, res) => {
   const workflow = await loadTcWorkflow();
-  if (workflow.tcMethod !== 'upload') {
+  if (!workflow.allowsUpload) {
     return res.status(409).json({ error: 'This school is configured to generate TCs' });
   }
   if (!canIssueTc(req.user.role, workflow)) {

@@ -59,10 +59,15 @@ function workflowSteps({ approvalRequired = true, tcMethod = 'generate' } = {}) 
           title: 'TC uploaded',
           hint: 'Prepared TC is uploaded to the system',
         }
-      : {
-          title: 'TC approved/generated',
-          hint: 'TC is approved and generated',
-        };
+      : tcMethod === 'both'
+        ? {
+            title: 'TC generated or uploaded',
+            hint: 'Generate from student details or upload a prepared TC',
+          }
+        : {
+            title: 'TC approved/generated',
+            hint: 'TC is approved and generated',
+          };
   const steps = [
     {
       title: 'Parent requests TC',
@@ -228,7 +233,15 @@ export default function TcRequestsPage({ user }) {
     ? 'Teacher verified — pending management approval'
     : workflow.tcMethod === 'upload'
       ? 'Teacher verified — ready to upload TC'
-      : 'Teacher verified — ready to generate TC';
+      : workflow.tcMethod === 'both'
+        ? 'Teacher verified — ready to generate or upload TC'
+        : 'Teacher verified — ready to generate TC';
+  const approveOkMessage =
+    workflow.tcMethod === 'upload'
+      ? 'TC approved — ready to upload'
+      : workflow.tcMethod === 'both'
+        ? 'TC approved — ready to generate or upload'
+        : 'TC approved — ready to generate';
 
   return (
     <div className="space-y-5">
@@ -361,15 +374,7 @@ export default function TcRequestsPage({ user }) {
                         approvalRequired={approvalRequired}
                         onView={() => openViewOrPreview(req)}
                         onVerify={() => run(req.id, verifyTcRequest, verifyOkMessage)}
-                        onApprove={() =>
-                          run(
-                            req.id,
-                            approveTcRequest,
-                            workflow.tcMethod === 'upload'
-                              ? 'TC approved — ready to upload'
-                              : 'TC approved — ready to generate'
-                          )
-                        }
+                        onApprove={() => run(req.id, approveTcRequest, approveOkMessage)}
                         onReject={() => run(req.id, rejectTcRequest, 'TC request rejected')}
                         onGenerate={() => setGenerateRow(req)}
                         onUpload={() => setUploadRow(req)}
@@ -423,15 +428,7 @@ export default function TcRequestsPage({ user }) {
           canUpload={canUpload}
           approvalRequired={approvalRequired}
           onVerify={() => run(viewRow.id, verifyTcRequest, verifyOkMessage)}
-          onApprove={() =>
-            run(
-              viewRow.id,
-              approveTcRequest,
-              workflow.tcMethod === 'upload'
-                ? 'TC approved — ready to upload'
-                : 'TC approved — ready to generate'
-            )
-          }
+          onApprove={() => run(viewRow.id, approveTcRequest, approveOkMessage)}
           onReject={() => run(viewRow.id, rejectTcRequest, 'TC request rejected')}
           onGenerate={() => {
             setViewRow(null);
@@ -753,7 +750,7 @@ function ViewModal({
     status === 'TC_ISSUED' ||
     status === 'INACTIVE' ||
     req.hasTcDocument ||
-    (status === 'APPROVED' && !canUpload);
+    (status === 'APPROVED' && canGenerate);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
