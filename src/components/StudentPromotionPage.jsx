@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   GripVertical,
   Info,
   Lock,
@@ -67,6 +69,8 @@ const CLASS_GROUPS = [
   sourceClass,
   targetClass,
 }));
+
+const SECTION_PAGE_SIZE = 4;
 
 function academicYearStartFromDate(d = new Date()) {
   const y = d.getFullYear();
@@ -198,12 +202,13 @@ function DropColumn({
   draggingId,
   setDraggingId,
   sourceClass,
+  compact = false,
 }) {
   const [over, setOver] = useState(false);
 
   return (
     <div
-      className={`flex h-[32rem] w-72 shrink-0 flex-col rounded-2xl border bg-white shadow-sm ${
+      className={`flex h-[32rem] ${compact ? 'w-60' : 'w-72'} shrink-0 flex-col rounded-2xl border bg-white shadow-sm ${
         tone === 'unallocated'
           ? 'border-rose-100'
           : tone === 'demoted'
@@ -300,11 +305,49 @@ export default function StudentPromotionPage() {
   const [targetSections, setTargetSections] = useState([]);
   const [allocation, setAllocation] = useState({});
   const [draggingId, setDraggingId] = useState(null);
+  const [sectionSearch, setSectionSearch] = useState('');
+  const [sectionPage, setSectionPage] = useState(0);
   const [sending, setSending] = useState(false);
 
   const group = CLASS_GROUPS.find((g) => g.id === groupId) || CLASS_GROUPS[0];
   const yearLabel =
     yearOptions.find((y) => y.startYear === academicYear)?.label || String(academicYear);
+
+  const filteredTargetSections = useMemo(() => {
+    const query = sectionSearch.trim().toLowerCase();
+    if (!query) return targetSections;
+    return targetSections.filter((section) => {
+      const name = String(section.name || '').toLowerCase();
+      const label = sectionColumnLabel(group.targetClass, section.name).toLowerCase();
+      return name.includes(query) || label.includes(query);
+    });
+  }, [group.targetClass, sectionSearch, targetSections]);
+
+  const sectionPageCount = Math.ceil(filteredTargetSections.length / SECTION_PAGE_SIZE);
+  const safeSectionPage = Math.min(sectionPage, Math.max(sectionPageCount - 1, 0));
+  const visibleTargetSections = useMemo(
+    () =>
+      filteredTargetSections.slice(
+        safeSectionPage * SECTION_PAGE_SIZE,
+        (safeSectionPage + 1) * SECTION_PAGE_SIZE
+      ),
+    [filteredTargetSections, safeSectionPage]
+  );
+  const sectionWindowStart = filteredTargetSections.length
+    ? safeSectionPage * SECTION_PAGE_SIZE + 1
+    : 0;
+  const sectionWindowEnd = Math.min(
+    (safeSectionPage + 1) * SECTION_PAGE_SIZE,
+    filteredTargetSections.length
+  );
+
+  useEffect(() => {
+    setSectionPage(0);
+  }, [groupId, sectionSearch]);
+
+  useEffect(() => {
+    setSectionPage((current) => Math.min(current, Math.max(sectionPageCount - 1, 0)));
+  }, [sectionPageCount]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -399,6 +442,13 @@ export default function StudentPromotionPage() {
     }
     return { unallocated, bySection };
   }, [promoteStudents, allocation, targetSections]);
+
+  const hiddenAllocatedCount = useMemo(() => {
+    const visibleIds = new Set(visibleTargetSections.map((section) => section.id));
+    return promoteStudents.filter(
+      (student) => allocation[student.id] && !visibleIds.has(allocation[student.id])
+    ).length;
+  }, [allocation, promoteStudents, visibleTargetSections]);
 
   const total = sourceStudents.length;
   const promoteCount = promoteStudents.length;
@@ -638,6 +688,8 @@ export default function StudentPromotionPage() {
                     setTriageMode('all');
                     setDemotedIds(new Set());
                     setLeavingIntent({});
+                    setSectionSearch('');
+                    setSectionPage(0);
                     setStep(1);
                   }}
                   className="min-w-[12rem] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
@@ -876,6 +928,87 @@ export default function StudentPromotionPage() {
             </button>
           </div>
 
+          <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Target sections</p>
+                <p className="text-xs text-gray-500">
+                  View a few sections at a time, then search or navigate to reach the rest.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="relative min-w-0 sm:w-64">
+                  <label htmlFor="promotion-section-search" className="mb-1 block text-xs font-medium text-gray-500">
+                    Find a section
+                  </label>
+                  <Search
+                    size={14}
+                    className="pointer-events-none absolute left-3 top-[2.1rem] -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    id="promotion-section-search"
+                    value={sectionSearch}
+                    onChange={(e) => setSectionSearch(e.target.value)}
+                    placeholder="Search section name…"
+                    disabled={!targetSections.length}
+                    className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-9 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 disabled:cursor-not-allowed disabled:bg-gray-50"
+                  />
+                  {sectionSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSectionSearch('')}
+                      className="absolute right-2 top-[2.1rem] -translate-y-1/2 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                      aria-label="Clear section search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-2 py-1.5 sm:min-w-[11rem]">
+                  <button
+                    type="button"
+                    onClick={() => setSectionPage((current) => Math.max(current - 1, 0))}
+                    disabled={safeSectionPage === 0 || !sectionPageCount}
+                    className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Show previous sections"
+                    title="Previous sections"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="whitespace-nowrap text-xs font-medium text-gray-600">
+                    {sectionWindowStart}-{sectionWindowEnd} of {filteredTargetSections.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSectionPage((current) =>
+                        Math.min(current + 1, Math.max(sectionPageCount - 1, 0))
+                      )
+                    }
+                    disabled={safeSectionPage >= sectionPageCount - 1 || !sectionPageCount}
+                    className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Show next sections"
+                    title="Next sections"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+              <span>
+                {filteredTargetSections.length === targetSections.length
+                  ? `${targetSections.length} target section${targetSections.length === 1 ? '' : 's'}`
+                  : `${filteredTargetSections.length} matching of ${targetSections.length} target sections`}
+              </span>
+              {hiddenAllocatedCount > 0 && (
+                <span className="font-medium text-violet-700">
+                  {hiddenAllocatedCount} assigned outside this view
+                </span>
+              )}
+            </div>
+          </div>
+
           <div className="-mx-1 overflow-x-auto pb-2">
             <div className="flex items-stretch gap-4 px-1">
               {demotedCount > 0 && (
@@ -890,6 +1023,7 @@ export default function StudentPromotionPage() {
                   draggingId={draggingId}
                   setDraggingId={setDraggingId}
                   sourceClass={group.sourceClass}
+                  compact
                 />
               )}
               <DropColumn
@@ -903,14 +1037,19 @@ export default function StudentPromotionPage() {
                 draggingId={draggingId}
                 setDraggingId={setDraggingId}
                 sourceClass={group.sourceClass}
+                compact
               />
               {targetSections.length === 0 ? (
                 <div className="flex h-[32rem] w-72 shrink-0 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white px-6 text-center text-sm text-gray-500">
                   No {formatClassDisplay(group.targetClass)} sections found. Add sections under
                   Classes &amp; Sections first.
                 </div>
+              ) : filteredTargetSections.length === 0 ? (
+                <div className="flex h-[32rem] w-60 shrink-0 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white px-6 text-center text-sm text-gray-500">
+                  No sections match “{sectionSearch}”.
+                </div>
               ) : (
-                targetSections.map((sec) => (
+                visibleTargetSections.map((sec) => (
                   <DropColumn
                     key={sec.id}
                     title={`${sectionColumnLabel(group.targetClass, sec.name)} Students`}
@@ -924,6 +1063,7 @@ export default function StudentPromotionPage() {
                     draggingId={draggingId}
                     setDraggingId={setDraggingId}
                     sourceClass={group.sourceClass}
+                    compact
                   />
                 ))
               )}
