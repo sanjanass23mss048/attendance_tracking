@@ -3,7 +3,7 @@
   "appName": "Presence",
   "webDir": "dist",
   "server": {
-    "url": "https://attendance.rioassetmanagement.net",
+    "url": "https://www.rioassetmanagement.info",
     "cleartext": false,
     "androidScheme": "https"
   },

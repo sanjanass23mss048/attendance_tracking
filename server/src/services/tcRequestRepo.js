@@ -81,6 +81,7 @@ function serialize(row) {
     tcMimeType: pick(row, 'tcMimeType', 'Tc_Mime_Type') || null,
     tcFileName: pick(row, 'tcFileName', 'Tc_File_Name') || null,
     hasUploadedFile: Boolean(pick(row, 'hasUploadedFile', 'has_file')),
+    tcNo: pick(row, 'tcNo', 'Tc_No') || null,
     hasTcDocument: Boolean(
       pick(row, 'hasTcDocument', 'has_tc') ||
         pick(row, 'hasUploadedFile', 'has_file') ||
@@ -128,6 +129,7 @@ const SELECT = `
     r."Signed_At" AS "signedAt",
     r."Tc_Mime_Type" AS "tcMimeType",
     r."Tc_File_Name" AS "tcFileName",
+    r."Tc_No" AS "tcNo",
     CASE WHEN r."Tc_File_Key" IS NOT NULL AND length(r."Tc_File_Key") > 0 THEN true ELSE false END AS "hasUploadedFile",
     CASE
       WHEN (r."Tc_Html" IS NOT NULL AND length(r."Tc_Html") > 0)
@@ -176,6 +178,47 @@ export async function getTcHtml(id) {
     mimeType: row.mimeType || null,
     fileName: row.fileName || null,
   };
+}
+
+function academicYearLabel(d = new Date()) {
+  const y = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const start = month >= 4 ? y : y - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
+}
+
+/** Sequential school TC number, e.g. TC/2026-27/0001. */
+export async function ensureTcNumber(id) {
+  if (!id) return null;
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.$queryRawUnsafe(
+      `SELECT "Tc_No" AS "tcNo" FROM "tblTc_Requests" WHERE "Request_id" = $1 FOR UPDATE`,
+      id
+    );
+    if (current[0]?.tcNo) return String(current[0].tcNo);
+
+    await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('tblTc_Requests.Tc_No'))`);
+
+    const year = academicYearLabel();
+    const prefix = `TC/${year}/`;
+    const last = await tx.$queryRawUnsafe(
+      `SELECT "Tc_No" AS "tcNo" FROM "tblTc_Requests"
+       WHERE "Tc_No" LIKE $1
+       ORDER BY "Tc_No" DESC
+       LIMIT 1`,
+      `${prefix}%`
+    );
+    const parsed = parseInt(String(last[0]?.tcNo || '').slice(prefix.length), 10);
+    const next = `${prefix}${String(Number.isFinite(parsed) ? parsed + 1 : 1).padStart(4, '0')}`;
+    await tx.$executeRawUnsafe(
+      `UPDATE "tblTc_Requests"
+       SET "Tc_No" = $2
+       WHERE "Request_id" = $1 AND ("Tc_No" IS NULL OR "Tc_No" = '')`,
+      id,
+      next
+    );
+    return next;
+  });
 }
 
 export async function listOpenForStudent(studentId) {
@@ -425,6 +468,18 @@ export async function markIssued(
   return findById(id);
 }
 
+export async function saveGeneratedTcHtml(id, html) {
+  if (!id || !html) return;
+  await prisma.$executeRawUnsafe(
+    `UPDATE "tblTc_Requests"
+     SET "Tc_Html" = $2
+     WHERE "Request_id" = $1
+       AND ("Tc_File_Key" IS NULL OR length("Tc_File_Key") = 0)`,
+    id,
+    html
+  );
+}
+
 /** Soft-deactivate: keep the student row, mark inactive. Never deletes. */
 export async function deactivateStudentKeepRecord(studentId, actorUserId) {
   await prisma.$transaction([
@@ -453,6 +508,8 @@ export function buildTcHtml({
   reason,
   issuedOn,
   requestId,
+  tcNo = null,
+  logoDataUrl = null,
   signerName = null,
   signerDesignation = null,
   signatureDataUrl = null,
@@ -499,6 +556,17 @@ export function buildTcHtml({
     ? `<p class="draft">DRAFT PREVIEW — not issued</p>`
     : '';
 
+  const hasLogo =
+    logoDataUrl &&
+    typeof logoDataUrl === 'string' &&
+    /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,/i.test(logoDataUrl) &&
+    logoDataUrl.length < 2.8 * 1024 * 1024;
+  const logoHtml = hasLogo
+    ? `<img class="logo" src="${logoDataUrl.replace(/"/g, '')}" alt="${safe(schoolName || 'School')} logo" />`
+    : '';
+
+  const tcNumber = String(tcNo || '').trim() || (draft ? 'To be allotted' : '—');
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -507,8 +575,11 @@ export function buildTcHtml({
   <style>
     body { font-family: Georgia, "Times New Roman", serif; color: #111; margin: 0; padding: 32px; background: #f8fafc; }
     .sheet { max-width: 720px; margin: 0 auto; border: 2px solid #312e81; padding: 36px 40px; background: #fff; }
+    .header { text-align: center; }
+    .logo { height: 96px; width: auto; max-width: 220px; object-fit: contain; display: block; margin: 0 auto 12px; }
     h1 { text-align: center; font-size: 22px; letter-spacing: 0.04em; margin: 0 0 4px; color: #312e81; }
     .school { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+    .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 13px; color: #333; margin: 18px 0 8px; }
     .sub { text-align: center; font-size: 12px; color: #555; margin-bottom: 28px; }
     .draft { text-align: center; color: #b45309; font-size: 12px; font-weight: bold; letter-spacing: 0.08em; margin: 0 0 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -534,10 +605,17 @@ export function buildTcHtml({
 <body>
   <div class="sheet">
     ${draftBanner}
-    <div class="school">${safe(schoolName || 'School')}</div>
-    <h1>TRANSFER CERTIFICATE</h1>
-    <p class="sub">Certificate No. ${safe(requestId)} · ${draft ? 'Preview' : 'Issued'} ${safe(when)}</p>
+    <div class="header">
+      ${logoHtml}
+      <div class="school">${safe(schoolName || 'School')}</div>
+      <h1>TRANSFER CERTIFICATE</h1>
+    </div>
+    <div class="meta">
+      <span><strong>TC No.</strong> ${safe(tcNumber)}</span>
+      <span>${draft ? 'Preview' : 'Issued'} ${safe(when)}</span>
+    </div>
     <table>
+      <tr><td class="k">TC No.</td><td class="v">${safe(tcNumber)}</td></tr>
       <tr><td class="k">Student Name</td><td class="v">${safe(studentName)}</td></tr>
       <tr><td class="k">Admission No.</td><td class="v">${safe(admissionNo)}</td></tr>
       <tr><td class="k">Roll No.</td><td class="v">${safe(rollNo)}</td></tr>

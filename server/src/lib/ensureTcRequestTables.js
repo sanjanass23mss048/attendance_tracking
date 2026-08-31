@@ -62,6 +62,13 @@ export async function ensureTcRequestTables() {
   await addColumnIfMissing('tblTc_Requests', 'Tc_File_Key', 'VARCHAR(500)');
   await addColumnIfMissing('tblTc_Requests', 'Tc_Mime_Type', 'VARCHAR(100)');
   await addColumnIfMissing('tblTc_Requests', 'Tc_File_Name', 'VARCHAR(255)');
+  await addColumnIfMissing('tblTc_Requests', 'Tc_No', 'VARCHAR(40)');
+
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "tblTc_Requests_tc_no_uidx"
+      ON "tblTc_Requests"("Tc_No")
+      WHERE "Tc_No" IS NOT NULL AND length("Tc_No") > 0
+  `);
 
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS "tblTc_Requests_status_idx"

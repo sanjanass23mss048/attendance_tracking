@@ -6,7 +6,7 @@ import { canAccessSection, hasFullClassAccess } from '../services/schoolRepo.js'
 import { logAdminAudit } from '../services/adminAuditRepo.js';
 import { getRequestTenant } from '../lib/tenantContext.js';
 import { APEX_TENANT } from '../lib/tenantHost.js';
-import { readBranding } from '../lib/schoolBranding.js';
+import { readBranding, readLogoDataUrl } from '../lib/schoolBranding.js';
 import {
   loadAppSettings,
   parseTcWorkflowConfig,
@@ -40,6 +40,8 @@ import {
   getTcHtml,
   buildTcHtml,
   skipToApproved,
+  ensureTcNumber,
+  saveGeneratedTcHtml,
 } from '../services/tcRequestRepo.js';
 
 const router = Router();
@@ -182,6 +184,8 @@ async function buildHtmlForRow(row, { draft = false, signatureOverride = null } 
     reason: row.reason,
     issuedOn: draft ? new Date().toISOString() : row.issuedOn || new Date().toISOString(),
     requestId: row.id,
+    tcNo: row.tcNo || null,
+    logoDataUrl: await readLogoDataUrl(getRequestTenant()),
     signerName,
     signerDesignation,
     signatureDataUrl,
@@ -371,10 +375,13 @@ router.get('/:id/preview', async (req, res) => {
         // fall through to HTML if the file is missing
       }
     }
-    if (doc?.html) {
+    if (doc?.html || !doc?.fileKey) {
+      const tcNo = row.tcNo || (await ensureTcNumber(id));
+      const html = await buildHtmlForRow({ ...row, tcNo }, { draft: false });
+      await saveGeneratedTcHtml(id, html);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'private, no-store');
-      return res.send(doc.html);
+      return res.send(html);
     }
   }
 
@@ -602,21 +609,11 @@ router.post('/:id/generate', async (req, res) => {
 
   const sig = await resolveSignatureForGenerate(req, parsed.data);
   const issuedAt = new Date().toISOString();
-  const html = buildTcHtml({
-    schoolName: await schoolNameFromReq(),
-    studentName: row.studentName,
-    admissionNo: row.admissionNo,
-    rollNo: row.rollNo,
-    classLabel: row.classLabel,
-    parentName: row.parentName,
-    reason: row.reason,
-    issuedOn: issuedAt,
-    requestId: row.id,
-    signerName: sig.signerName,
-    signerDesignation: sig.signerDesignation,
-    signatureDataUrl: sig.signatureDataUrl,
-    draft: false,
-  });
+  const tcNo = await ensureTcNumber(id);
+  const html = await buildHtmlForRow(
+    { ...row, tcNo, issuedOn: issuedAt },
+    { draft: false, signatureOverride: sig }
+  );
 
   // Soft-deactivate first so records stay; never delete.
   await deactivateStudentKeepRecord(row.studentId, req.user.sub);
@@ -689,6 +686,7 @@ router.post('/:id/upload', (req, res, next) => {
   await saveFile(fileKey, req.file.buffer);
 
   await deactivateStudentKeepRecord(row.studentId, req.user.sub);
+  await ensureTcNumber(id);
   const mimeType = String(req.file.mimetype || 'application/octet-stream').toLowerCase();
   const updated = await markIssued(id, {
     issuerId: req.user.sub,
@@ -744,9 +742,16 @@ router.get('/:id/download', async (req, res) => {
     }
   }
 
-  let html = doc?.html || '';
-  if (!html) {
-    html = await buildHtmlForRow(row, { draft: false });
+  let html = '';
+  if (!doc?.fileKey) {
+    const tcNo = row.tcNo || (await ensureTcNumber(id));
+    html = await buildHtmlForRow({ ...row, tcNo }, { draft: false });
+    await saveGeneratedTcHtml(id, html);
+  } else {
+    html = doc?.html || '';
+    if (!html) {
+      html = await buildHtmlForRow(row, { draft: false });
+    }
   }
 
   const filename = `TC-${(row.studentName || 'student').replace(/[^\w.-]+/g, '_')}.html`;

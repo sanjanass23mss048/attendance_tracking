@@ -1,7 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { UPLOAD_ROOT } from './storage.js';
 import { APEX_TENANT } from './tenantHost.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const LOGO_NAMES = ['logo.png', 'logo.jpg', 'logo.jpeg', 'logo.webp'];
 const MIME_EXT = {
@@ -103,6 +106,34 @@ export async function readLogoFile(slug) {
   } catch {
     return null;
   }
+}
+
+async function readDefaultLogoFile() {
+  const candidates = [
+    path.resolve(HERE, '../../../public/attendance-logo.png'),
+    path.resolve(HERE, '../../../dist/attendance-logo.png'),
+    path.resolve(HERE, '../../public/attendance-logo.png'),
+    path.resolve(process.cwd(), '../public/attendance-logo.png'),
+    path.resolve(process.cwd(), '../dist/attendance-logo.png'),
+    path.resolve(process.cwd(), 'public/attendance-logo.png'),
+  ];
+  for (const file of candidates) {
+    try {
+      const buffer = await fs.readFile(file);
+      if (buffer.length) return { buffer, mimeType: 'image/png' };
+    } catch {
+      // try next path
+    }
+  }
+  return null;
+}
+
+/** Data URL for embedding the school logo on print documents (TC, etc.). */
+export async function readLogoDataUrl(slug) {
+  const file = (await readLogoFile(slug)) || (await readDefaultLogoFile());
+  if (!file?.buffer?.length) return null;
+  const mime = file.mimeType || 'image/png';
+  return `data:${mime};base64,${file.buffer.toString('base64')}`;
 }
 
 export function brandingPublicInfo(slug, info) {

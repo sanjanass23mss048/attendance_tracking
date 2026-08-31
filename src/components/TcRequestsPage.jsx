@@ -613,7 +613,9 @@ function TcRow({
     <tr className="align-top hover:bg-slate-50/80">
       <td className="px-4 py-3">
         <p className="font-semibold text-gray-900">{req.studentName}</p>
-        <p className="text-xs text-gray-400">{req.admissionNo || '—'}</p>
+        <p className="text-xs text-gray-400">
+          {req.tcNo ? `TC No. ${req.tcNo}` : req.admissionNo || '—'}
+        </p>
       </td>
       <td className="px-3 py-3 text-gray-700">{req.rollNo || '—'}</td>
       <td className="px-3 py-3 text-gray-700">{req.classLabel || '—'}</td>
@@ -786,6 +788,7 @@ function ViewModal({
         </div>
         <dl className="space-y-2 text-sm">
           {[
+            ['TC No.', req.tcNo || '—'],
             ['Student', req.studentName],
             ['Admission No.', req.admissionNo || '—'],
             ['Roll No.', req.rollNo || '—'],
@@ -960,6 +963,7 @@ function TcPreviewModal({ req, onClose, busy, canGenerate, canUpload, onDownload
             </h3>
             <p className="text-xs text-gray-500">
               {req.studentName}
+              {req.tcNo ? ` · TC No. ${req.tcNo}` : ''}
               {isDraft ? ' · Draft (not issued)' : req.issuedOn ? ` · Issued ${formatDate(req.issuedOn)}` : ''}
             </p>
           </div>

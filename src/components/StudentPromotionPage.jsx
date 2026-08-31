@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -108,6 +108,17 @@ function sectionColumnLabel(targetClass, sectionName) {
   return `${roman} - ${sectionName}`;
 }
 
+const SECTION_ORDER = 'ABCDEFGHIJKL';
+
+function compareSections(a, b) {
+  const ia = SECTION_ORDER.indexOf(String(a?.name || '').trim().toUpperCase());
+  const ib = SECTION_ORDER.indexOf(String(b?.name || '').trim().toUpperCase());
+  const sa = ia < 0 ? 99 : ia;
+  const sb = ib < 0 ? 99 : ib;
+  if (sa !== sb) return sa - sb;
+  return String(a?.name || '').localeCompare(String(b?.name || ''));
+}
+
 /**
  * Meta template already says "Grade {{n}}" — send only the class key
  * (e.g. "1", "UKG"), never "Grade 1".
@@ -203,7 +214,8 @@ function DropColumn({
 
   return (
     <div
-      className={`flex h-[32rem] w-72 shrink-0 flex-col rounded-2xl border bg-white shadow-sm ${
+      id={`promo-col-${columnKey}`}
+      className={`flex h-[32rem] w-64 shrink-0 flex-col rounded-2xl border bg-white shadow-sm ${
         tone === 'unallocated'
           ? 'border-rose-100'
           : tone === 'demoted'
@@ -301,6 +313,7 @@ export default function StudentPromotionPage() {
   const [allocation, setAllocation] = useState({});
   const [draggingId, setDraggingId] = useState(null);
   const [sending, setSending] = useState(false);
+  const boardRef = useRef(null);
 
   const group = CLASS_GROUPS.find((g) => g.id === groupId) || CLASS_GROUPS[0];
   const yearLabel =
@@ -313,9 +326,7 @@ export default function StudentPromotionPage() {
       const source = classByName(classes, group.sourceClass);
       const target = classByName(classes, group.targetClass);
 
-      const sections = target?.sections?.length
-        ? [...target.sections].sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        : [];
+      const sections = target?.sections?.length ? [...target.sections].sort(compareSections) : [];
       setTargetSections(sections);
 
       if (!source?.sections?.length) {
@@ -524,6 +535,14 @@ export default function StudentPromotionPage() {
     const next = {};
     for (const s of sourceStudents) next[s.id] = null;
     setAllocation(next);
+    try {
+      const { classes } = await getClasses({ force: true });
+      const target = classByName(classes, group.targetClass);
+      const sections = target?.sections?.length ? [...target.sections].sort(compareSections) : [];
+      setTargetSections(sections);
+    } catch {
+      /* keep sections from the last full load */
+    }
     setStep(2);
   };
 
@@ -876,57 +895,106 @@ export default function StudentPromotionPage() {
             </button>
           </div>
 
-          <div className="-mx-1 overflow-x-auto pb-2">
-            <div className="flex items-stretch gap-4 px-1">
-              {demotedCount > 0 && (
-                <DropColumn
-                  title={`Demoted / retained (${formatClassDisplay(group.sourceClass)})`}
-                  count={demotedCount}
-                  tone="demoted"
-                  students={demotedStudents}
-                  columnKey="demoted"
-                  dropHint=""
-                  onDropStudent={() => {}}
-                  draggingId={draggingId}
-                  setDraggingId={setDraggingId}
-                  sourceClass={group.sourceClass}
-                />
-              )}
-              <DropColumn
-                title="Unallocated (promoting)"
-                count={byBucket.unallocated.length}
-                tone="unallocated"
-                students={byBucket.unallocated}
-                columnKey="unallocated"
-                dropHint="Drop students here"
-                onDropStudent={moveStudent}
-                draggingId={draggingId}
-                setDraggingId={setDraggingId}
-                sourceClass={group.sourceClass}
-              />
-              {targetSections.length === 0 ? (
-                <div className="flex h-[32rem] w-72 shrink-0 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white px-6 text-center text-sm text-gray-500">
-                  No {formatClassDisplay(group.targetClass)} sections found. Add sections under
-                  Classes &amp; Sections first.
-                </div>
-              ) : (
-                targetSections.map((sec) => (
-                  <DropColumn
+          {targetSections.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-gray-700">
+                {formatClassDisplay(group.targetClass)} ·{' '}
+                <strong>{targetSections.length} sections</strong>
+                <span className="ml-1.5 text-xs font-normal text-gray-500">
+                  ({targetSections.map((s) => s.name).join(', ')}) — jump or scroll sideways
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {targetSections.map((sec) => (
+                  <button
                     key={sec.id}
-                    title={`${sectionColumnLabel(group.targetClass, sec.name)} Students`}
-                    count={(byBucket.bySection[sec.id] || []).length}
-                    tone="section"
-                    students={byBucket.bySection[sec.id] || []}
-                    columnKey={sec.id}
-                    dropHint="Drop students here"
-                    onDropStudent={moveStudent}
-                    onRemove={(id) => moveStudent(id, 'unallocated')}
+                    type="button"
+                    onClick={() => {
+                      document
+                        .getElementById(`promo-col-${sec.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    }}
+                    className="inline-flex min-w-[2.25rem] items-center justify-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-50"
+                  >
+                    {sec.name}
+                    <span className="tabular-nums text-[10px] font-medium text-violet-500">
+                      {(byBucket.bySection[sec.id] || []).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Scroll sections left"
+              onClick={() => boardRef.current?.scrollBy({ left: -280, behavior: 'smooth' })}
+              className="absolute left-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border border-gray-200 bg-white p-1.5 text-gray-600 shadow-sm hover:bg-gray-50 sm:inline-flex"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <button
+              type="button"
+              aria-label="Scroll sections right"
+              onClick={() => boardRef.current?.scrollBy({ left: 280, behavior: 'smooth' })}
+              className="absolute right-0 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border border-gray-200 bg-white p-1.5 text-gray-600 shadow-sm hover:bg-gray-50 sm:inline-flex"
+            >
+              <ArrowRight size={16} />
+            </button>
+            <div ref={boardRef} className="-mx-1 overflow-x-auto pb-2 sm:px-8">
+              <div className="flex items-stretch gap-4 px-1">
+                {demotedCount > 0 && (
+                  <DropColumn
+                    title={`Demoted / retained (${formatClassDisplay(group.sourceClass)})`}
+                    count={demotedCount}
+                    tone="demoted"
+                    students={demotedStudents}
+                    columnKey="demoted"
+                    dropHint=""
+                    onDropStudent={() => {}}
                     draggingId={draggingId}
                     setDraggingId={setDraggingId}
                     sourceClass={group.sourceClass}
                   />
-                ))
-              )}
+                )}
+                <DropColumn
+                  title="Unallocated (promoting)"
+                  count={byBucket.unallocated.length}
+                  tone="unallocated"
+                  students={byBucket.unallocated}
+                  columnKey="unallocated"
+                  dropHint="Drop students here"
+                  onDropStudent={moveStudent}
+                  draggingId={draggingId}
+                  setDraggingId={setDraggingId}
+                  sourceClass={group.sourceClass}
+                />
+                {targetSections.length === 0 ? (
+                  <div className="flex h-[32rem] w-64 shrink-0 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white px-6 text-center text-sm text-gray-500">
+                    No {formatClassDisplay(group.targetClass)} sections found. Add sections under
+                    Classes &amp; Sections first.
+                  </div>
+                ) : (
+                  targetSections.map((sec) => (
+                    <DropColumn
+                      key={sec.id}
+                      title={`${sectionColumnLabel(group.targetClass, sec.name)} Students`}
+                      count={(byBucket.bySection[sec.id] || []).length}
+                      tone="section"
+                      students={byBucket.bySection[sec.id] || []}
+                      columnKey={sec.id}
+                      dropHint="Drop students here"
+                      onDropStudent={moveStudent}
+                      onRemove={(id) => moveStudent(id, 'unallocated')}
+                      draggingId={draggingId}
+                      setDraggingId={setDraggingId}
+                      sourceClass={group.sourceClass}
+                    />
+                  ))
+                )}
+              </div>
             </div>
           </div>
 
