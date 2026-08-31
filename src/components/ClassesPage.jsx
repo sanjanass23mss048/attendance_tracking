@@ -121,18 +121,27 @@ function StatCard({ label, value }) {
   );
 }
 
-function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
+function TimetableGrid({ periods, grid, editMode = false, onCellClick, compact = false }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200">
-      <table className="min-w-full border-collapse text-sm">
+    <div className="min-h-0 overflow-auto rounded-xl border border-gray-200">
+      <table className={`min-w-full border-collapse ${compact ? 'text-xs' : 'text-sm'}`}>
         <thead>
           <tr className="bg-indigo-950 text-white">
-            <th className="sticky left-0 z-10 min-w-[110px] bg-indigo-950 px-3 py-3 text-left font-semibold">
+            <th
+              className={`sticky left-0 z-10 min-w-[110px] bg-indigo-950 px-3 text-left font-semibold ${
+                compact ? 'py-1.5' : 'py-3'
+              }`}
+            >
               <div>Day</div>
               <div className="text-[10px] font-normal text-indigo-300">Period / Time</div>
             </th>
             {periods.map((slot, periodIdx) => (
-              <th key={slotRowKey(slot, periodIdx)} className="min-w-[120px] px-2 py-3 text-center font-semibold">
+              <th
+                key={slotRowKey(slot, periodIdx)}
+                className={`min-w-[120px] px-2 text-center font-semibold ${
+                  compact ? 'py-1.5' : 'py-3'
+                }`}
+              >
                 <div className="text-base">{isBreakSlot(slot) ? slot.label : slot.period}</div>
                 <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal leading-tight text-indigo-200">
                   {slot.time}
@@ -144,7 +153,11 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
         <tbody>
           {TIMETABLE_DAYS.map((day, dayIdx) => (
             <tr key={day} className="border-t border-gray-100">
-              <td className="sticky left-0 z-10 bg-white px-3 py-2.5 align-middle">
+              <td
+                className={`sticky left-0 z-10 bg-white px-3 align-middle ${
+                  compact ? 'py-1.5' : 'py-2.5'
+                }`}
+              >
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-gray-900">{day}</span>
                   <Sun size={14} className="text-amber-400" aria-hidden />
@@ -169,20 +182,32 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
                 if (isEmpty) {
                   if (isBreakSlot(slot)) {
                     return (
-                      <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2">
-                        <div className="rounded-xl bg-amber-50 px-2 py-4 text-center text-xs font-semibold text-amber-800">
+                      <td
+                        key={slotRowKey(slot, periodIdx)}
+                        className={`px-1.5 ${compact ? 'py-1' : 'py-2'}`}
+                      >
+                        <div
+                          className={`rounded-xl bg-amber-50 px-2 text-center text-xs font-semibold text-amber-800 ${
+                            compact ? 'py-2' : 'py-4'
+                          }`}
+                        >
                           {slot.label}
                         </div>
                       </td>
                     );
                   }
                   return (
-                    <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2">
+                    <td
+                      key={slotRowKey(slot, periodIdx)}
+                      className={`px-1.5 ${compact ? 'py-1' : 'py-2'}`}
+                    >
                       <button
                         type="button"
                         disabled={!editMode}
                         onClick={openEditor}
-                        className={`w-full rounded-xl border border-dashed border-gray-200 px-2 py-4 text-center text-xs text-gray-400 ${
+                        className={`w-full rounded-xl border border-dashed border-gray-200 px-2 text-center text-xs text-gray-400 ${
+                          compact ? 'py-2' : 'py-4'
+                        } ${
                           editMode
                             ? 'cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 hover:text-indigo-600'
                             : ''
@@ -196,11 +221,14 @@ function TimetableGrid({ periods, grid, editMode = false, onCellClick }) {
                 const Icon = SUBJECT_ICONS[entry.subject] || BookOpen;
                 const CardTag = editMode ? 'button' : 'div';
                 return (
-                  <td key={slotRowKey(slot, periodIdx)} className="px-1.5 py-2 align-top">
+                  <td
+                    key={slotRowKey(slot, periodIdx)}
+                    className={`px-1.5 align-top ${compact ? 'py-1' : 'py-2'}`}
+                  >
                     <CardTag
                       type={editMode ? 'button' : undefined}
                       onClick={editMode ? openEditor : undefined}
-                      className={`w-full rounded-xl border px-2.5 py-2.5 text-left ${subjectClass(entry.subject)} ${
+                      className={`w-full rounded-xl border px-2.5 text-left ${compact ? 'py-1.5' : 'py-2.5'} ${subjectClass(entry.subject)} ${
                         editMode ? 'cursor-pointer ring-offset-1 hover:ring-2 hover:ring-indigo-400' : ''
                       }`}
                     >
@@ -654,10 +682,10 @@ export default function ClassesPage({ initialClassName } = {}) {
         <div
           ref={timetablePanelRef}
           className={`min-w-0 flex-1 rounded-xl border border-gray-200 bg-white shadow-sm ${
-            isFullscreen ? 'h-screen overflow-y-auto rounded-none border-0' : ''
+            isFullscreen ? 'flex h-screen flex-col overflow-hidden rounded-none border-0' : ''
           }`}
         >
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+          <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-bold text-gray-900">
@@ -699,7 +727,7 @@ export default function ClassesPage({ initialClassName } = {}) {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 overflow-x-auto border-b border-gray-100 px-3">
+          <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-100 px-3">
             {TABS.map((tab) => (
               <button
                 key={tab}
@@ -716,7 +744,11 @@ export default function ClassesPage({ initialClassName } = {}) {
             ))}
           </div>
 
-          <div className="space-y-4 p-5">
+          <div
+            className={`space-y-4 p-5 ${
+              isFullscreen ? 'min-h-0 flex-1 overflow-y-auto' : ''
+            }`}
+          >
             {activeTab === 'Sections' && (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {sections.map((sec) => (
@@ -845,6 +877,7 @@ export default function ClassesPage({ initialClassName } = {}) {
                   grid={timetableGrid}
                   editMode={editMode}
                   onCellClick={setEditCell}
+                  compact={isFullscreen}
                 />
 
                 <TimetableAddPeriodModal
