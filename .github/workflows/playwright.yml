@@ -36,12 +36,13 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/attendance
       JWT_SECRET: e2e-ci-jwt-secret-not-for-production
       PORT: '4000'
-      NODE_ENV: production
       CLIENT_ORIGIN: http://127.0.0.1:4000,http://localhost:4000
       SCHOOL_TIMEZONE: Asia/Kolkata
       E2E_BASE_URL: http://127.0.0.1:4000/
       E2E_EMAIL: incharge@brightfuture.edu.in
       E2E_PASSWORD: password123
+      # NODE_ENV=production is set only when starting the server (webServer),
+      # otherwise npm ci skips Vite and other devDependencies.
 
     steps:
       - name: Checkout
