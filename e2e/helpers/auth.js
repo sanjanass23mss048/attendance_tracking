@@ -1,20 +1,25 @@
 import { expect } from '@playwright/test';
 
+function envOr(name, fallback) {
+  const value = (process.env[name] || '').trim();
+  return value || fallback;
+}
+
 /** Deployed school under test — override with E2E_BASE_URL in CI / local .env */
-export const SCHOOL_URL = (
-  process.env.E2E_BASE_URL ||
+export const SCHOOL_URL = envOr(
+  'E2E_BASE_URL',
   'https://st-mary.rioassetmanagement.info/'
 ).replace(/\/?$/, '/');
 
-export const E2E_EMAIL = process.env.E2E_EMAIL || 'niranjwn123@gmail.com';
-export const E2E_PASSWORD = process.env.E2E_PASSWORD || 'Initial2';
+export const E2E_EMAIL = envOr('E2E_EMAIL', 'niranjwn123@gmail.com');
+export const E2E_PASSWORD = envOr('E2E_PASSWORD', 'Initial2');
 
 export async function loginAsAdmin(page) {
   const dashboard = page.getByRole('heading', { name: 'Dashboard', exact: true });
 
   for (let attempt = 1; attempt <= 2; attempt++) {
-    await page.goto('/');
-    await page.getByRole('textbox', { name: 'Email' }).waitFor({ timeout: 20000 });
+    await page.goto(SCHOOL_URL, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('textbox', { name: 'Email' }).waitFor({ timeout: 30000 });
     await page.getByRole('textbox', { name: 'Email' }).fill(E2E_EMAIL);
     await page.getByRole('textbox', { name: 'Password' }).fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();

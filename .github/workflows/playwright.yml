@@ -21,6 +21,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify E2E secrets
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          missing=0
+          for name in E2E_BASE_URL E2E_EMAIL E2E_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is empty. Add it under Settings → Secrets and variables → Actions → Secrets (not Variables)."
+              missing=1
+            else
+              echo "$name is set"
+            fi
+          done
+          exit $missing
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
