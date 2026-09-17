@@ -31,6 +31,12 @@ server/uploads
 *.sln
 *.sw?
 
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # Local recovery / scratch
 _recovered_writes.json
 
