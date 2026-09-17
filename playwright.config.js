@@ -2,7 +2,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = (
-  process.env.E2E_BASE_URL ||
+  (process.env.E2E_BASE_URL || '').trim() ||
   'https://st-mary.rioassetmanagement.info/'
 ).replace(/\/?$/, '/');
 
