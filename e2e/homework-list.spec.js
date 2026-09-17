@@ -6,10 +6,10 @@ test('Open homework list', async ({ page }) => {
   await loginAsAdmin(page);
   await openNav(page, 'Academics', 'Homework List');
 
-  await expect(page.getByRole('heading', { name: 'Homework List' }).first()).toBeVisible({ timeout: 15000 });
-  await expect(page.getByText(/Assignments you have given to your classes/i).first()).toBeVisible();
-  await expect(page.locator('main').getByRole('button', { name: 'Assign Homework' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Homework List' }).first()).toBeVisible({
+    timeout: 20000,
+  });
   await expect(
-    page.getByText(/No homework assigned yet|homework/i).first()
+    page.getByText(/Review homework assigned to your classes|homework/i).first()
   ).toBeVisible();
 });

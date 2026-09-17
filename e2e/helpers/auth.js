@@ -20,6 +20,10 @@ export async function loginAsAdmin(page) {
   const loginError = page.locator('form div').filter({
     hasText: /invalid|incorrect|failed|error|unable/i,
   });
+  const changePassword = page
+    .getByText('Change password', { exact: true })
+    .or(page.getByRole('button', { name: 'Update password' }));
+  const portalCrash = page.getByText(/Could not load the school portal/i);
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -42,21 +46,13 @@ export async function loginAsAdmin(page) {
       // Fall through — UI may still show an error or dashboard.
     }
 
-    // Do NOT wait for "Sign in" to disappear — while loading the button
-    // renames to "Signing in…", which falsely looks like a successful login.
-
-    const goToDashboard = page.getByRole('button', { name: 'Go to Dashboard' }).first();
-    const changePassword = page
-      .getByRole('heading', { name: /change password|update password/i })
-      .first()
-      .or(page.getByText(/must change your password|set a new password/i).first());
-    const portalCrash = page.getByText(/Could not load the school portal/i);
+    // Do NOT wait for / click sidebar "Go to Dashboard" (aria-label on brand).
+    // That button is often off-viewport and is not a post-login CTA.
 
     try {
       await Promise.race([
         dashboard.first().waitFor({ state: 'visible', timeout: 45000 }),
-        goToDashboard.waitFor({ state: 'visible', timeout: 45000 }),
-        changePassword.waitFor({ state: 'visible', timeout: 45000 }),
+        changePassword.first().waitFor({ state: 'visible', timeout: 45000 }),
         loginError.first().waitFor({ state: 'visible', timeout: 45000 }),
         portalCrash.waitFor({ state: 'visible', timeout: 45000 }),
       ]);
@@ -86,14 +82,10 @@ export async function loginAsAdmin(page) {
       continue;
     }
 
-    if (await changePassword.isVisible().catch(() => false)) {
+    if (await changePassword.first().isVisible().catch(() => false)) {
       throw new Error(
         'Login succeeded but account requires a password change before Dashboard is available.'
       );
-    }
-
-    if (await goToDashboard.isVisible().catch(() => false)) {
-      await goToDashboard.click();
     }
 
     await expect(dashboard.first()).toBeVisible({ timeout: 20000 });
@@ -102,17 +94,30 @@ export async function loginAsAdmin(page) {
 }
 
 export async function openSidebar(page) {
-  const sidebarNav = page
-    .getByRole('navigation')
-    .getByRole('button', { name: 'Dashboard', exact: true });
-  if (await sidebarNav.isVisible().catch(() => false)) {
-    return;
+  // Sidebar is off-canvas until hovered/pinned/opened — force it open for tests.
+  const aside = page.locator('aside').first();
+  if (await aside.count()) {
+    await aside.evaluate((el) => {
+      el.classList.remove('-translate-x-full');
+      el.classList.add('translate-x-0');
+    }).catch(() => {});
+  }
+
+  const pin = page.getByRole('button', { name: 'Pin sidebar' });
+  if (await pin.count()) {
+    await pin.dispatchEvent('click').catch(() => {});
   }
 
   const openMenu = page.getByRole('button', { name: 'Open menu' });
   if (await openMenu.isVisible().catch(() => false)) {
-    await openMenu.click({ force: true });
+    await openMenu.click({ force: true }).catch(async () => {
+      await openMenu.dispatchEvent('click');
+    });
   }
+
+  await expect(
+    page.getByRole('navigation').getByRole('button', { name: 'Dashboard', exact: true })
+  ).toBeVisible({ timeout: 10000 });
 }
 
 export async function openNav(page, ...names) {
@@ -123,7 +128,10 @@ export async function openNav(page, ...names) {
 
   await openSidebar(page);
 
+  const nav = page.getByRole('navigation');
   for (const name of names) {
-    await page.getByRole('button', { name, exact: true }).dispatchEvent('click');
+    const btn = nav.getByRole('button', { name, exact: true });
+    await expect(btn.first()).toBeVisible({ timeout: 20000 });
+    await btn.first().dispatchEvent('click');
   }
 }
