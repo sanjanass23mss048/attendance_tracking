@@ -63,8 +63,10 @@ jobs:
         run: npx prisma generate
         working-directory: server
 
-      - name: Migrate database
-        run: npx prisma migrate deploy
+      # migrate deploy cannot bootstrap a fresh CI DB: older migrations create
+      # User/Class while the live schema is tblUsers/tblClass (legacy VPS DB).
+      - name: Sync database schema
+        run: npx prisma db push --accept-data-loss --skip-generate
         working-directory: server
 
       - name: Seed database
